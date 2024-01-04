@@ -1,3 +1,6 @@
 db_data/
 .pytest_cache
 .env
+node_modules/
+__pycache__/
+*.egg-info/
