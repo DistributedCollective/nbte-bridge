@@ -1,5 +1,34 @@
 version: "3.8"
 services:
+  bitcoin-regtest:
+    image:
+      sovryn-bitcoind-regtest:latest
+
+    build:
+      context: ./local_dev/bitcoind-regtest/
+
+    environment:
+     # NOTE: these "secrets" are supposed to be there -- they are not used in the real world. Don't report them.
+     - NODE1_HDSEED=cTj4tA23bVHAnA42bYGGPfv13G2dfuChxtenJKsZffkCVMvofcfC
+     - NODE2_HDSEED=cUroJKmyKxRJVaeKzprMZExtPoZqt9HPnfhhJvAqtprWCVsuzUBU
+     - NODE3_HDSEED=cSsv1YhxQqce8ywLiwhMjKcq9L1J7J2wm66zX7kfB1eLBBBaTt8N
+     - USER_HDSEED=cUrw2SDAMapEqZ2pQnh5angJHqzGWvPMPdJNJWTDFagHMcdcciu8
+     # sorted !!
+     - PUBKEYS=["02f2bfc7a7d86f04d675083c7157d95c5741e85ff69b0c1357059fe1ee52271218","0380d87958cc14e1178f55584ee437b05c155a5a7d9f1951beb927195abaa7a7ed","0397ff0a671bea40a8346d7487810f3a96be95732717e5c568a7c8090a73a6c88b"]
+     - MULTISIG_ADDRESS=bcrt1qtxysk2megp39dnpw9va32huk5fesrlvutl0zdpc29asar4hfkrlqs2kzv5
+     # replenisher multisig
+
+#rep1.txt:# extended private masterkey: tprv8ZgxMBicQKsPdn254GKf2bYkZkX7qYSTfp1Nd1cZ8mTVsd12ni2K9CmredbD7FY6UvJTfBXG3uJiF24hen5vycv1TUmS9g9MSGLbht9g8FK
+#rep2.txt:# extended private masterkey: tprv8ZgxMBicQKsPevFzbHT9BG3m1m7ZtjniHW5UzECpbAPPMUdSisBVVBSJtZzJLWWJ4157NG9wrFqSKbsYBEhj5pWvBuncJANC2EuLi8oRawM
+
+     - 'REPLENISHER_SOURCE_DESCRIPTOR=wsh(sortedmulti(2,tpubD6NzVbkrYhZ4XF3rwuzFS1Cs8n33zsdNF7c9uXerZ3Fti7FoR6quKhPipoXiSY8EXVhwvtCQjFxXMZJKoJNGyuXzaGVQJH6NpjXvo4jdMeQ/0/*,tpubD6NzVbkrYhZ4YPHnUw7jafhsandW44ycrogGGkF81SBnBxtDMG15fg4B4gzdNufXC6PjchXmfY4s2MsS77KDpBGJ8qRxvx4RUfqSzyqcHPq/0/*))#qjj6up2r'
+     - REPLENISHER1_XPRV=tprv8ZgxMBicQKsPdn254GKf2bYkZkX7qYSTfp1Nd1cZ8mTVsd12ni2K9CmredbD7FY6UvJTfBXG3uJiF24hen5vycv1TUmS9g9MSGLbht9g8FK
+     - REPLENISHER2_XPRV=tprv8ZgxMBicQKsPevFzbHT9BG3m1m7ZtjniHW5UzECpbAPPMUdSisBVVBSJtZzJLWWJ4157NG9wrFqSKbsYBEhj5pWvBuncJANC2EuLi8oRawM
+     - REPLENISHER_ADDRESS=bcrt1qh0j5lcsvezdnrljsfcuetwrg7xen4a6ydmx9pt363e27rph2mntslwp447
+
+    ports:
+      - 18443:18443
+
   bridge-node:
     image: bridge_node:latest
     build:

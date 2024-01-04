@@ -7,9 +7,10 @@ init:
 	# Could add to pyproject toml but we want to run pre-commit hooks
 	# to also other than python files
 	pip install pre-commit
+	pre-commit install
 
-.PHONY: deps
-deps:
+.PHONY: install
+install:
 	cd bridge_node && poetry config virtualenvs.in-project true && poetry install
 
 .PHONY: serve
@@ -37,6 +38,16 @@ format:
 migrate:
 	cd bridge_node && poetry run alembic -n dev_from_outside upgrade head
 
-.PHONY: install
-install:
+.PHONY: build-python
+build-python:
 	cd bridge_node && poetry install && poetry build
+
+.PHONY: build-regtest-bitcoin
+build-regtest-bitcoin:
+	@(cd local_dev/bitcoind-regtest \
+	  && docker build . -t containerregistry.sovryn.app/sovryn-bitcoind-base:latest -f Dockerfile.bitcoind-base)
+
+.PHONY: build-regtest-bitcoin-parallel
+build-regtest-bitcoin-parallel:
+	@(cd local_dev/bitcoind-regtest \
+	  && docker build . --build-arg BITCOIND_PARALLEL=-j8 -t containerregistry.sovryn.app/sovryn-bitcoind-base:latest -f Dockerfile.bitcoind-base)
