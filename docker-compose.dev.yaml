@@ -47,7 +47,7 @@ services:
       - 18545:8545
 
 
-  bridge-node:
+  bridge-node-1:
     image: bridge_node:latest
     build:
       context: bridge_node
@@ -59,6 +59,24 @@ services:
     #   test: ["CMD", "curl", "-f", "http://localhost:6543/health"]
     #   interval: 120s
     #   timeout: 1s
+
+  bridge-node-2:
+    image: bridge_node:latest
+    build:
+      context: bridge_node
+    restart: always
+    depends_on:
+      - postgres
+      - bridge-node-1
+
+  bridge-node-3:
+    image: bridge_node:latest
+    build:
+      context: bridge_node
+    restart: always
+    depends_on:
+      - postgres
+      - bridge-node-2
 
   postgres:
     image: bridge-postgres:latest
