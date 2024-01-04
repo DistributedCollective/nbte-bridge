@@ -1,0 +1,59 @@
+[tool.poetry]
+name = "SovrynRollupBridge"
+version = "0.0"
+description = "SovrynRollupBridge"
+authors = ["Sovryn <info@interjektio.fi>"]
+license = "BSD"
+readme = ["README.md"]
+repository = "https://github.com/interjektio/<your-repo>"
+classifiers = [
+    "Programming Language :: Python",
+    "Framework :: Pyramid",
+    "Programming Language :: Python :: 3 :: Only",
+    "Topic :: Internet :: WWW/HTTP",
+    "Topic :: Internet :: WWW/HTTP :: WSGI :: Application",
+]
+keywords = ["web", "wsgi", "tet", "pyramid"]
+packages = [{ include = "bridge" }]
+
+[tool.poetry.plugins."paste.app_factory"]
+main = "bridge:main"
+
+[build-system]
+requires = ["poetry-core>=1.0.0"]
+build-backend = "poetry.core.masonry.api"
+
+[tool.poetry.dependencies]
+python = "^3.10"
+transaction = "*"
+waitress = "*"
+"zope.sqlalchemy" = "*"
+SQLAlchemy = ">=2.0"
+alembic = "*"
+psycopg2 = "*"
+click = "^7.0"
+
+[tool.poetry.group.dev.dependencies]
+pytest = "^7.4.3"
+pytest-mock = "^3.12.0"
+coverage = { extras = ["toml"], version = "^7.3.4" }
+pytest-cov = "^4.1.0"
+ruff = "^0.1.11"
+
+[tool.pytest]
+testpaths = ["tests"]
+addopts = ["--cov", "--cov-report", "term-missing"]
+python_files = ["test_*.py", "tests.py", "*_tests.py"]
+
+[tool.coverage.run]
+branch = true
+source = ["bridge"]
+
+[tool.coverage.report]
+show_missing = true
+fail_under = 90
+
+[tool.ruff]
+line-length = 100
+indent-width = 4
+target-version = "py310"

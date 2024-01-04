@@ -1,0 +1,42 @@
+fail_fast: false
+exclude: |
+  (?x)^(
+      .*\.(svg)|
+      bridge_backend/migrations/.*
+  )$
+repos:
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v4.4.0
+    hooks:
+      - id: check-added-large-files
+      - id: check-case-conflict
+      - id: check-executables-have-shebangs
+      - id: check-json
+      - id: check-merge-conflict
+      - id: check-toml
+      - id: check-yaml
+        args:
+          - "--allow-multiple-documents"
+      - id: debug-statements
+      - id: end-of-file-fixer
+      - id: fix-byte-order-marker
+      - id: trailing-whitespace
+
+  - repo: https://github.com/astral-sh/ruff-pre-commit
+    rev: v0.1.11
+    hooks:
+      # Run the linter.
+      - id: ruff
+        args: [--fix]
+      # Run the formatter.
+      - id: ruff-format
+
+  - repo: https://github.com/python-poetry/poetry
+    rev: "1.7.1"
+    hooks:
+      - id: poetry-check
+        args: ["-C", "./bridge_backend"]
+      - id: poetry-lock
+        args: ["-C", "./bridge_backend"]
+      - id: poetry-install
+        args: ["-C", "./bridge_backend"]

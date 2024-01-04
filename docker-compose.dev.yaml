@@ -1,0 +1,35 @@
+version: "3.8"
+services:
+  bridge-node:
+    image: bridge_node:latest
+    build:
+      context: bridge_node
+    restart: always
+    depends_on:
+      - postgres
+    # TODO: needs to be added later, this does not work without pyramid
+    # healthcheck:
+    #   test: ["CMD", "curl", "-f", "http://localhost:6543/health"]
+    #   interval: 120s
+    #   timeout: 1s
+
+  postgres:
+    image: bridge-postgres:latest
+    build:
+      context: ./docker/postgres
+    restart: always
+    volumes:
+      - ./db_data:/var/lib/postgresql/data
+      - ./docker/postgres/initsql:/docker-entrypoint-initdb.d
+    environment:
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+    ports:
+      # VERY IMPORTANT: no connections outside localhost
+      - 127.0.0.1:65432:5432
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U bridge -d bridge -h postgres"]
+      interval: 1s
+      timeout: 120s
+
+volumes:
+  db_data:
