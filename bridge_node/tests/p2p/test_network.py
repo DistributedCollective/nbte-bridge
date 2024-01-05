@@ -1,6 +1,6 @@
 from collections import namedtuple
 
-from bridge.p2p.network import P2PNetwork
+from bridge.p2p.network import Network, PyroNetwork
 
 
 class TransportServerStub:
@@ -13,16 +13,58 @@ class TransportServerStub:
     def init(*args, **kwargs):
         pass
 
+    def loop(*args, **kwargs):
+        pass
 
-def test_methods_can_be_exposed_to_network(mocker):
-    # I don't want to create sockets for unit tests
 
+class PeerStub:
+    def __init__(self, *args, **kwargs):
+        self.messages = []
+
+        PyroUri = namedtuple("PyroUri", ["object", "location"])
+        self._pyroUri = PyroUri(object="test", location="peerstub:none")
+
+    def __call__(self, *args, **kwargs):
+        return self
+
+    def receive(self, msg):
+        self.messages.append(msg)
+
+
+def test_abstract_network_class_can_be_inherited():
+    class TestNetwork(Network):
+        def __init__(self, *, node_id, host, port):
+            pass
+
+        def broadcast(self, msg):
+            pass
+
+        def add_listener(self, listener):
+            pass
+
+        def receive(self, msg):
+            pass
+
+    network = TestNetwork(
+        node_id="test",
+        host="localhost",
+        port=8080,
+    )
+
+    assert network is not None
+
+
+def test_methods_can_be_exposed_to_pyro_network(mocker):
     mocker.patch(
         "Pyro5.svr_threads.SocketServer_Threadpool",
         TransportServerStub,
-    )
+    )  # I don't want to actually start a server in an unit test
 
-    network = P2PNetwork("localhost", 8080)
+    network = PyroNetwork(
+        node_id="test",
+        host="localhost",
+        port=8080,
+    )
 
     class TestObject:
         def test_method(self):
@@ -35,13 +77,27 @@ def test_methods_can_be_exposed_to_network(mocker):
     assert network.daemon.uriFor(test_object).object == "test_object"
 
 
-def test_network_can_broadcast_messages(monkeypatch):
-    actual_messages = []
+def test_pyro_network_can_broadcast_messages(mocker):
+    mocker.patch(
+        "Pyro5.svr_threads.SocketServer_Threadpool",
+        TransportServerStub,
+    )
 
-    monkeypatch.setattr(P2PNetwork, "receive", lambda message: actual_messages.append(message))
+    peer = PeerStub()
+    mocker.patch("Pyro5.api.Proxy", peer)
 
-    network = P2PNetwork("localhost", 8080)
+    # TODO: I don't want to actually start a server in an unit test
+    # so I mock the peer.
+    # This tests mainly our own code, not Pyro5.
+    # Actual integration tests are needed later
 
-    network.broadcast("test")
+    network = PyroNetwork(
+        node_id="test",
+        host="localhost",
+        port=8080,
+    )
 
-    assert actual_messages == ["test"]
+    message = "The Abyss returns even the boldest gaze."
+    network.broadcast(message)
+
+    assert message in peer.messages

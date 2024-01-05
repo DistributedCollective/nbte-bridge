@@ -24,7 +24,11 @@ lint:
 
 .PHONY: test
 test:
-	cd bridge_node && poetry run python -m pytest
+	cd bridge_node && poetry run python -m pytest --cov
+
+.PHONY: unit-test
+unit-test:
+	cd bridge_node && poetry run python -m pytest -m "not integration"
 
 .PHONY: coverage
 coverage:

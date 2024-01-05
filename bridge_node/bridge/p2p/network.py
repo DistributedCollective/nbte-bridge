@@ -1,9 +1,26 @@
-import Pyro5.api
+import abc
+import logging
 import threading
 
+import Pyro5.api
 
-class P2PNetwork:
-    def __init__(self, node_id, host, port):
+
+class Network(abc.ABC):
+    @abc.abstractmethod
+    def broadcast(self, msg):
+        pass
+
+    @abc.abstractmethod
+    def add_listener(self, listener):
+        pass
+
+    @abc.abstractmethod
+    def receive(self, msg):
+        pass
+
+
+class PyroNetwork(Network):
+    def __init__(self, *, node_id, host, port):
         self.daemon = Pyro5.api.Daemon(host=host, port=port)
         self.host = host
         self.port = port
@@ -16,6 +33,29 @@ class P2PNetwork:
 
         self.peers = self.get_peers()
         self.listeners = []
+
+        self.start()
+
+    def broadcast(self, msg):
+        logging.debug(
+            "Broadcasting to all peers: ",
+            [peer._pyroUri.location for peer in self.peers],
+        )
+
+        for peer in self.peers:
+            peer.receive(msg)
+
+    @Pyro5.api.expose
+    def receive(self, msg):
+        logging.debug("Forwarding message to listeners: ", msg)
+
+        for listener in self.listeners:
+            listener(msg)
+
+    def add_listener(self, listener):
+        self.listeners.append(listener)
+
+        logging.debug("Listener added to network: ", listener)
 
     def get_peers(self):
         peers = [
@@ -33,23 +73,7 @@ class P2PNetwork:
     def get_peer_uri(self, peer_id, peer_host):
         return f"PYRO:{peer_id}@{peer_host}:{self.port}"
 
-    def broadcast(self, msg):
-        print("Broadcasting to all peers: ", [peer._pyroUri.location for peer in self.peers])
-
-        for peer in self.peers:
-            peer.receive(msg)
-
-    @Pyro5.api.expose
-    def receive(self, msg):
-        print("Forwarding message to listeners: ", msg)
-
-        for listener in self.listeners:
-            listener(msg)
-
-    def add_listener(self, listener):
-        self.listeners.append(listener)
-
     def start(self):
-        print("Starting daemon loop")
+        logging.info("Starting Pyro daemon loop")
         self.thread = threading.Thread(target=self.daemon.requestLoop)
         self.thread.start()
