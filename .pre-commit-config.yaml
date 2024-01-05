@@ -2,7 +2,7 @@ fail_fast: false
 exclude: |
   (?x)^(
       .*\.(svg)|
-      bridge_backend/migrations/.*
+      bridge_node/migrations/.*
   )$
 repos:
   - repo: https://github.com/pre-commit/pre-commit-hooks
@@ -35,8 +35,8 @@ repos:
     rev: "1.7.1"
     hooks:
       - id: poetry-check
-        args: ["-C", "./bridge_backend"]
+        args: ["-C", "./bridge_node"]
       - id: poetry-lock
-        args: ["-C", "./bridge_backend"]
+        args: ["-C", "./bridge_node"]
       - id: poetry-install
-        args: ["-C", "./bridge_backend"]
+        args: ["-C", "./bridge_node"]

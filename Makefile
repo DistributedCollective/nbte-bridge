@@ -24,7 +24,7 @@ lint:
 
 .PHONY: test
 test:
-	cd bridge_node && poetry run pytest
+	cd bridge_node && poetry run python -m pytest
 
 .PHONY: coverage
 coverage:
