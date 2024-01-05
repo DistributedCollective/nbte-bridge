@@ -31,15 +31,13 @@ class PyroNetwork(Network):
         if self.node_id is None:
             self.node_id = self.uri.object
 
-        self.peers = self.get_peers()
         self.listeners = []
 
         self.start()
 
     def broadcast(self, msg):
         logging.debug(
-            "Broadcasting to all peers: ",
-            [peer._pyroUri.location for peer in self.peers],
+            "Broadcasting to all peers: " + str([peer._pyroUri.location for peer in self.peers]),
         )
 
         for peer in self.peers:
@@ -47,7 +45,7 @@ class PyroNetwork(Network):
 
     @Pyro5.api.expose
     def receive(self, msg):
-        logging.debug("Forwarding message to listeners: ", msg)
+        logging.debug(f"Forwarding message to listeners: {msg}")
 
         for listener in self.listeners:
             listener(msg)
@@ -55,7 +53,7 @@ class PyroNetwork(Network):
     def add_listener(self, listener):
         self.listeners.append(listener)
 
-        logging.debug("Listener added to network: ", listener)
+        logging.debug(f"Listener added to network: {listener}")
 
     def get_peers(self):
         peers = [

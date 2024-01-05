@@ -16,9 +16,9 @@ def main():
         port=5000,
     )  # Careful. Only use this hostname when running in Docker.
 
-    BridgeNode(network)
-
     network.broadcast(f"{network.uri} joined the network")
+
+    BridgeNode(network)
 
 
 if __name__ == "__main__":

@@ -1,3 +1,5 @@
+import logging
+
 from ..p2p.network import Network
 
 
@@ -7,5 +9,13 @@ class BridgeNode:
 
         self.network.add_listener(self.on_message)
 
+        self.ping()
+
     def on_message(self, msg):
-        print("Received message to node: ", msg)
+        logging.debug(f"Received message to node: {msg}")
+
+        if msg == "Ping":
+            self.network.broadcast("Pong")
+
+    def ping(self):
+        self.network.broadcast("Ping")
