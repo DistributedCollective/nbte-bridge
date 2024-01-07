@@ -12,8 +12,7 @@ RUN apk add git
 WORKDIR /app
 
 COPY contracts/ ./contracts
-COPY scripts/ ./scripts
-COPY test/ ./test
+#COPY test/ ./test  # Why would we want this?
 COPY package.json hardhat.config.ts tsconfig.json package-lock.json ./
 
 RUN npm install
@@ -38,6 +37,7 @@ EXPOSE 7777
 # TODO: not sure if funding here is the best bet or if it should be done for each test individually
 RUN echo -e '#!/bin/sh\n\
     (npx hardhat --network localhost wait-for-startup\n\
+    npx hardhat --network localhost deploy-bridge --fund-amount 123.0 --owner $NODE1_ADDRESS\n\
     npx hardhat --network localhost free-money $USER_ADDRESS 10.0\n\
     npx hardhat --network localhost free-money $NODE1_ADDRESS 10.0\n\
     npx hardhat --network localhost free-money $NODE2_ADDRESS 10.0\n\

@@ -10,6 +10,51 @@ const config: HardhatUserConfig = {
   solidity: "0.8.19",
 };
 
+
+// deployment
+task("deploy-bridge")
+    .addOptionalParam("owner", "Address of the owner", undefined, types.string)
+    .addOptionalParam("fundAmount", "Decimal amount to fund the bridge with", "0", types.string)
+    .setAction(async ({ owner, fundAmount }, hre) => {
+        const ethers = hre.ethers;
+        const fundAmountWei = ethers.parseEther(fundAmount);
+
+        const bridge = await ethers.deployContract("Bridge", [], {
+        });
+
+        await bridge.waitForDeployment();
+
+        console.log(
+            `Bridge deployed to ${bridge.target}`
+        );
+
+        if (fundAmountWei) {
+            console.log(`Funding bridge with ${fundAmountWei} wei`);
+            const tx = await bridge.fund({ value: fundAmountWei });
+            console.log('tx hash:', tx.hash, 'waiting for tx...');
+            await tx.wait();
+        }
+
+        if (owner) {
+            console.log(`Setting owner to ${owner}`);
+            const tx = await bridge.transferOwnership(owner);
+            console.log('tx hash:', tx.hash, 'waiting for tx...');
+            await tx.wait();
+        }
+    });
+
+
+// helpers
+
+task("accounts", "Prints the list of accounts", async (args, hre) => {
+    const accounts = await hre.ethers.getSigners();
+
+    for (const account of accounts) {
+        const balance = await hre.ethers.provider.getBalance(account.address);
+        console.log(account.address, "balance:", hre.ethers.formatEther(balance));
+    }
+});
+
 task("free-money", "Sends free money to address")
     .addPositionalParam("address", "Address to send free money to")
     .addPositionalParam("rbtcAmount", "RBTC amount to send", "1.0")
