@@ -2,16 +2,20 @@ import { HardhatUserConfig } from "hardhat/config";
 import {task, types} from "hardhat/config";
 import "@nomicfoundation/hardhat-toolbox";
 
-async function sleep(ms: number) {
-    return new Promise(resolve => setTimeout(resolve, ms));
-}
-
 const config: HardhatUserConfig = {
-  solidity: "0.8.19",
+    solidity: "0.8.19",
+    networks: {
+        "integration-test": {
+            url: "http://localhost:18545",
+        },
+    }
 };
 
 
-// deployment
+// ==========
+// DEPLOYMENT
+// ==========
+
 task("deploy-bridge")
     .addOptionalParam("owner", "Address of the owner", undefined, types.string)
     .addOptionalParam("fundAmount", "Decimal amount to fund the bridge with", "0", types.string)
@@ -44,7 +48,29 @@ task("deploy-bridge")
     });
 
 
-// helpers
+// ============
+// TEST HELPERS
+// ============
+
+task("transfer-to-btc")
+    .addPositionalParam("bridgeAddress", "Address of the bridge contract")
+    .addPositionalParam("amount", "Decimal amount to transfer", undefined, types.string)
+    .addPositionalParam("btc-address", "Recipient BTC address")
+    .addPositionalParam("from", "Address to transfer from (defaults to first account)")
+    .setAction(async ({ bridgeAddress, amount, btcAddress, from }, hre) => {
+        const ethers = hre.ethers;
+        const bridge = await ethers.getContractAt("Bridge", bridgeAddress);
+
+        const amountWei = ethers.parseEther(amount);
+        console.log(`Transferring ${amount} wei to ${btcAddress}`);
+
+        const tx = await bridge.transferToBtc(btcAddress, {
+            value: amountWei,
+            ...(from ? { from } : {}),
+        });
+        console.log('tx hash:', tx.hash, 'waiting for tx...');
+        await tx.wait();
+    });
 
 task("accounts", "Prints the list of accounts", async (args, hre) => {
     const accounts = await hre.ethers.getSigners();
@@ -118,4 +144,13 @@ task('set-mining-interval', "Set mining interval")
     });
 
 
+// =================
+// UTILITY FUNCTIONS
+// =================
+
+async function sleep(ms: number) {
+    return new Promise(resolve => setTimeout(resolve, ms));
+}
+
+// default export
 export default config;
