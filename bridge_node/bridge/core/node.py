@@ -1,6 +1,9 @@
 import logging
+import time
 
 from ..p2p.network import Network
+
+logger = logging.getLogger(__name__)
 
 
 class BridgeNode:
@@ -9,13 +12,25 @@ class BridgeNode:
 
         self.network.add_listener(self.on_message)
 
-        self.ping()
-
     def on_message(self, msg):
-        logging.debug(f"Received message to node: {msg}")
+        logger.debug("Received message to node: %s", msg)
 
         if msg == "Ping":
             self.network.broadcast("Pong")
 
     def ping(self):
         self.network.broadcast("Ping")
+
+    def enter_main_loop(self):
+        while True:
+            try:
+                self._run_iteration()
+            except KeyboardInterrupt:
+                break
+            except Exception:
+                logger.exception("Error in main loop")
+            time.sleep(10)
+
+    def _run_iteration(self):
+        logger.debug("Running main loop iteration from node: %s", self.network.node_id)
+        self.ping()

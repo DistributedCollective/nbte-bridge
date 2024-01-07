@@ -18,7 +18,8 @@ def main():
 
     network.broadcast(f"{network.uri} joined the network")
 
-    BridgeNode(network)
+    node = BridgeNode(network)
+    node.enter_main_loop()
 
 
 if __name__ == "__main__":

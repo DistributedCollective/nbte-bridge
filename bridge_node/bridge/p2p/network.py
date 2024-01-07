@@ -6,6 +6,8 @@ import Pyro5.api
 
 
 class Network(abc.ABC):
+    node_id: str
+
     @abc.abstractmethod
     def broadcast(self, msg):
         pass
@@ -67,6 +69,10 @@ class PyroNetwork(Network):
             for peer, host in peers
             if peer != self.node_id
         ]
+
+    @property
+    def peers(self):
+        return self.get_peers()
 
     def get_peer_uri(self, peer_id, peer_host):
         return f"PYRO:{peer_id}@{peer_host}:{self.port}"
