@@ -24,7 +24,7 @@ requires = ["poetry-core>=1.0.0"]
 build-backend = "poetry.core.masonry.api"
 
 [tool.poetry.dependencies]
-anemic = { git = "https://github.com/tetframework/anemic.git", rev = "3a397a5", develop = true }
+anemic = { git = "https://github.com/tetframework/anemic.git", rev = "3a397a5" }
 python = "^3.10"
 transaction = "*"
 waitress = "*"
@@ -50,23 +50,33 @@ pre-commit = "^3.6.0"
 ipython = "^8.19.0"
 ipdb = "^0.13.13"
 
-[tool.pytest]
-addopts = ["--cov", "--cov-report", "term-missing", "--ignore=dbdata"]
+[tool.pytest.ini_options]
+addopts = [
+    "--cov",
+    "--cov-config",
+    "pyproject.toml",
+    "--cov-report",
+    "lcov",
+    "--cov-report",
+    "term-missing",
+]
 testpaths = ["tests"]
 python_files = ["test_*.py", "tests.py", "*_tests.py"]
-
-[tool.pytest.ini_options]
 markers = [
     "integration: marks tests as integration test, requiring for example postgres (deselect with '-m \"not integration\"')",
 ]
 
-
 [tool.coverage.run]
 branch = true
+command_line = "-m pytest"
 source = ["bridge"]
+relative_files = true
 
 [tool.coverage.report]
 show_missing = true
+
+[tool.coverage.lcov]
+output = "coverage.lcov"
 
 [tool.ruff]
 line-length = 100

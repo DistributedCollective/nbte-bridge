@@ -25,6 +25,7 @@ htmlcov/
 .cache
 *.cover
 *.py,cover
+*.lcov
 .hypothesis/
 .pytest_cache/
 cover/
