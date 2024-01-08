@@ -2,12 +2,16 @@ export PYENV_ROOT := $(HOME)/.pyenv
 export PATH := $(PYENV_ROOT)/bin:$(PATH)
 
 .PHONY: init
-init:
+init: init-submodules
 	pip install poetry==1.7.1
 	# Could add to pyproject toml but we want to run pre-commit hooks
 	# to also other than python files
 	pip install pre-commit
 	pre-commit install
+
+.PHONY: init-submodules
+init-submodules:
+	git submodule update --init --recursive
 
 .PHONY: install
 install:

@@ -1,15 +1,18 @@
 import logging
 import time
 
+from anemic.ioc import autowired, auto, Container
+
 from ..p2p.network import Network
 
 logger = logging.getLogger(__name__)
 
 
 class BridgeNode:
-    def __init__(self, network: Network):
-        self.network = network
+    network: Network = autowired(auto)
 
+    def __init__(self, container: Container):
+        self.container = container
         self.network.add_listener(self.on_message)
 
     def on_message(self, msg):

@@ -20,6 +20,22 @@ typing-extensions = ">=4"
 tz = ["backports.zoneinfo"]
 
 [[package]]
+name = "anemic"
+version = "0.0.1.dev0"
+description = ""
+optional = false
+python-versions = ">=3.10"
+files = []
+develop = true
+
+[package.extras]
+dev = ["pre-commit", "pytest"]
+
+[package.source]
+type = "directory"
+url = "submodules/anemic"
+
+[[package]]
 name = "click"
 version = "7.1.2"
 description = "Composable command line interface toolkit"
@@ -683,4 +699,4 @@ test = ["zope.testing"]
 [metadata]
 lock-version = "2.0"
 python-versions = "^3.10"
-content-hash = "0aa8ad9595b725ab723183b1ad986bd4d88f281db58d51cae053f90e4538b36b"
+content-hash = "bac835f683103986569fd641d6fa6a1b09ee1efa888def7862e0c34c1ecc1fad"

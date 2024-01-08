@@ -33,6 +33,7 @@ alembic = "*"
 psycopg2 = "*"
 click = "^7.0"
 pyro5 = "^5.15"
+anemic = {path = "submodules/anemic", develop = true}
 
 [tool.poetry.group.dev.dependencies]
 pytest = "^7.4.3"
