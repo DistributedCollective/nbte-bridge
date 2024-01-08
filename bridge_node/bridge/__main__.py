@@ -1,10 +1,11 @@
 import os
 import logging
 
+import bridge
 from bridge.core.node import BridgeNode
 from bridge.p2p.network import Network, PyroNetwork
 
-from anemic.ioc import Container, FactoryRegistry
+from anemic.ioc import Container, FactoryRegistrySet
 
 logging.basicConfig(level=os.getenv("LOG_LEVEL", logging.INFO))
 
@@ -21,15 +22,13 @@ def main():
         network.broadcast(f"{network.uri} joined the network")
         return network
 
-    global_registry = FactoryRegistry("global")
+    registries = FactoryRegistrySet()
+    global_registry = registries.create_registry("global")
     global_registry.register(
         interface=Network,
         factory=create_pyro_network,
     )
-    global_registry.register(
-        interface=BridgeNode,
-        factory=BridgeNode,
-    )
+    registries.scan_services(bridge)
 
     global_container = Container(global_registry)
     node = global_container.get(

@@ -1,13 +1,14 @@
 import logging
 import time
 
-from anemic.ioc import autowired, auto, Container
+from anemic.ioc import autowired, auto, service, Container
 
 from ..p2p.network import Network
 
 logger = logging.getLogger(__name__)
 
 
+@service(scope="global")
 class BridgeNode:
     network: Network = autowired(auto)
 

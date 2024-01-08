@@ -766,6 +766,21 @@ files = [
 ]
 
 [[package]]
+name = "venusian"
+version = "3.1.0"
+description = "A library for deferring decorator actions"
+optional = false
+python-versions = ">=3.7"
+files = [
+    {file = "venusian-3.1.0-py3-none-any.whl", hash = "sha256:d1fb1e49927f42573f6c9b7c4fcf61c892af8fdcaa2314daa01d9a560b23488d"},
+    {file = "venusian-3.1.0.tar.gz", hash = "sha256:eb72cdca6f3139a15dc80f9c95d3c10f8a54a0ba881eeef8e2ec5b42d3ee3a95"},
+]
+
+[package.extras]
+docs = ["Sphinx (>=4.3.2)", "pylons-sphinx-themes", "repoze.sphinx.autointerface", "sphinx-copybutton"]
+testing = ["coverage", "pytest", "pytest-cov"]
+
+[[package]]
 name = "virtualenv"
 version = "20.25.0"
 description = "Virtual Python Environment builder"
@@ -877,4 +892,4 @@ test = ["zope.testing"]
 [metadata]
 lock-version = "2.0"
 python-versions = "^3.10"
-content-hash = "24a3d6a0947a872f964f106b29a64061419cdf1b7de05922df942900d0a2c249"
+content-hash = "482f10d9a80f95ddc76a88e466fa5c0b0adb4bcdd573caa71ca48ba256f9f24a"
