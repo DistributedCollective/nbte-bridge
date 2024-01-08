@@ -1,6 +1,6 @@
 from collections import namedtuple
 
-from bridge.p2p.network import Network, PyroNetwork
+from bridge.p2p.network import Network, PyroNetwork, PyroMessageEnvelope
 
 
 class TransportServerStub:
@@ -95,3 +95,31 @@ def test_pyro_network_can_broadcast_messages(mocker):
     network.broadcast(message)
 
     assert message in [message["message"] for message in peer.messages]
+
+
+def test_messages_can_be_delivered_to_listeners(mocker):
+    mocker.patch(
+        "Pyro5.svr_threads.SocketServer_Threadpool",
+        TransportServerStub,
+    )
+
+    network = PyroNetwork(node_id="test", host="localhost", port=8080, peers=[])
+
+    expected_message = "The Abyss returns even the boldest gaze."
+
+    envelope = PyroMessageEnvelope(message=expected_message, sender="test_peer")
+
+    class TestClass:
+        called = False
+
+        def on_message(self, msg):
+            self.called = True
+            assert msg.message == expected_message
+            assert msg.sender == "test_peer"
+
+    test_object = TestClass()
+
+    network.add_listener(test_object.on_message)
+    network.receive(envelope)
+
+    assert test_object.called
