@@ -25,7 +25,6 @@ RUN apt-get update -y && apt-get --no-install-recommends -y install \
 RUN pip install "poetry==$POETRY_VERSION"
 
 COPY pyproject.toml poetry.lock ./
-COPY submodules submodules
 
 # Install only dependencies needed for production
 RUN poetry config virtualenvs.in-project true && \

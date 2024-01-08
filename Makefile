@@ -2,12 +2,8 @@ export PYENV_ROOT := $(HOME)/.pyenv
 export PATH := $(PYENV_ROOT)/bin:$(PATH)
 
 .PHONY: init
-init: init-submodules install-poetry install
+init: install-poetry install
 	pre-commit install
-
-.PHONY: init-submodules
-init-submodules:
-	git submodule update --init --recursive
 
 .PHONY: install
 install:
