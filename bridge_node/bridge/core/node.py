@@ -1,9 +1,11 @@
 import logging
 import time
+import random
 
 from anemic.ioc import autowired, auto, service, Container
 
 from ..p2p.network import Network
+from ..p2p.messaging import MessageEnvelope
 
 logger = logging.getLogger(__name__)
 
@@ -16,11 +18,11 @@ class BridgeNode:
         self.container = container
         self.network.add_listener(self.on_message)
 
-    def on_message(self, msg):
-        logger.debug("Received message to node: %s", msg)
+    def on_message(self, envelope: MessageEnvelope):
+        logger.debug("Received message %r from node %s", envelope.message, envelope.sender)
 
-        if msg == "Ping":
-            self.network.broadcast("Pong")
+        if envelope.message == "Ping":
+            self.network.send(envelope.sender, "Pong")
 
     def ping(self):
         self.network.broadcast("Ping")
@@ -37,4 +39,6 @@ class BridgeNode:
 
     def _run_iteration(self):
         logger.debug("Running main loop iteration from node: %s", self.network.node_id)
-        self.ping()
+        if not random.randint(0, 3):
+            # Randomly ping nodes to demonstrate network connectivity
+            self.ping()

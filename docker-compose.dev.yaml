@@ -61,6 +61,7 @@ services:
     #   timeout: 1s
     environment:
       - BRIDGE_NODE_ID=rollup-bridge-1
+      - BRIDGE_HOSTNAME=bridge-node-1
       - LOG_LEVEL=DEBUG
 
   bridge-node-2:
@@ -73,6 +74,7 @@ services:
       - bridge-node-1
     environment:
       - BRIDGE_NODE_ID=rollup-bridge-2
+      - BRIDGE_HOSTNAME=bridge-node-2
       - LOG_LEVEL=DEBUG
 
   bridge-node-3:
@@ -85,6 +87,7 @@ services:
       - bridge-node-2
     environment:
       - BRIDGE_NODE_ID=rollup-bridge-3
+      - BRIDGE_HOSTNAME=bridge-node-3
       - LOG_LEVEL=DEBUG
 
   postgres:

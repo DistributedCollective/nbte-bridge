@@ -1,24 +1,33 @@
-import abc
+from typing import Protocol, Any, TypedDict
 import logging
 import threading
 
 import Pyro5.api
 
+from .messaging import MessageEnvelope
 
-class Network(abc.ABC):
+
+class Listener(Protocol):
+    def __call__(self, msg: MessageEnvelope):
+        ...
+
+
+class Network(Protocol):
     node_id: str
 
-    @abc.abstractmethod
     def broadcast(self, msg):
-        pass
+        ...
 
-    @abc.abstractmethod
-    def add_listener(self, listener):
-        pass
+    def send(self, to, msg):
+        ...
 
-    @abc.abstractmethod
-    def receive(self, msg):
-        pass
+    def add_listener(self, listener: Listener):
+        ...
+
+
+class PyroMessageEnvelope(TypedDict):
+    sender: str
+    message: Any
 
 
 class PyroNetwork(Network):
@@ -28,6 +37,7 @@ class PyroNetwork(Network):
         self.port = port
         self.node_id = node_id
 
+        # NOTE: this is a URI object, not a str
         self.uri = self.daemon.register(self, self.node_id)
 
         if self.node_id is None:
@@ -37,25 +47,43 @@ class PyroNetwork(Network):
 
         self.start()
 
-    def broadcast(self, msg):
+    def broadcast(self, msg: Any):
         logging.debug(
-            "Broadcasting to all peers: " + str([peer._pyroUri.location for peer in self.peers]),
+            "Broadcasting msg %r to all peers: %s",
+            msg,
+            [peer._pyroUri.location for peer in self.peers],
         )
-
+        envelope = PyroMessageEnvelope(
+            sender=str(self.uri),
+            message=msg,
+        )
         for peer in self.peers:
-            peer.receive(msg)
+            peer.receive(envelope)
+
+    def send(self, to: str, msg: Any):
+        logging.debug("Sending msg %r to peer %s", msg, to)
+        envelope = PyroMessageEnvelope(
+            sender=str(self.uri),
+            message=msg,
+        )
+        with Pyro5.api.Proxy(to) as peer:
+            peer.receive(envelope)
 
     @Pyro5.api.expose
-    def receive(self, msg):
-        logging.debug(f"Forwarding message to listeners: {msg}")
+    def receive(self, envelope: PyroMessageEnvelope):
+        logging.debug("Received message envelope: %s", envelope)
 
+        envelope = MessageEnvelope(
+            sender=envelope["sender"],
+            message=envelope["message"],
+        )
         for listener in self.listeners:
-            listener(msg)
+            listener(envelope)
 
     def add_listener(self, listener):
         self.listeners.append(listener)
 
-        logging.debug(f"Listener added to network: {listener}")
+        logging.debug("Listener added to network: %s", listener)
 
     def get_peers(self):
         peers = [
@@ -75,6 +103,7 @@ class PyroNetwork(Network):
         return self.get_peers()
 
     def get_peer_uri(self, peer_id, peer_host):
+        # TODO: should not use self.port here, nodes can have different ports
         return f"PYRO:{peer_id}@{peer_host}:{self.port}"
 
     def start(self):
