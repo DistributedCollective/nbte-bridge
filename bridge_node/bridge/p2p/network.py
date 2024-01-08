@@ -4,7 +4,9 @@ import threading
 
 import Pyro5.api
 
+from anemic.ioc import Container, service
 from .messaging import MessageEnvelope
+from ..config import Config
 
 
 class Listener(Protocol):
@@ -31,11 +33,12 @@ class PyroMessageEnvelope(TypedDict):
 
 
 class PyroNetwork(Network):
-    def __init__(self, *, node_id, host, port):
+    def __init__(self, *, node_id, host, port, peers):
         self.daemon = Pyro5.api.Daemon(host=host, port=port)
         self.host = host
         self.port = port
         self.node_id = node_id
+        self._peers = peers  # list of (node_id, hostname:port) tuples
 
         # NOTE: this is a URI object, not a str
         self.uri = self.daemon.register(self, self.node_id)
@@ -86,15 +89,9 @@ class PyroNetwork(Network):
         logging.debug("Listener added to network: %s", listener)
 
     def get_peers(self):
-        peers = [
-            ("rollup-bridge-1", "bridge-node-1"),
-            ("rollup-bridge-2", "bridge-node-2"),
-            ("rollup-bridge-3", "bridge-node-3"),
-        ]
-
         return [
             Pyro5.api.Proxy(self.get_peer_uri(peer, host))
-            for peer, host in peers
+            for peer, host in self._peers
             if peer != self.node_id
         ]
 
@@ -103,10 +100,30 @@ class PyroNetwork(Network):
         return self.get_peers()
 
     def get_peer_uri(self, peer_id, peer_host):
-        # TODO: should not use self.port here, nodes can have different ports
-        return f"PYRO:{peer_id}@{peer_host}:{self.port}"
+        # NOTE: peer_host includes port
+        return f"PYRO:{peer_id}@{peer_host}"
 
     def start(self):
         logging.info("Starting Pyro daemon loop")
         self.thread = threading.Thread(target=self.daemon.requestLoop)
         self.thread.start()
+
+
+@service(scope="global", interface_override=Network)
+def create_pyro_network(container: Container):
+    config = container.get(interface=Config)
+    network = PyroNetwork(
+        node_id=config.node_id,
+        host=config.hostname,
+        port=config.port,
+        peers=config.peers,
+    )
+
+    # TODO: VERY UGLY! But we don't want to crash on startup if network not started
+    # Should rather start the daemon outside of __init__ and then only broadcast after it's started
+    import time
+
+    time.sleep(2)
+
+    network.broadcast(f"{network.uri} joined the network")
+    return network
