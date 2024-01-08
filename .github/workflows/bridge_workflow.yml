@@ -14,8 +14,6 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-        with:
-          submodules: true
       - run: pipx install poetry==1.7.1
       - uses: actions/setup-python@v4
         with:
@@ -30,8 +28,6 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-        with:
-          submodules: true
       - run: pipx install poetry==1.7.1
       - uses: actions/setup-python@v4
         with:
@@ -47,8 +43,6 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-        with:
-          submodules: true
       - run: pipx install poetry==1.7.1
       - uses: actions/setup-python@v4
         with:

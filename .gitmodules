@@ -1,3 +1,0 @@
-[submodule "bridge_node/submodules/anemic"]
-	path = bridge_node/submodules/anemic
-	url = https://github.com/tetframework/anemic.git

@@ -142,8 +142,10 @@ develop = true
 dev = ["pre-commit", "pytest"]
 
 [package.source]
-type = "directory"
-url = "submodules/anemic"
+type = "git"
+url = "https://github.com/tetframework/anemic.git"
+reference = "3a397a5"
+resolved_reference = "3a397a56cd2535b6e7ad21640672b7c5778f6d6d"
 
 [[package]]
 name = "asttokens"
@@ -2792,4 +2794,4 @@ test = ["zope.testing"]
 [metadata]
 lock-version = "2.0"
 python-versions = "^3.10"
-content-hash = "2e58c46da52199fd00798416779fe025fda16035eff77bfe78af2b557bc75711"
+content-hash = "4811fce343cf95096721d925bf24523281760029d67921d9d2c6b57de50270ba"

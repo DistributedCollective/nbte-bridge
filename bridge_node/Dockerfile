@@ -19,6 +19,7 @@ RUN apt-get update -y && apt-get --no-install-recommends -y install \
     libpq-dev \
     python3-dev \
     build-essential \
+    git \
     && rm -rf /var/lib/apt/lists/*
 
 RUN pip install "poetry==$POETRY_VERSION"

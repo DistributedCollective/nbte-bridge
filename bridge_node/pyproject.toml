@@ -24,6 +24,7 @@ requires = ["poetry-core>=1.0.0"]
 build-backend = "poetry.core.masonry.api"
 
 [tool.poetry.dependencies]
+anemic = { git = "https://github.com/tetframework/anemic.git", rev = "3a397a5", develop = true }
 python = "^3.10"
 transaction = "*"
 waitress = "*"
@@ -33,7 +34,6 @@ alembic = "*"
 psycopg2 = "*"
 click = "^7.0"
 pyro5 = "^5.15"
-anemic = {path = "submodules/anemic", develop = true}
 venusian = "^3.1.0"
 environ-config = "^23.2.0"
 web3 = "^6.13.0"
