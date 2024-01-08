@@ -43,6 +43,8 @@ coverage = { extras = ["toml"], version = "^7.3.4" }
 pytest-cov = "^4.1.0"
 ruff = "^0.1.11"
 pre-commit = "^3.6.0"
+ipython = "^8.19.0"
+ipdb = "^0.13.13"
 
 [tool.pytest]
 addopts = ["--cov", "--cov-report", "term-missing", "--ignore=dbdata"]
