@@ -5,7 +5,7 @@ import "@nomicfoundation/hardhat-toolbox";
 const config: HardhatUserConfig = {
     solidity: "0.8.19",
     networks: {
-        "integration-test": {
+        "docker": {
             url: "http://localhost:18545",
         },
     }
@@ -53,23 +53,27 @@ task("deploy-bridge")
 // ============
 
 task("transfer-to-btc")
-    .addPositionalParam("bridgeAddress", "Address of the bridge contract")
-    .addPositionalParam("amount", "Decimal amount to transfer", undefined, types.string)
-    .addPositionalParam("btcAddress", "Recipient BTC address")
-    .addPositionalParam("from", "Address to transfer from (defaults to first account)")
+    .addParam("bridgeAddress", "Address of the bridge contract")
+    .addParam("amount", "Decimal amount to transfer", undefined, types.string)
+    .addParam("btcAddress", "Recipient BTC address")
+    .addOptionalParam("from", "Address to transfer from (defaults to first account)")
     .setAction(async ({ bridgeAddress, amount, btcAddress, from }, hre) => {
         const ethers = hre.ethers;
-        const bridge = await ethers.getContractAt("Bridge", bridgeAddress);
+        let bridge = await ethers.getContractAt("Bridge", bridgeAddress);
+        if (from) {
+            const signer = await ethers.getSigner(from);
+            bridge = bridge.connect(signer);
+        }
 
         const amountWei = ethers.parseEther(amount);
-        console.log(`Transferring ${amount} wei to ${btcAddress}`);
+        console.log(`Transferring ${amount} BTC (${amountWei} wei) to ${btcAddress}`);
 
         const tx = await bridge.transferToBtc(btcAddress, {
             value: amountWei,
-            ...(from ? { from } : {}),
         });
         console.log('tx hash:', tx.hash, 'waiting for tx...');
-        await tx.wait();
+        const receipt = await tx.wait();
+        console.log('tx receipt:', receipt);
     });
 
 task("accounts", "Prints the list of accounts", async (args, hre) => {
