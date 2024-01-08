@@ -55,7 +55,7 @@ task("deploy-bridge")
 task("transfer-to-btc")
     .addPositionalParam("bridgeAddress", "Address of the bridge contract")
     .addPositionalParam("amount", "Decimal amount to transfer", undefined, types.string)
-    .addPositionalParam("btc-address", "Recipient BTC address")
+    .addPositionalParam("btcAddress", "Recipient BTC address")
     .addPositionalParam("from", "Address to transfer from (defaults to first account)")
     .setAction(async ({ bridgeAddress, amount, btcAddress, from }, hre) => {
         const ethers = hre.ethers;
