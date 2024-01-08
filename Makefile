@@ -2,11 +2,7 @@ export PYENV_ROOT := $(HOME)/.pyenv
 export PATH := $(PYENV_ROOT)/bin:$(PATH)
 
 .PHONY: init
-init: init-submodules
-	pip install poetry==1.7.1
-	# Could add to pyproject toml but we want to run pre-commit hooks
-	# to also other than python files
-	pip install pre-commit
+init: init-submodules install-poetry install
 	pre-commit install
 
 .PHONY: init-submodules
@@ -16,6 +12,10 @@ init-submodules:
 .PHONY: install
 install:
 	cd bridge_node && poetry config virtualenvs.in-project true && poetry install
+
+.PHONY: install-poetry
+install-poetry:
+	@which poetry > /dev/null && echo "Using poetry at $$(which poetry)" || (echo "Poetry not found, installing" && pip install poetry==1.7.1)
 
 .PHONY: serve
 serve:
