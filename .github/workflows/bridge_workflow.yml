@@ -19,7 +19,7 @@ jobs:
         with:
           python-version: "3.10"
           cache: "poetry"
-      - run: make build
+      - run: make build-python
 
   tests:
     name: "Run tests"

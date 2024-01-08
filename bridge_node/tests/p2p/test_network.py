@@ -60,11 +60,7 @@ def test_methods_can_be_exposed_to_pyro_network(mocker):
         TransportServerStub,
     )  # I don't want to actually start a server in an unit test
 
-    network = PyroNetwork(
-        node_id="test",
-        host="localhost",
-        port=8080,
-    )
+    network = PyroNetwork(node_id="test", host="localhost", port=8080, peers=[])
 
     class TestObject:
         def test_method(self):
@@ -92,12 +88,10 @@ def test_pyro_network_can_broadcast_messages(mocker):
     # Actual integration tests are needed later
 
     network = PyroNetwork(
-        node_id="test",
-        host="localhost",
-        port=8080,
+        node_id="test", host="localhost", port=8080, peers=[("test2", "localhost:8080")]
     )
 
     message = "The Abyss returns even the boldest gaze."
     network.broadcast(message)
 
-    assert message in peer.messages
+    assert message in [message["message"] for message in peer.messages]
