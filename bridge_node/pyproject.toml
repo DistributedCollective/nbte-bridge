@@ -41,6 +41,7 @@ pytest-mock = "^3.12.0"
 coverage = { extras = ["toml"], version = "^7.3.4" }
 pytest-cov = "^4.1.0"
 ruff = "^0.1.11"
+pre-commit = "^3.6.0"
 
 [tool.pytest]
 addopts = ["--cov", "--cov-report", "term-missing", "--ignore=dbdata"]
