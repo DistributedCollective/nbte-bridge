@@ -19,6 +19,12 @@ def main():
             host="0.0.0.0",
             port=5000,
         )  # Careful. Only use this hostname when running in Docker.
+        import time
+
+        # TODO: VERY UGLY! But we don't want to crash on startup if network not started
+        # Should rather start the daemon outside of __init__ and then only broadcast after it's started
+        time.sleep(2)
+
         network.broadcast(f"{network.uri} joined the network")
         return network
 
