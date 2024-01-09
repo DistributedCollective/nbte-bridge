@@ -3,9 +3,11 @@ import logging
 import threading
 
 import Pyro5.api
+import Pyro5.errors
 
 from anemic.ioc import Container, service
 from .messaging import MessageEnvelope
+from ..auth.bridge_ssl import SecureContext, PyroSecureContext
 from ..config import Config
 
 
@@ -33,15 +35,15 @@ class PyroMessageEnvelope(TypedDict):
 
 
 class PyroNetwork(Network):
-    def __init__(self, *, node_id, host, port, peers):
-        self.daemon = Pyro5.api.Daemon(host=host, port=port)
+    def __init__(self, *, node_id, host, port, peers, context_cls: SecureContext = None):
         self.host = host
         self.port = port
         self.node_id = node_id
-        self._peers = peers  # list of (node_id, hostname:port) tuples
+        self.context = None
 
-        # NOTE: this is a URI object, not a str
-        self.uri = self.daemon.register(self, self.node_id)
+        self.create_daemon(context_cls)
+
+        self._peers = peers  # list of (node_id, hostname:port) tuples
 
         if self.node_id is None:
             self.node_id = self.uri.object
@@ -49,6 +51,19 @@ class PyroNetwork(Network):
         self.listeners = []
 
         self.start()
+
+    def create_daemon(self, context_cls: SecureContext | Any = None):
+        if context_cls is not None:
+            self.context = context_cls()
+
+        self.daemon = Pyro5.api.Daemon(host=self.host, port=self.port)
+
+        if self.context is not None:
+            pass
+            # self.daemon.validateHandshake = pyro_validate_handshake
+
+        # NOTE: this is a URI object, not a str
+        self.uri = self.daemon.register(self, self.node_id)
 
     def broadcast(self, msg: Any):
         logging.debug(
@@ -61,7 +76,10 @@ class PyroNetwork(Network):
             message=msg,
         )
         for peer in self.peers:
-            peer.receive(envelope)
+            try:
+                peer.receive(envelope)
+            except Pyro5.errors.CommunicationError:
+                logging.exception("Error sending message to peer %s", peer)
 
     def send(self, to: str, msg: Any):
         logging.debug("Sending msg %r to peer %s", msg, to)
@@ -117,6 +135,7 @@ def create_pyro_network(container: Container):
         host=config.hostname,
         port=config.port,
         peers=config.peers,
+        context_cls=PyroSecureContext,
     )
 
     # TODO: VERY UGLY! But we don't want to crash on startup if network not started

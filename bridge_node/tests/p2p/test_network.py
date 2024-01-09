@@ -1,6 +1,18 @@
 from collections import namedtuple
 
+import pytest
+
 from bridge.p2p.network import Network, PyroNetwork, PyroMessageEnvelope
+
+
+@pytest.fixture
+def test_pyro_network(mocker):
+    mocker.patch(
+        "Pyro5.svr_threads.SocketServer_Threadpool",
+        TransportServerStub,
+    )  # I don't want to actually start a server in an unit test
+
+    return PyroNetwork(node_id="test", host="localhost", port=8080, peers=[])
 
 
 class TransportServerStub:
@@ -30,6 +42,12 @@ class PeerStub:
     def receive(self, msg):
         self.messages.append(msg)
 
+    def __enter__(self):
+        return self
+
+    def __exit__(self, *args, **kwargs):
+        pass
+
 
 def test_abstract_network_class_can_be_inherited():
     class TestNetwork(Network):
@@ -54,31 +72,19 @@ def test_abstract_network_class_can_be_inherited():
     assert network is not None
 
 
-def test_methods_can_be_exposed_to_pyro_network(mocker):
-    mocker.patch(
-        "Pyro5.svr_threads.SocketServer_Threadpool",
-        TransportServerStub,
-    )  # I don't want to actually start a server in an unit test
-
-    network = PyroNetwork(node_id="test", host="localhost", port=8080, peers=[])
-
+def test_methods_can_be_exposed_to_pyro_network(test_pyro_network):
     class TestObject:
         def test_method(self):
             return "test"
 
     test_object = TestObject()
 
-    network.daemon.register(test_object, "test_object")
+    test_pyro_network.daemon.register(test_object, "test_object")
 
-    assert network.daemon.uriFor(test_object).object == "test_object"
+    assert test_pyro_network.daemon.uriFor(test_object).object == "test_object"
 
 
-def test_pyro_network_can_broadcast_messages(mocker):
-    mocker.patch(
-        "Pyro5.svr_threads.SocketServer_Threadpool",
-        TransportServerStub,
-    )
-
+def test_pyro_network_can_broadcast_messages(mocker, test_pyro_network):
     peer = PeerStub()
     mocker.patch("Pyro5.api.Proxy", peer)
 
@@ -87,9 +93,8 @@ def test_pyro_network_can_broadcast_messages(mocker):
     # This tests mainly our own code, not Pyro5.
     # Actual integration tests are needed later
 
-    network = PyroNetwork(
-        node_id="test", host="localhost", port=8080, peers=[("test2", "localhost:8080")]
-    )
+    network = test_pyro_network
+    network._peers = [("test2", "localhost:8080")]
 
     message = "The Abyss returns even the boldest gaze."
     network.broadcast(message)
@@ -97,13 +102,21 @@ def test_pyro_network_can_broadcast_messages(mocker):
     assert message in [message["message"] for message in peer.messages]
 
 
-def test_messages_can_be_delivered_to_listeners(mocker):
-    mocker.patch(
-        "Pyro5.svr_threads.SocketServer_Threadpool",
-        TransportServerStub,
-    )
+def test_pyro_network_can_send_messages(mocker, test_pyro_network):
+    peer = PeerStub()
+    mocker.patch("Pyro5.api.Proxy", peer)
 
-    network = PyroNetwork(node_id="test", host="localhost", port=8080, peers=[])
+    network = test_pyro_network
+    network._peers = [("test2", "localhost:8080")]
+
+    message = "The Abyss returns even the boldest gaze."
+    network.send(peer, message)
+
+    assert message in [message["message"] for message in peer.messages]
+
+
+def test_messages_can_be_delivered_to_listeners(mocker, test_pyro_network):
+    network = test_pyro_network
 
     expected_message = "The Abyss returns even the boldest gaze."
 
