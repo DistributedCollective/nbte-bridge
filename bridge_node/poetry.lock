@@ -1828,6 +1828,17 @@ pytest = ">=5.0"
 dev = ["pre-commit", "pytest-asyncio", "tox"]
 
 [[package]]
+name = "python-bitcoinlib"
+version = "0.12.2"
+description = "The Swiss Army Knife of the Bitcoin protocol."
+optional = false
+python-versions = "*"
+files = [
+    {file = "python-bitcoinlib-0.12.2.tar.gz", hash = "sha256:c65ab61427c77c38d397bfc431f71d86fd355b453a536496ec3fcb41bd10087d"},
+    {file = "python_bitcoinlib-0.12.2-py3-none-any.whl", hash = "sha256:2f29a9f475f21c12169b3a6cc8820f34f11362d7ff1200a5703dce3e4e903a44"},
+]
+
+[[package]]
 name = "pyunormalize"
 version = "15.1.0"
 description = "Unicode normalization forms (NFC, NFKC, NFD, NFKD). A library independent from the Python core Unicode database."
@@ -2794,4 +2805,4 @@ test = ["zope.testing"]
 [metadata]
 lock-version = "2.0"
 python-versions = "^3.10"
-content-hash = "fd3118b07e70ea41ae7a93b444fa4981b311980206a8f01cccb25c6c7a0c5d49"
+content-hash = "ee6530a376d45978c8705a5228666dd38b88b6130dae4356896f243a54302a18"
