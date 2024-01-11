@@ -1,11 +1,22 @@
 import os
 import subprocess
 import sys
+import pathlib
 
 import pytest
 from sqlalchemy.orm import Session
 
 BASE_DIR = os.path.join(os.path.dirname(__file__), "..")
+THIS_DIR = pathlib.Path(__file__).parent
+INTEGRATION_TEST_DIR = THIS_DIR / "integration"
+
+
+def pytest_collection_modifyitems(config, items):
+    for item in items:
+        item_path = pathlib.Path(item.fspath)
+        # Mark tests in the integration/ dir as integration tests
+        if item_path.is_relative_to(INTEGRATION_TEST_DIR):
+            item.add_marker(pytest.mark.integration)
 
 
 @pytest.fixture(scope="session")

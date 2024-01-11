@@ -30,6 +30,10 @@ test:
 unit-test:
 	cd bridge_node && poetry run python -m pytest -m "not integration" --no-cov
 
+.PHONY: integration-test
+integration-test:
+	cd bridge_node && poetry run python -m pytest -m "integration" --no-cov
+
 .PHONY: coverage
 coverage:
 	cd bridge_node && poetry run coverage run
