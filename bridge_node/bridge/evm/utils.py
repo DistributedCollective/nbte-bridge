@@ -108,3 +108,11 @@ def get_event_batch_with_retries(
 def exponential_sleep(attempt, max_sleep_time=256.0):
     sleep_time = min(2**attempt, max_sleep_time)
     time.sleep(sleep_time)
+
+
+def to_wei(number, unit="ether"):
+    return Web3.to_wei(number, unit)
+
+
+def from_wei(number, unit="ether"):
+    return Web3.from_wei(number, unit)

@@ -8,6 +8,9 @@ from ..p2p.network import Network
 from ..p2p.messaging import MessageEnvelope
 
 from ..evm.scanner import BridgeEventScanner, TransferToBTC
+from ..btc.rpc import BitcoinRPC
+from ..btc.utils import to_satoshi
+from ..evm.utils import from_wei
 
 logger = logging.getLogger(__name__)
 
@@ -16,6 +19,7 @@ logger = logging.getLogger(__name__)
 class BridgeNode:
     network: Network = autowired(auto)
     evm_scanner: BridgeEventScanner = autowired(auto)
+    bitcoin_rpc: BitcoinRPC = autowired(auto)
 
     def __init__(self, container: Container):
         self.container = container
@@ -49,11 +53,49 @@ class BridgeNode:
         for event in events:
             match event:
                 case TransferToBTC():
-                    for _ in range(5):
-                        logger.info("!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!")
-                    logger.info(
-                        "Found transfer to BTC: %s",
-                        event,
-                    )
+                    self._handle_transfer_to_btc(event)
                 case _:
                     logger.info("Found unknown event: %s", event)
+
+    def _handle_transfer_to_btc(self, transfer: TransferToBTC):
+        logger.info("Handling transfer to BTC: %s", transfer)
+        for _ in range(5):
+            logger.info("!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!")
+        logger.info(
+            "Found transfer to BTC: %s",
+            transfer,
+        )
+
+        # TODO: temporary code to get the flow working with a single node
+        logger.info("My node id is %s", self.network.node_id)
+        if self.network.node_id != "rollup-bridge-1":
+            logger.info("Not node1, skipping")
+            return
+
+        logger.info("Node1, handling transfer")
+        amount_btc = from_wei(transfer.amount_wei)
+        amount_satoshi = to_satoshi(amount_btc)
+        logger.info(
+            "Transferring %s BTC (%s satoshi) to %s",
+            amount_btc,
+            amount_satoshi,
+            transfer.recipient_btc_address,
+        )
+        # balance = self.bitcoin_rpc.getbalance()
+        # print("Balance", balance)
+        # unspent = self.bitcoin_rpc.listunspent()
+        # print("Num utxos", len(unspent))
+        result = self.bitcoin_rpc.call(
+            "sendtoaddress",
+            transfer.recipient_btc_address,
+            str(amount_btc),
+            "",  # comment
+            "",  # commentto
+            False,  # subtractfeefromamount
+            True,  # replaceable
+            None,  # conf_target
+            "unset",  # estimate_mode
+            False,  # avoid reuse
+            1,  # fee_rate (sat/vbyte)
+        )
+        logger.info("Sent BTC: %s", result)

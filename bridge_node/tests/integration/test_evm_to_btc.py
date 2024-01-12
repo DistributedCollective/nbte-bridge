@@ -1,6 +1,6 @@
 from decimal import Decimal
 
-from .utils import from_satoshi, to_wei, wait_for_condition, wait_for_eth_tx
+from .utils import evm_mine_blocks, from_satoshi, to_wei, wait_for_condition, wait_for_eth_tx
 
 
 def test_evm_to_btc(
@@ -22,6 +22,7 @@ def test_evm_to_btc(
             "value": to_wei(transfer_value),
         }
     )
+    evm_mine_blocks(user_web3, 5)  # Mine blocks to make it confirm faster
     wait_for_eth_tx(user_web3, tx_hash)
 
     user_satoshis_after = wait_for_condition(

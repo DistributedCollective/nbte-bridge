@@ -28,6 +28,9 @@ bitcoin-cli createwallet multisig true true
 
 bitcoin-cli -rpcwallet=multisig importaddress "$MULTISIG_ADDRESS"
 
+# TODO: temporarily send funds to node1 wallet to test the flow
+MULTISIG_ADDRESS=$(bitcoin-cli -rpcwallet=node1 getnewaddress)
+
 echo "Generating 101 blocks (sending balance to multisig)..."
 bitcoin-cli -rpcwallet=multisig generatetoaddress 101 "$MULTISIG_ADDRESS" > /dev/null
 

@@ -1,9 +1,10 @@
 import time
 import logging
 from decimal import Decimal
-from typing import Callable, TypeVar
+from typing import Callable, TypeVar, cast
 
 from web3 import Web3
+from web3.types import RPCEndpoint
 from eth_utils import to_hex
 
 
@@ -19,6 +20,14 @@ def to_wei(number, unit="ether"):
 
 def from_wei(number, unit="ether"):
     return Web3.from_wei(number, unit)
+
+
+def to_satoshi(number):
+    return int(number * 10**8)
+
+
+def from_satoshi(number):
+    return Decimal(number) / 10**8
 
 
 def wait_for_eth_tx(
@@ -40,14 +49,6 @@ def wait_for_eth_tx(
     if require_success:
         assert receipt.status == 1, f"Transaction failed: {receipt}"
     return receipt
-
-
-def to_satoshi(number):
-    return int(number * 10**8)
-
-
-def from_satoshi(number):
-    return Decimal(number) / 10**8
 
 
 def wait_for_condition(
@@ -72,3 +73,7 @@ def wait_for_condition(
             DEFAULT_TIMEOUT_SECONDS,
         )
         time.sleep(DEFAULT_POLL_LATENCY_SECONDS)
+
+
+def evm_mine_blocks(web3: Web3, num_blocks: int):
+    web3.provider.make_request(cast(RPCEndpoint, "hardhat_mine"), [to_hex(num_blocks)])

@@ -32,7 +32,7 @@ unit-test:
 
 .PHONY: integration-test
 integration-test:
-	cd bridge_node && poetry run python -m pytest -m "integration" --no-cov
+	cd bridge_node && poetry run python -m pytest -m "integration" --no-cov --log-cli-level=info
 
 .PHONY: coverage
 coverage:
