@@ -7,8 +7,13 @@ import Pyro5.errors
 
 from anemic.ioc import Container, service
 from .messaging import MessageEnvelope
+
+from ..auth import challenge
 from ..auth.bridge_ssl import SecureContext, PyroSecureContext
+
 from ..config import Config
+
+from .client import Proxy
 
 
 class Listener(Protocol):
@@ -27,6 +32,24 @@ class Network(Protocol):
 
     def add_listener(self, listener: Listener):
         ...
+
+
+class BoundPyroProxy(Proxy):
+    def _pyroValidateHandshake(self, response):
+        logging.debug("Validating handshake on client, response: %s", response)
+        challenge.validate_message(
+            response,
+            self._pyroConnection.sock.get_channel_binding(cb_type="tls-unique"),
+            [
+                "0x09dcD91DF9300a81a4b9C85FDd04345C3De58F48",
+                "0xA40013a058E70664367c515246F2560B82552ACb",
+                "0x4091663B0a7a14e35Ff1d6d9d0593cE15cE7710a",
+            ],
+        )
+
+        logging.debug("Handshake validated")
+
+        return
 
 
 class PyroMessageEnvelope(TypedDict):
@@ -59,8 +82,7 @@ class PyroNetwork(Network):
         self.daemon = Pyro5.api.Daemon(host=self.host, port=self.port)
 
         if self.context is not None:
-            pass
-            # self.daemon.validateHandshake = pyro_validate_handshake
+            self.daemon.validateHandshake = self.context.validate_handshake
 
         # NOTE: this is a URI object, not a str
         self.uri = self.daemon.register(self, self.node_id)
@@ -87,7 +109,7 @@ class PyroNetwork(Network):
             sender=str(self.uri),
             message=msg,
         )
-        with Pyro5.api.Proxy(to) as peer:
+        with BoundPyroProxy(to) as peer:
             peer.receive(envelope)
 
     @Pyro5.api.expose
@@ -108,7 +130,9 @@ class PyroNetwork(Network):
 
     def get_peers(self):
         return [
-            Pyro5.api.Proxy(self.get_peer_uri(peer, host))
+            BoundPyroProxy(
+                self.get_peer_uri(peer, host),
+            )
             for peer, host in self._peers
             if peer != self.node_id
         ]

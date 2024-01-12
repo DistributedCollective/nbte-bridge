@@ -2,7 +2,10 @@ from collections import namedtuple
 
 import pytest
 
+import Pyro5
+
 from bridge.p2p.network import Network, PyroNetwork, PyroMessageEnvelope
+from bridge.auth.bridge_ssl import PyroSecureContext
 
 
 @pytest.fixture
@@ -13,6 +16,28 @@ def test_pyro_network(mocker):
     )  # I don't want to actually start a server in an unit test
 
     return PyroNetwork(node_id="test", host="localhost", port=8080, peers=[])
+
+
+@pytest.fixture
+def test_secure_pyro_network(mocker):
+    mocker.patch(
+        "Pyro5.svr_threads.SocketServer_Threadpool",
+        TransportServerStub,
+    )  # I don't want to actually start a server in an unit test
+
+    return PyroNetwork(
+        node_id="test", host="localhost", port=8080, peers=[], context_cls=PyroSecureContext
+    )
+
+
+class SecureContextStub:
+    def __init__(self, *args, **kwargs):
+        self.validated = False
+        pass
+
+    def validate_handshake(self, conn, data):
+        self.validated = True
+        return "Shake it, baby!"
 
 
 class TransportServerStub:
@@ -26,6 +51,9 @@ class TransportServerStub:
         pass
 
     def loop(*args, **kwargs):
+        pass
+
+    def close(*args, **kwargs):
         pass
 
 
@@ -136,3 +164,35 @@ def test_messages_can_be_delivered_to_listeners(mocker, test_pyro_network):
     network.receive(envelope)
 
     assert test_object.called
+
+
+def test_ssl_is_enabled_for_pyro_when_using_pyro_secure_context(test_pyro_network):
+    context_cls = PyroSecureContext
+
+    network = test_pyro_network
+
+    assert not Pyro5.config.SSL
+
+    network.daemon.unregister(network)
+    network.daemon.close()
+
+    network.create_daemon(context_cls=context_cls)
+
+    assert Pyro5.config.SSL is True
+
+
+def test_custom_handshake_is_used_when_using_a_custom_context(mocker):
+    mocker.patch(
+        "Pyro5.svr_threads.SocketServer_Threadpool",
+        TransportServerStub,
+    )
+
+    # Use a stub context so we can check if it was called
+    network = PyroNetwork(
+        node_id="test", host="localhost", port=8080, peers=[], context_cls=SecureContextStub
+    )
+
+    assert (
+        network.daemon.validateHandshake.__qualname__
+        == SecureContextStub.validate_handshake.__qualname__
+    )
