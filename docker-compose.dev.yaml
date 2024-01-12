@@ -12,7 +12,7 @@ services:
      - NODE1_HDSEED=cTj4tA23bVHAnA42bYGGPfv13G2dfuChxtenJKsZffkCVMvofcfC
      - NODE2_HDSEED=cUroJKmyKxRJVaeKzprMZExtPoZqt9HPnfhhJvAqtprWCVsuzUBU
      - NODE3_HDSEED=cSsv1YhxQqce8ywLiwhMjKcq9L1J7J2wm66zX7kfB1eLBBBaTt8N
-     #- USER_HDSEED=cUrw2SDAMapEqZ2pQnh5angJHqzGWvPMPdJNJWTDFagHMcdcciu8
+     - USER_HDSEED=cUrw2SDAMapEqZ2pQnh5angJHqzGWvPMPdJNJWTDFagHMcdcciu8
      # sorted !!
      - PUBKEYS=["02f2bfc7a7d86f04d675083c7157d95c5741e85ff69b0c1357059fe1ee52271218","0380d87958cc14e1178f55584ee437b05c155a5a7d9f1951beb927195abaa7a7ed","0397ff0a671bea40a8346d7487810f3a96be95732717e5c568a7c8090a73a6c88b"]
      - MULTISIG_ADDRESS=bcrt1qtxysk2megp39dnpw9va32huk5fesrlvutl0zdpc29asar4hfkrlqs2kzv5

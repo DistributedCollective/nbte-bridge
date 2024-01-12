@@ -17,13 +17,13 @@ echo "Creating wallets"
 bitcoin-cli createwallet node1 false true || true
 bitcoin-cli createwallet node2 false true || true
 bitcoin-cli createwallet node3 false true || true
+bitcoin-cli createwallet user false true || true
 
 bitcoin-cli -rpcwallet=node1 sethdseed true "$NODE1_HDSEED"
 bitcoin-cli -rpcwallet=node2 sethdseed true "$NODE2_HDSEED"
 bitcoin-cli -rpcwallet=node3 sethdseed true "$NODE3_HDSEED"
-# bitcoin-cli -rpcwallet=user  sethdseed true "$USER_HDSEED"
+bitcoin-cli -rpcwallet=user  sethdseed true "$USER_HDSEED"
 
-# bitcoin-cli createmultisig 2 "$PUBKEYS" bech32  # probably not necessary
 bitcoin-cli createwallet multisig true true
 
 bitcoin-cli -rpcwallet=multisig importaddress "$MULTISIG_ADDRESS"
