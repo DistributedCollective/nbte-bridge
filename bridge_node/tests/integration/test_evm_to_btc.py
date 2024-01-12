@@ -3,7 +3,7 @@ from decimal import Decimal
 from .utils import from_satoshi, to_wei, wait_for_condition, wait_for_eth_tx
 
 
-def test_rsk_to_btc(
+def test_evm_to_btc(
     user_web3,
     user_account,
     user_bridge_contract,
