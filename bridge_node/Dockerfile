@@ -11,6 +11,7 @@ ENV PYTHONPYCACHEPREFIX=/tmp/pycache \
 
 RUN apt-get update -y && apt-get --no-install-recommends -y install \
     postgresql-client \
+    libsecp256k1-dev \
     && rm -rf /var/lib/apt/lists/*
 
 FROM base as builder
