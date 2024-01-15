@@ -1973,6 +1973,16 @@ files = [
 ]
 
 [[package]]
+name = "python-bitcointx"
+version = "1.1.4"
+description = "A library for handling Bitcoin transactions and associated data"
+optional = false
+python-versions = ">=3.7"
+files = [
+    {file = "python_bitcointx-1.1.4-py3-none-any.whl", hash = "sha256:075a05a46920e31024fef226d8977f443e8405c65d669f1f1246fe58ba1df873"},
+]
+
+[[package]]
 name = "pyunormalize"
 version = "15.1.0"
 description = "Unicode normalization forms (NFC, NFKC, NFD, NFKD). A library independent from the Python core Unicode database."
@@ -2939,4 +2949,4 @@ test = ["zope.testing"]
 [metadata]
 lock-version = "2.0"
 python-versions = "^3.10"
-content-hash = "8c2685cc1610e60a7724f2f97da4133cc969595d2bc63c9f132664bc8b475c92"
+content-hash = "911a139523a87986dc1c583c06fe3a212d368ebe2eba02d2dab2400932c99074"
