@@ -7,9 +7,6 @@ from datetime import datetime
 from . import challenge
 
 
-privkey = "0x9a9a640da1fc0181e43a9ea00b81878f26e1678e3e246b25bd2835783f2be181"
-
-
 def pyro_validate_handshake(conn, data):
     cert = conn.getpeercert()
 
