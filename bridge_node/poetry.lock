@@ -787,6 +787,16 @@ files = [
 ]
 
 [[package]]
+name = "embit"
+version = "0.7.0"
+description = "yet another bitcoin library"
+optional = false
+python-versions = "*"
+files = [
+    {file = "embit-0.7.0.tar.gz", hash = "sha256:3dbd42582b5c3e40623e7b2af02956ba6019f6e1ca1c3363f27aa9f9bca03366"},
+]
+
+[[package]]
 name = "environ-config"
 version = "23.2.0"
 description = "Boilerplate-free configuration with env variables."
@@ -2929,4 +2939,4 @@ test = ["zope.testing"]
 [metadata]
 lock-version = "2.0"
 python-versions = "^3.10"
-content-hash = "27ba5614d7faad81ca3ab8493ec4c4d72bf8658480cc96681a1d2166eb9f9e4d"
+content-hash = "8c2685cc1610e60a7724f2f97da4133cc969595d2bc63c9f132664bc8b475c92"
