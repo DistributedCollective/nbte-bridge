@@ -542,6 +542,7 @@ class BoundPyroProxy(object):
         challenge.validate_message(
             response,
             self._pyroConnection.sock.get_channel_binding(cb_type="tls-unique"),
+            self._get_peer_addresses(),
         )
 
         logging.debug("Handshake validated")
@@ -595,14 +596,13 @@ class BoundPyroProxy(object):
                 "create a new BoundPyroProxy in this thread or transfer ownership."
             )
 
-
-def get_peer_addresses():
-    # TODO: get from external service
-    return [
-        "0x09dcD91DF9300a81a4b9C85FDd04345C3De58F48",
-        "0xA40013a058E70664367c515246F2560B82552ACb",
-        "0x4091663B0a7a14e35Ff1d6d9d0593cE15cE7710a",
-    ]
+    def _get_peer_addresses(self):
+        # TODO: get from external service
+        return [
+            "0x09dcD91DF9300a81a4b9C85FDd04345C3De58F48",
+            "0xA40013a058E70664367c515246F2560B82552ACb",
+            "0x4091663B0a7a14e35Ff1d6d9d0593cE15cE7710a",
+        ]
 
 
 # Forked from Pyro5.client.BoundPyroProxy.__pyroCreateConnection
