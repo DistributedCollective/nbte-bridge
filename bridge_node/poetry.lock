@@ -1821,17 +1821,6 @@ pytest = ">=5.0"
 dev = ["pre-commit", "pytest-asyncio", "tox"]
 
 [[package]]
-name = "python-bitcoinlib"
-version = "0.12.2"
-description = "The Swiss Army Knife of the Bitcoin protocol."
-optional = false
-python-versions = "*"
-files = [
-    {file = "python-bitcoinlib-0.12.2.tar.gz", hash = "sha256:c65ab61427c77c38d397bfc431f71d86fd355b453a536496ec3fcb41bd10087d"},
-    {file = "python_bitcoinlib-0.12.2-py3-none-any.whl", hash = "sha256:2f29a9f475f21c12169b3a6cc8820f34f11362d7ff1200a5703dce3e4e903a44"},
-]
-
-[[package]]
 name = "python-bitcointx"
 version = "1.1.4"
 description = "A library for handling Bitcoin transactions and associated data"
@@ -2808,4 +2797,4 @@ test = ["zope.testing"]
 [metadata]
 lock-version = "2.0"
 python-versions = "^3.10"
-content-hash = "36319af31a38fba15691ce1988c77dc5c929595aea1dbde34b8ba74db0eb6919"
+content-hash = "55cee1513fb5d8a48a62be30e40d527c3a99d66b8287ea8d2aa985e63eb1c9d3"
