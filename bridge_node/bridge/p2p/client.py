@@ -15,9 +15,9 @@ except ImportError:
 log = logging.getLogger("Pyro5.client")
 
 
-class Proxy(object):
+class BoundPyroProxy(object):
     """
-    Pyro proxy for a remote object. Intercepts method calls and dispatches them to the remote object.
+    Pyro BoundPyroProxy for a remote object. Intercepts method calls and dispatches them to the remote object.
 
     .. automethod:: _pyroBind
     .. automethod:: _pyroRelease
@@ -26,11 +26,11 @@ class Proxy(object):
     .. autoattribute:: _pyroTimeout
     .. attribute:: _pyroMaxRetries
 
-        Number of retries to perform on communication calls by this proxy, allows you to override the default setting.
+        Number of retries to perform on communication calls by this BoundPyroProxy, allows you to override the default setting.
 
     .. attribute:: _pyroSerializer
 
-        Name of the serializer to use by this proxy, allows you to override the default setting.
+        Name of the serializer to use by this BoundPyroProxy, allows you to override the default setting.
 
     .. attribute:: _pyroHandshake
 
@@ -62,23 +62,23 @@ class Proxy(object):
             "_pyroHandshake",
             "_pyroMaxRetries",
             "_pyroSerializer",
-            "_Proxy__pyroTimeout",
-            "_Proxy__pyroOwnerThread",
+            "_BoundPyroProxy__pyroTimeout",
+            "_BoundPyroProxy__pyroOwnerThread",
+            "_pyroPrivKey",  # added
         ]
     )
 
-    def __init__(self, uri, connected_socket=None):
+    def __init__(self, uri, connected_socket=None, privkey=None):
         if connected_socket:
             uri = core.URI("PYRO:" + uri + "@<<connected-socket>>:0")
         if isinstance(uri, str):
             uri = core.URI(uri)
         elif not isinstance(uri, core.URI):
             raise TypeError("expected Pyro URI")
+        self._pyroPrivKey = privkey  # Added private key
         self._pyroUri = uri
         self._pyroConnection = None
-        self._pyroSerializer = (
-            None  # can be set to the name of a serializer to override the global one per-proxy
-        )
+        self._pyroSerializer = None  # can be set to the name of a serializer to override the global one per-BoundPyroProxy
         self._pyroMethods = set()  # all methods of the remote object, gotten from meta-data
         self._pyroAttrs = set()  # attributes of the remote object, gotten from meta-data
         self._pyroOneway = set()  # oneway-methods of the remote object, gotten from meta-data
@@ -87,11 +87,11 @@ class Proxy(object):
         self._pyroHandshake = "hello"  # the data object that should be sent in the initial connection handshake message
         self._pyroMaxRetries = config.MAX_RETRIES
         self.__pyroTimeout = config.COMMTIMEOUT
-        self.__pyroOwnerThread = get_ident()  # the thread that owns this proxy
+        self.__pyroOwnerThread = get_ident()  # the thread that owns this BoundPyroProxy
         if config.SERIALIZER not in serializers.serializers:
             raise ValueError("unknown serializer configured")
         # note: we're not clearing the client annotations dict here.
-        #       that is because otherwise it will be wiped if a new proxy is needed to connect PYRONAME uris.
+        #       that is because otherwise it will be wiped if a new BoundPyroProxy is needed to connect PYRONAME uris.
         #       clearing the response annotations is okay.
         current_context.response_annotations = {}
         if connected_socket:
@@ -105,7 +105,7 @@ class Proxy(object):
                 pass
 
     def __getattr__(self, name):
-        if name in Proxy.__pyroAttributes:
+        if name in BoundPyroProxy.__pyroAttributes:
             # allows it to be safely pickled
             raise AttributeError(name)
         # get metadata if it's not there yet
@@ -121,8 +121,10 @@ class Proxy(object):
         return _RemoteMethod(self._pyroInvoke, name, self._pyroMaxRetries)
 
     def __setattr__(self, name, value):
-        if name in Proxy.__pyroAttributes:
-            return super(Proxy, self).__setattr__(name, value)  # one of the special pyro attributes
+        if name in BoundPyroProxy.__pyroAttributes:
+            return super(BoundPyroProxy, self).__setattr__(
+                name, value
+            )  # one of the special pyro attributes
         # get metadata if it's not there yet
         if not self._pyroMethods and not self._pyroAttrs:
             self._pyroGetMetadata()
@@ -190,10 +192,10 @@ class Proxy(object):
     def __eq__(self, other):
         if other is self:
             return True
-        return isinstance(other, Proxy) and other._pyroUri == self._pyroUri
+        return isinstance(other, BoundPyroProxy) and other._pyroUri == self._pyroUri
 
     def __ne__(self, other):
-        if other and isinstance(other, Proxy):
+        if other and isinstance(other, BoundPyroProxy):
             return other._pyroUri != self._pyroUri
         return True
 
@@ -244,9 +246,9 @@ class Proxy(object):
 
     def _pyroBind(self):
         """
-        Bind this proxy to the exact object from the uri. That means that the proxy's uri
+        Bind this BoundPyroProxy to the exact object from the uri. That means that the BoundPyroProxy's uri
         will be updated with a direct PYRO uri, if it isn't one yet.
-        If the proxy is already bound, it will not bind again.
+        If the BoundPyroProxy is already bound, it will not bind again.
         """
         return self.__pyroCreateConnection(True)
 
@@ -262,7 +264,7 @@ class Proxy(object):
         __pyroGetTimeout,
         __pyroSetTimeout,
         doc="""
-        The timeout in seconds for calls on this proxy. Defaults to ``None``.
+        The timeout in seconds for calls on this BoundPyroProxy. Defaults to ``None``.
         If the timeout expires before the remote method call returns,
         Pyro will raise a :exc:`Pyro5.errors.TimeoutError`""",
     )
@@ -296,7 +298,7 @@ class Proxy(object):
             annotations=annotations,
         )
         if config.LOGWIRE:
-            protocol.log_wiredata(log, "proxy wiredata sending", msg)
+            protocol.log_wiredata(log, "BoundPyroProxy wiredata sending", msg)
         try:
             self._pyroConnection.send(msg.data)
             del msg  # invite GC to collect the object, don't wait for out-of-scope
@@ -305,7 +307,7 @@ class Proxy(object):
             else:
                 msg = protocol.recv_stub(self._pyroConnection, [protocol.MSG_RESULT])
                 if config.LOGWIRE:
-                    protocol.log_wiredata(log, "proxy wiredata received", msg)
+                    protocol.log_wiredata(log, "BoundPyroProxy wiredata received", msg)
                 self.__pyroCheckSequence(msg.seq)
                 if msg.serializer_id != serializer.serializer_id:
                     error = "invalid serializer in response: %d" % msg.serializer_id
@@ -332,8 +334,8 @@ class Proxy(object):
             # Otherwise we might receive the previous reply as a result of a new method call!
             # Special case for keyboardinterrupt: people pressing ^C to abort the client
             # may be catching the keyboardinterrupt in their code. We should probably be on the
-            # safe side and release the proxy connection in this case too, because they might
-            # be reusing the proxy object after catching the exception...
+            # safe side and release the BoundPyroProxy connection in this case too, because they might
+            # be reusing the BoundPyroProxy object after catching the exception...
             self._pyroRelease()
             raise
 
@@ -345,11 +347,11 @@ class Proxy(object):
 
     def __pyroCreateConnection(self, replaceUri=False, connected_socket=None):
         """
-        Connects this proxy to the remote Pyro daemon. Does connection handshake.
+        Connects this BoundPyroProxy to the remote Pyro daemon. Does connection handshake.
         Returns true if a new connection was made, false if an existing one was already present.
         """
 
-        def connect_and_handshake(conn):
+        def connect_and_handshake(conn):  # Added private key
             try:
                 if self._pyroConnection is not None:
                     return False  # already connected
@@ -373,14 +375,17 @@ class Proxy(object):
                 # Do handshake.
                 serializer = serializers.serializers[self._pyroSerializer or config.SERIALIZER]
 
-                channel_binding = conn.sock.get_channel_binding(cb_type="tls-unique")
+                if config.SSL:  # Added part
+                    channel_binding = conn.sock.get_channel_binding(cb_type="tls-unique")
 
-                print("SUKKA ON PERKELE", channel_binding)
-
-                data = {
-                    "handshake": challenge.initial_challenge(channel_binding),
-                    "object": uri.object,
-                }  # changed part
+                    data = {
+                        "handshake": challenge.initial_challenge(
+                            channel_binding, self._pyroPrivKey
+                        ),
+                        "object": uri.object,
+                    }
+                else:
+                    data = {"handshake": self._pyroHandshake, "object": uri.object}
 
                 data = serializer.dumps(data)
 
@@ -393,13 +398,13 @@ class Proxy(object):
                     annotations=current_context.annotations,
                 )
                 if config.LOGWIRE:
-                    protocol.log_wiredata(log, "proxy connect sending", msg)
+                    protocol.log_wiredata(log, "BoundPyroProxy connect sending", msg)
 
                 print("SENDING:DD")
                 conn.send(msg.data)
                 msg = protocol.recv_stub(conn, [protocol.MSG_CONNECTOK, protocol.MSG_CONNECTFAIL])
                 if config.LOGWIRE:
-                    protocol.log_wiredata(log, "proxy connect response received", msg)
+                    protocol.log_wiredata(log, "BoundPyroProxy connect response received", msg)
             except Exception as x:
                 if conn:
                     conn.close()
@@ -464,7 +469,7 @@ class Proxy(object):
 
     def _pyroGetMetadata(self, objectId=None, known_metadata=None):
         """
-        Get metadata from server (methods, attrs, oneway, ...) and remember them in some attributes of the proxy.
+        Get metadata from server (methods, attrs, oneway, ...) and remember them in some attributes of the BoundPyroProxy.
         Usually this will already be known due to the default behavior of the connect handshake, where the
         connect response also includes the metadata.
         """
@@ -508,8 +513,8 @@ class Proxy(object):
 
     def _pyroReconnect(self, tries=100000000):
         """
-        (Re)connect the proxy to the daemon containing the pyro object which the proxy is for.
-        In contrast to the _pyroBind method, this one first releases the connection (if the proxy is still connected)
+        (Re)connect the BoundPyroProxy to the daemon containing the pyro object which the BoundPyroProxy is for.
+        In contrast to the _pyroBind method, this one first releases the connection (if the BoundPyroProxy is still connected)
         and retries making a new connection until it succeeds or the given amount of tries ran out.
         """
         self._pyroRelease()
@@ -532,16 +537,18 @@ class Proxy(object):
         return self._pyroInvoke("<batch>", calls, None, flags)
 
     def _pyroValidateHandshake(self, response):
-        """
-        Process and validate the initial connection handshake response data received from the daemon.
-        Simply return without error if everything is ok.
-        Raise an exception if something is wrong and the connection should not be made.
-        """
-        return
+        logging.debug("Validating handshake on client, response: %s", response)
+
+        challenge.validate_message(
+            response,
+            self._pyroConnection.sock.get_channel_binding(cb_type="tls-unique"),
+        )
+
+        logging.debug("Handshake validated")
 
     def _pyroClaimOwnership(self):
         """
-        The current thread claims the ownership of this proxy from another thread.
+        The current thread claims the ownership of this BoundPyroProxy from another thread.
         Any existing connection will remain active!
         """
         if get_ident() != self.__pyroOwnerThread:
@@ -584,12 +591,21 @@ class Proxy(object):
     def __check_owner(self):
         if get_ident() != self.__pyroOwnerThread:
             raise errors.PyroError(
-                "the calling thread is not the owner of this proxy, "
-                "create a new proxy in this thread or transfer ownership."
+                "the calling thread is not the owner of this BoundPyroProxy, "
+                "create a new BoundPyroProxy in this thread or transfer ownership."
             )
 
 
-# Forked from Pyro5.client.Proxy.__pyroCreateConnection
+def get_peer_addresses():
+    # TODO: get from external service
+    return [
+        "0x09dcD91DF9300a81a4b9C85FDd04345C3De58F48",
+        "0xA40013a058E70664367c515246F2560B82552ACb",
+        "0x4091663B0a7a14e35Ff1d6d9d0593cE15cE7710a",
+    ]
+
+
+# Forked from Pyro5.client.BoundPyroProxy.__pyroCreateConnection
 # and modified to allow for a socket channel binding to be passed in
 # with the data in the handshake. Please do not touch any more than necessary.
 # It's ugly as it is.

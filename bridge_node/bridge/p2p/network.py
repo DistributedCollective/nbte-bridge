@@ -8,12 +8,11 @@ import Pyro5.errors
 from anemic.ioc import Container, service
 from .messaging import MessageEnvelope
 
-from ..auth import challenge
 from ..auth.bridge_ssl import SecureContext, PyroSecureContext
 
 from ..config import Config
 
-from .client import Proxy
+from .client import BoundPyroProxy
 
 
 class Listener(Protocol):
@@ -34,35 +33,20 @@ class Network(Protocol):
         ...
 
 
-class BoundPyroProxy(Proxy):
-    def _pyroValidateHandshake(self, response):
-        logging.debug("Validating handshake on client, response: %s", response)
-        challenge.validate_message(
-            response,
-            self._pyroConnection.sock.get_channel_binding(cb_type="tls-unique"),
-            [
-                "0x09dcD91DF9300a81a4b9C85FDd04345C3De58F48",
-                "0xA40013a058E70664367c515246F2560B82552ACb",
-                "0x4091663B0a7a14e35Ff1d6d9d0593cE15cE7710a",
-            ],
-        )
-
-        logging.debug("Handshake validated")
-
-        return
-
-
 class PyroMessageEnvelope(TypedDict):
     sender: str
     message: Any
 
 
 class PyroNetwork(Network):
-    def __init__(self, *, node_id, host, port, peers, context_cls: SecureContext = None):
+    def __init__(
+        self, *, node_id, host, port, peers, context_cls: SecureContext = None, privkey=None
+    ):
         self.host = host
         self.port = port
         self.node_id = node_id
         self.context = None
+        self.privkey = privkey
 
         self.create_daemon(context_cls)
 
@@ -77,7 +61,7 @@ class PyroNetwork(Network):
 
     def create_daemon(self, context_cls: SecureContext | Any = None):
         if context_cls is not None:
-            self.context = context_cls()
+            self.context = context_cls(self.privkey)
 
         self.daemon = Pyro5.api.Daemon(host=self.host, port=self.port)
 
@@ -109,7 +93,7 @@ class PyroNetwork(Network):
             sender=str(self.uri),
             message=msg,
         )
-        with BoundPyroProxy(to) as peer:
+        with BoundPyroProxy(to, privkey=self.privkey) as peer:
             peer.receive(envelope)
 
     @Pyro5.api.expose
@@ -132,6 +116,7 @@ class PyroNetwork(Network):
         return [
             BoundPyroProxy(
                 self.get_peer_uri(peer, host),
+                privkey=self.privkey,
             )
             for peer, host in self._peers
             if peer != self.node_id
@@ -160,6 +145,7 @@ def create_pyro_network(container: Container):
         port=config.port,
         peers=config.peers,
         context_cls=PyroSecureContext,
+        privkey=config.evm_private_key,
     )
 
     # TODO: VERY UGLY! But we don't want to crash on startup if network not started
