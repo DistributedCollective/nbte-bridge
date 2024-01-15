@@ -80,7 +80,7 @@ def test_psbt(
     child_xprvs,
     child_xpubs,
 ):
-    user_btc_before = from_satoshi(user_bitcoin_rpc.getbalance())
+    user_btc_before = Decimal(user_bitcoin_rpc.getbalance())
 
     utxos = multisig_bitcoin_rpc.call("listunspent", 0, 9999999, [MULTISIG_ADDRESS])
     assert len(utxos) > 0, "Sanity check failed, no utxos to spend"
@@ -90,8 +90,6 @@ def test_psbt(
 
     input_utxos = [utxos[0]]
     total_amount_in_btc = sum(utxo["amount"] for utxo in input_utxos)
-    # total_amount_in_satoshi = sum(utxo['amount'] for utxo in input_utxos)
-    # total_amount_in_btc = from_satoshi(total_amount_in_satoshi)
     fee_btc = from_satoshi(1000)
     assert (
         total_amount_in_btc > amount_btc + fee_btc
@@ -163,10 +161,10 @@ def test_psbt(
     # print(accept_result)
     assert accept_result[0]["allowed"], accept_result[0].get("reject-reason")
 
-    multisig_bitcoin_rpc.sendrawtransaction(extracted_tx)
+    multisig_bitcoin_rpc.sendrawtransaction(extracted_tx_hex)
 
     user_btc_after = wait_for_condition(
-        callback=lambda: from_satoshi(user_bitcoin_rpc.getbalance()),
+        callback=lambda: Decimal(user_bitcoin_rpc.getbalance()),
         condition=lambda balance: balance != user_btc_before,
         description="user BTC balance change",
     )

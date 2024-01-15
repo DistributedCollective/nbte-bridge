@@ -1,4 +1,4 @@
-from typing import cast
+from typing import Any, cast
 
 import pytest
 from web3 import Web3
@@ -7,13 +7,15 @@ from eth_account import Account
 import pathlib
 from eth_typing import ChecksumAddress
 from eth_utils import to_hex
-import bitcoin
-import bitcoin.rpc
+import bitcointx
+from bitcointx.rpc import RPCCaller as _RPCCaller
 
 from bridge.evm.utils import create_web3, load_abi
 
 
-bitcoin.SelectParams("regtest")  # it's a global variable, just like Satoshi intended
+bitcointx.select_chain_params(
+    "bitcoin/regtest"
+)  # it's a global variable, just like Satoshi intended
 
 
 WEB3_RPC_URL = "http://localhost:18545"
@@ -23,6 +25,11 @@ BRIDGE_CONTRACT_ADDRESS = cast(ChecksumAddress, "0x5FbDB2315678afecb367f032d93F6
 THIS_DIR = pathlib.Path(__file__).parent
 
 
+class MyRPCCaller(_RPCCaller):
+    def call(self, service_name: str, *args: Any) -> Any:
+        return self._call(service_name, *args)
+
+
 @pytest.fixture(scope="session")
 def web3():
     return Web3(Web3.HTTPProvider(WEB3_RPC_URL))
@@ -30,12 +37,12 @@ def web3():
 
 @pytest.fixture(scope="session")
 def user_bitcoin_rpc():
-    return bitcoin.rpc.Proxy(USER_BITCOIN_RPC_URL)
+    return MyRPCCaller(USER_BITCOIN_RPC_URL)
 
 
 @pytest.fixture(scope="session")
 def multisig_bitcoin_rpc():
-    return bitcoin.rpc.Proxy(MULTISIG_BITCOIN_RPC_URL)
+    return MyRPCCaller(MULTISIG_BITCOIN_RPC_URL)
 
 
 @pytest.fixture(scope="session", autouse=True)

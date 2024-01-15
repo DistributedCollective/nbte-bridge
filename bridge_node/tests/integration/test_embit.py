@@ -80,7 +80,7 @@ def test_create_psbt(
     multisig_redeem_script,
     child_privkeys,
 ):
-    user_btc_before = from_satoshi(user_bitcoin_rpc.getbalance())
+    user_btc_before = Decimal(user_bitcoin_rpc.getbalance())
     print("BTC before", user_btc_before)
 
     utxos = multisig_bitcoin_rpc.call("listunspent", 0, 9999999, [MULTISIG_ADDRESS])
@@ -109,8 +109,7 @@ def test_create_psbt(
     change_amount_btc = total_amount_in_btc - amount_btc - fee_btc
     change_amount_satoshi = to_satoshi(change_amount_btc)
 
-    # user_address = str(user_bitcoin_rpc.getnewaddress())
-    user_address = "bcrt1q5uypnmxn6xu4z4yvq87c5htktz2ka0dkpqtp9c"  # TODO: re-create every time!
+    user_address = str(user_bitcoin_rpc.getnewaddress())
     user_script = script.address_to_scriptpubkey(user_address)
     print(user_script)
 

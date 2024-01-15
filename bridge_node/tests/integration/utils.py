@@ -27,6 +27,8 @@ def to_satoshi(number):
 
 
 def from_satoshi(number):
+    if number != round(number):
+        raise ValueError(f"Number of satoshi must be an integer: {number}")
     return Decimal(number) / 10**8
 
 
