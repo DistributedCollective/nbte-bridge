@@ -40,6 +40,7 @@ web3 = "^6.13.0"
 eth-account = "^0.10.0"
 eth-utils = "^2.3.1"
 python-bitcointx = "^1.1.4"
+pyramid = "^2.0.2"
 
 [tool.poetry.group.dev.dependencies]
 pytest = "^7.4.3"

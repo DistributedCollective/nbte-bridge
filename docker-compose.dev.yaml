@@ -45,6 +45,8 @@ services:
     restart: always
     depends_on:
       - postgres
+    ports:
+      - 127.0.0.1:8081:8080
     volumes:
       - ./bridge_node/certs/bridge-node-1-client-cert.pem:/certs/client-cert.pem:ro
       - ./bridge_node/certs/bridge-node-1-client-key.pem:/certs/client-key.pem:ro
@@ -78,6 +80,8 @@ services:
     depends_on:
       - postgres
       - bridge-node-1
+    ports:
+      - 127.0.0.1:8082:8080
     volumes:
       - ./bridge_node/certs/bridge-node-2-client-cert.pem:/certs/client-cert.pem:ro
       - ./bridge_node/certs/bridge-node-2-client-key.pem:/certs/client-key.pem:ro
@@ -106,6 +110,8 @@ services:
     depends_on:
       - postgres
       - bridge-node-2
+    ports:
+      - 127.0.0.1:8083:8080
     volumes:
       - ./bridge_node/certs/bridge-node-3-client-cert.pem:/certs/client-cert.pem:ro
       - ./bridge_node/certs/bridge-node-3-client-key.pem:/certs/client-key.pem:ro
