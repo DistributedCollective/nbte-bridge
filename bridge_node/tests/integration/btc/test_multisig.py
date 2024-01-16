@@ -7,6 +7,7 @@ from ..constants import (
     MULTISIG_XPUBS,
     MULTISIG_XPRVS,
 )
+from ..utils import to_satoshi, wait_for_condition
 
 
 def make_multisig(multisig_bitcoin_rpc, xprv):
@@ -56,3 +57,36 @@ def test_construct_psbt(multisig: BitcoinMultisig):
         ]
     )
     assert isinstance(psbt, PSBT)
+
+
+def test_construct_sign_combine_and_broadcast_psbt(
+    multisig: BitcoinMultisig,
+    multisig_2: BitcoinMultisig,
+    multisig_3: BitcoinMultisig,
+    user_bitcoin_rpc,
+):
+    user_address = str(user_bitcoin_rpc.getnewaddress())
+    user_satoshi_before = to_satoshi(user_bitcoin_rpc.getbalance())
+    psbt = multisig.construct_psbt(
+        transfers=[
+            Transfer(
+                recipient_address=user_address,
+                amount_satoshi=100_000,
+            )
+        ]
+    )
+    # signed1 = multisig.sign_psbt(psbt)
+    signed2 = multisig_2.sign_psbt(psbt)
+    signed3 = multisig_3.sign_psbt(psbt)
+    combined = multisig.combine_and_finalize_psbt(
+        initial_psbt=psbt,
+        signed_psbts=[signed2, signed3],
+    )
+    txid = multisig.broadcast_psbt(combined)
+    print(txid)
+    user_satoshi_after = wait_for_condition(
+        callback=lambda: to_satoshi(user_bitcoin_rpc.getbalance()),
+        condition=lambda balance: balance != user_satoshi_before,
+        description="user BTC balance change",
+    )
+    assert user_satoshi_after == user_satoshi_before + 100_000

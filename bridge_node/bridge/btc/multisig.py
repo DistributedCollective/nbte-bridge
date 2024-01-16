@@ -6,6 +6,7 @@ from anemic.ioc import service, Container
 from bitcointx.core import CTransaction, CTxIn, CTxOut
 from bitcointx.wallet import CCoinExtPubKey, CCoinExtKey, P2WSHBitcoinAddress
 from bitcointx.core.script import standard_multisig_redeem_script
+from bitcointx.core.key import KeyStore
 
 from .rpc import BitcoinRPC
 from .utils import encode_segwit_address
@@ -114,6 +115,42 @@ class BitcoinMultisig:
                 force_witness_utxo=True,
             )
         return psbt
+
+    def sign_psbt(self, psbt: PSBT) -> PSBT:
+        psbt = psbt.clone()
+        keystore = KeyStore.from_iterable(
+            [
+                self._get_master_xpriv().derive_path(self._key_derivation_path).priv,
+            ],
+        )
+        result = psbt.sign(keystore, finalize=False)
+        assert result.num_inputs_signed == len(psbt.inputs)
+        return psbt
+
+    def combine_and_finalize_psbt(
+        self,
+        *,
+        initial_psbt: PSBT,
+        signed_psbts: list[PSBT],
+    ):
+        psbt = initial_psbt.clone()
+        for signed_psbt in signed_psbts:
+            psbt = psbt.combine(signed_psbt)
+        sign_result = psbt.sign(KeyStore(), finalize=True)
+        if not sign_result.is_final:
+            raise Exception("Failed to finalize PSBT")
+        return psbt
+
+    def broadcast_psbt(self, psbt: PSBT):
+        tx = psbt.extract_transaction()
+        tx_hex = tx.serialize().hex()
+        accept_result = self._bitcoin_rpc.testmempoolaccept([tx_hex])
+        if not accept_result[0]["allowed"]:
+            raise ValueError(
+                f"Transaction rejected by mempool: {accept_result[0].get('reject-reason')}"
+            )
+        txid = self._bitcoin_rpc.sendrawtransaction(tx_hex)
+        return txid
 
     def _list_utxos(self) -> list[UTXO]:
         raw_utxos = self._bitcoin_rpc.listunspent(0, 9999999, [self._multisig_address], False)
