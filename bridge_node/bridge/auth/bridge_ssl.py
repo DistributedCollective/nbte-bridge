@@ -30,13 +30,13 @@ class PyroSecureContext:
 
         Pyro5.config.SSL = True
         Pyro5.config.SSL_REQUIRECLIENTCERT = True  # enable 2-way ssl
-        Pyro5.config.SSL_SERVERCERT = "/certs/server-cert.pem"
-        Pyro5.config.SSL_SERVERKEY = "/certs/server-key.pem"
+        Pyro5.config.SSL_SERVERCERT = "/srv/bridge_backend/certs/server-cert.pem"
+        Pyro5.config.SSL_SERVERKEY = "/srv/bridge_backend/certs/server-key.pem"
 
-        Pyro5.config.SSL_CACERTS = "/certs/ca-cert.pem"
+        Pyro5.config.SSL_CACERTS = "/srv/bridge_backend/certs/ca-cert.pem"
 
-        Pyro5.config.SSL_CLIENTCERT = "/certs/client-cert.pem"
-        Pyro5.config.SSL_CLIENTKEY = "/certs/client-key.pem"
+        Pyro5.config.SSL_CLIENTCERT = "/srv/bridge_backend/certs/client-cert.pem"
+        Pyro5.config.SSL_CLIENTKEY = "/srv/bridge_backend/certs/client-key.pem"
         Pyro5.config.LOGWIRE = True
 
     def validate_handshake(self, conn, data):

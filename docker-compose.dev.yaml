@@ -47,12 +47,6 @@ services:
       - postgres
     ports:
       - 127.0.0.1:8081:8080
-    volumes:
-      - ./bridge_node/certs/bridge-node-1-client-cert.pem:/certs/client-cert.pem:ro
-      - ./bridge_node/certs/bridge-node-1-client-key.pem:/certs/client-key.pem:ro
-      - ./bridge_node/certs/bridge-node-1-server-cert.pem:/certs/server-cert.pem:ro
-      - ./bridge_node/certs/bridge-node-1-server-key.pem:/certs/server-key.pem:ro
-      - ./bridge_node/certs/ca-cert.pem:/certs/ca-cert.pem:ro
     # TODO: needs to be added later, this does not work without pyramid
     # healthcheck:
     #   test: ["CMD", "curl", "-f", "http://localhost:6543/health"]
@@ -82,12 +76,6 @@ services:
       - bridge-node-1
     ports:
       - 127.0.0.1:8082:8080
-    volumes:
-      - ./bridge_node/certs/bridge-node-2-client-cert.pem:/certs/client-cert.pem:ro
-      - ./bridge_node/certs/bridge-node-2-client-key.pem:/certs/client-key.pem:ro
-      - ./bridge_node/certs/bridge-node-2-server-cert.pem:/certs/server-cert.pem:ro
-      - ./bridge_node/certs/bridge-node-2-server-key.pem:/certs/server-key.pem:ro
-      - ./bridge_node/certs/ca-cert.pem:/certs/ca-cert.pem:ro
     environment:
       - BRIDGE_NODE_ID=rollup-bridge-2
       - BRIDGE_HOSTNAME=bridge-node-2
@@ -112,12 +100,6 @@ services:
       - bridge-node-2
     ports:
       - 127.0.0.1:8083:8080
-    volumes:
-      - ./bridge_node/certs/bridge-node-3-client-cert.pem:/certs/client-cert.pem:ro
-      - ./bridge_node/certs/bridge-node-3-client-key.pem:/certs/client-key.pem:ro
-      - ./bridge_node/certs/bridge-node-3-server-cert.pem:/certs/server-cert.pem:ro
-      - ./bridge_node/certs/bridge-node-3-server-key.pem:/certs/server-key.pem:ro
-      - ./bridge_node/certs/ca-cert.pem:/certs/ca-cert.pem:ro
     environment:
       - BRIDGE_NODE_ID=rollup-bridge-3
       - BRIDGE_HOSTNAME=bridge-node-3

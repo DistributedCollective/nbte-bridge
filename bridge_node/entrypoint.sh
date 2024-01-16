@@ -12,4 +12,6 @@ source .venv/bin/activate
 
 alembic -n local_docker upgrade head
 
+cd /srv/bridge_backend/certs/ && ./create_node_certs.sh
+
 python -m bridge
