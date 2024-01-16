@@ -1,6 +1,8 @@
 import decimal
 from typing import Union
 
+from bitcointx import segwit_addr, get_current_chain_params
+
 
 def to_satoshi(btc: Union[int, decimal.Decimal, str]) -> int:
     if not isinstance(btc, (int, decimal.Decimal, str)):
@@ -20,3 +22,17 @@ def from_satoshi(satoshi: int) -> decimal.Decimal:
     with decimal.localcontext() as ctx:
         ctx.prec = 999
         return decimal.Decimal(satoshi) / 10**8
+
+
+def encode_segwit_address(script, *, witver=0, hrp=None):
+    if hrp is None:
+        params = get_current_chain_params()
+        if params.name == "bitcoin/regtest":
+            hrp = "bcrt"
+        elif params.name == "bitcoin/testnet":
+            hrp = "tb"
+        elif params.name == "bitcoin/mainnet":
+            hrp = "bc"
+        else:
+            raise ValueError(f"Unknown network: {params.name}")
+    return segwit_addr.encode(hrp, witver, script)

@@ -63,8 +63,10 @@ services:
       - BRIDGE_PEERS=rollup-bridge-2@bridge-node-2:5000,rollup-bridge-3@bridge-node-3:5000
       - BRIDGE_BTC_NETWORK=regtest
       - BRIDGE_BTC_RPC_URL=http://bridgebtc:hunter3@bitcoin-regtest:18443/wallet/multisig
-      #- BRIDGE_BTC_MASTER_PRIVATE_KEY=tprv8ZgxMBicQKsPdLiVtqrvinq5JyvByQZs4xWMgzZ3YWK7ndu27yQ3qoWivh8cgdtB3bKuYKWRKhaEvtykaFCsDCB7akNdcArjgrCnFhuDjmV
-      #- BRIDGE_BTC_MASTER_PUBLIC_KEYS=tpubD6NzVbkrYhZ4WokHnVXX8CVBt1S88jkmeG78yWbLxn7Wd89nkNDe2J8b6opP4K38mRwXf9d9VVN5uA58epPKjj584R1rnDDbk6oHUD1MoWD,tpubD6NzVbkrYhZ4WpZfRZip3ALqLpXhHUbe6UyG8iiTzVDuvNUyysyiUJWejtbszZYrDaUM8UZpjLmHyvtV7r1QQNFmTqciAz1fYSYkw28Ux6y,tpubD6NzVbkrYhZ4WQZnWqU8ieBsujhoZKZLF6wMvTApJ4ZiGmipk481DyM2su3y5BDeB9fFLwSmmmsGDGJum79he2fnuQMnpWhe3bGir7Mf4uS
+      - BRIDGE_BTC_MASTER_PRIVATE_KEY=tprv8ZgxMBicQKsPdLiVtqrvinq5JyvByQZs4xWMgzZ3YWK7ndu27yQ3qoWivh8cgdtB3bKuYKWRKhaEvtykaFCsDCB7akNdcArjgrCnFhuDjmV
+      - BRIDGE_BTC_MASTER_PUBLIC_KEYS=tpubD6NzVbkrYhZ4WokHnVXX8CVBt1S88jkmeG78yWbLxn7Wd89nkNDe2J8b6opP4K38mRwXf9d9VVN5uA58epPKjj584R1rnDDbk6oHUD1MoWD,tpubD6NzVbkrYhZ4WpZfRZip3ALqLpXhHUbe6UyG8iiTzVDuvNUyysyiUJWejtbszZYrDaUM8UZpjLmHyvtV7r1QQNFmTqciAz1fYSYkw28Ux6y,tpubD6NzVbkrYhZ4WQZnWqU8ieBsujhoZKZLF6wMvTApJ4ZiGmipk481DyM2su3y5BDeB9fFLwSmmmsGDGJum79he2fnuQMnpWhe3bGir7Mf4uS
+      - BRIDGE_BTC_KEY_DERIVATION_PATH=m/0/0/0
+      - BRIDGE_BTC_NUM_REQUIRED_SIGNERS=2
 
   bridge-node-2:
     image: bridge_node:latest
@@ -87,8 +89,10 @@ services:
       - BRIDGE_PEERS=rollup-bridge-1@bridge-node-1:5000,rollup-bridge-3@bridge-node-3:5000
       - BRIDGE_BTC_NETWORK=regtest
       - BRIDGE_BTC_RPC_URL=http://bridgebtc:hunter3@bitcoin-regtest:18443/wallet/multisig
-      #- BRIDGE_BTC_MASTER_PRIVATE_KEY=tprv8ZgxMBicQKsPdMXsXv4Ddkgimo1m89QjXBNUrCgAaDRX5tEDMVA8HotnZmHcMvUVtgh1yXbN74StoJqv76jvRxJmkr2wvkPwTbZb1zeXv3Y
-      #- BRIDGE_BTC_MASTER_PUBLIC_KEYS=tpubD6NzVbkrYhZ4WokHnVXX8CVBt1S88jkmeG78yWbLxn7Wd89nkNDe2J8b6opP4K38mRwXf9d9VVN5uA58epPKjj584R1rnDDbk6oHUD1MoWD,tpubD6NzVbkrYhZ4WpZfRZip3ALqLpXhHUbe6UyG8iiTzVDuvNUyysyiUJWejtbszZYrDaUM8UZpjLmHyvtV7r1QQNFmTqciAz1fYSYkw28Ux6y,tpubD6NzVbkrYhZ4WQZnWqU8ieBsujhoZKZLF6wMvTApJ4ZiGmipk481DyM2su3y5BDeB9fFLwSmmmsGDGJum79he2fnuQMnpWhe3bGir7Mf4uS
+      - BRIDGE_BTC_MASTER_PRIVATE_KEY=tprv8ZgxMBicQKsPdMXsXv4Ddkgimo1m89QjXBNUrCgAaDRX5tEDMVA8HotnZmHcMvUVtgh1yXbN74StoJqv76jvRxJmkr2wvkPwTbZb1zeXv3Y
+      - BRIDGE_BTC_MASTER_PUBLIC_KEYS=tpubD6NzVbkrYhZ4WokHnVXX8CVBt1S88jkmeG78yWbLxn7Wd89nkNDe2J8b6opP4K38mRwXf9d9VVN5uA58epPKjj584R1rnDDbk6oHUD1MoWD,tpubD6NzVbkrYhZ4WpZfRZip3ALqLpXhHUbe6UyG8iiTzVDuvNUyysyiUJWejtbszZYrDaUM8UZpjLmHyvtV7r1QQNFmTqciAz1fYSYkw28Ux6y,tpubD6NzVbkrYhZ4WQZnWqU8ieBsujhoZKZLF6wMvTApJ4ZiGmipk481DyM2su3y5BDeB9fFLwSmmmsGDGJum79he2fnuQMnpWhe3bGir7Mf4uS
+      - BRIDGE_BTC_KEY_DERIVATION_PATH=m/0/0/0
+      - BRIDGE_BTC_NUM_REQUIRED_SIGNERS=2
 
   bridge-node-3:
     image: bridge_node:latest
@@ -111,8 +115,10 @@ services:
       - BRIDGE_PEERS=rollup-bridge-1@bridge-node-1:5000,rollup-bridge-2@bridge-node-2:5000
       - BRIDGE_BTC_NETWORK=regtest
       - BRIDGE_BTC_RPC_URL=http://bridgebtc:hunter3@bitcoin-regtest:18443/wallet/multisig
-      #- BRIDGE_BTC_MASTER_PRIVATE_KEY=tprv8ZgxMBicQKsPcwXzdBoYKEXmLiBsPzNRfoLadw8WsnmKSHU47fJR3UjAhni8kt5bx5jFG9JZ4oZuxnaX6beTNwc2C5coMHmAvnKpqHA8xVb
-      #- BRIDGE_BTC_MASTER_PUBLIC_KEYS=tpubD6NzVbkrYhZ4WokHnVXX8CVBt1S88jkmeG78yWbLxn7Wd89nkNDe2J8b6opP4K38mRwXf9d9VVN5uA58epPKjj584R1rnDDbk6oHUD1MoWD,tpubD6NzVbkrYhZ4WpZfRZip3ALqLpXhHUbe6UyG8iiTzVDuvNUyysyiUJWejtbszZYrDaUM8UZpjLmHyvtV7r1QQNFmTqciAz1fYSYkw28Ux6y,tpubD6NzVbkrYhZ4WQZnWqU8ieBsujhoZKZLF6wMvTApJ4ZiGmipk481DyM2su3y5BDeB9fFLwSmmmsGDGJum79he2fnuQMnpWhe3bGir7Mf4uS
+      - BRIDGE_BTC_MASTER_PRIVATE_KEY=tprv8ZgxMBicQKsPcwXzdBoYKEXmLiBsPzNRfoLadw8WsnmKSHU47fJR3UjAhni8kt5bx5jFG9JZ4oZuxnaX6beTNwc2C5coMHmAvnKpqHA8xVb
+      - BRIDGE_BTC_MASTER_PUBLIC_KEYS=tpubD6NzVbkrYhZ4WokHnVXX8CVBt1S88jkmeG78yWbLxn7Wd89nkNDe2J8b6opP4K38mRwXf9d9VVN5uA58epPKjj584R1rnDDbk6oHUD1MoWD,tpubD6NzVbkrYhZ4WpZfRZip3ALqLpXhHUbe6UyG8iiTzVDuvNUyysyiUJWejtbszZYrDaUM8UZpjLmHyvtV7r1QQNFmTqciAz1fYSYkw28Ux6y,tpubD6NzVbkrYhZ4WQZnWqU8ieBsujhoZKZLF6wMvTApJ4ZiGmipk481DyM2su3y5BDeB9fFLwSmmmsGDGJum79he2fnuQMnpWhe3bGir7Mf4uS
+      - BRIDGE_BTC_KEY_DERIVATION_PATH=m/0/0/0
+      - BRIDGE_BTC_NUM_REQUIRED_SIGNERS=2
 
   postgres:
     image: bridge-postgres:latest

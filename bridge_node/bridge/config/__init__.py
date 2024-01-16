@@ -13,12 +13,16 @@ class Config:
     evm_rpc_url = environ.var()
     peers = environ.var(converter=lambda s: [x.split("@") for x in s.split(",")])
     btc_network: Literal["mainnet", "testnet", "signet", "regtest"] = environ.var()
+    btc_key_derivation_path = environ.var()
+    btc_num_required_signers = environ.var(converter=int)
 
     # TODO: handle secrets properly
     evm_private_key = environ.var()  # TODO: should be secret
     btc_rpc_url = (
         environ.var()
     )  # TODO: should be secret, it has the auth in it (or then let's separate auth)
+    btc_master_private_key = environ.var()  # TODO: should be secret
+    btc_master_public_keys = environ.var()  # TODO: should be secret
 
 
 @service(interface_override=Config, scope="global")

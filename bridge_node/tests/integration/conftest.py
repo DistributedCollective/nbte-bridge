@@ -7,15 +7,13 @@ from eth_account import Account
 import pathlib
 from eth_typing import ChecksumAddress
 from eth_utils import to_hex
-import bitcointx
 from bitcointx.rpc import RPCCaller as _RPCCaller
 
 from bridge.evm.utils import create_web3, load_abi
+from bridge.btc.monkeypatch import monkeypatch_bitcointx_network
 
 
-bitcointx.select_chain_params(
-    "bitcoin/regtest"
-)  # it's a global variable, just like Satoshi intended
+monkeypatch_bitcointx_network("regtest")  # it's a global variable, just like Satoshi intended
 
 
 WEB3_RPC_URL = "http://localhost:18545"

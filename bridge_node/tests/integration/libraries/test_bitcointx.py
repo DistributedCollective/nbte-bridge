@@ -11,13 +11,13 @@ from bitcointx.wallet import CCoinExtKey, CCoinExtPubKey, P2WSHBitcoinAddress, C
 from bitcointx.core.psbt import PartiallySignedBitcoinTransaction
 from bitcointx.core import CTransaction, CTxIn, CTxOut, COutPoint
 
-from .constants import (
+from ..constants import (
     MULTISIG_ADDRESS,
     MULTISIG_KEY_DERIVATION_PATH,
     MULTISIG_XPRVS,
     MULTISIG_XPUBS,
 )
-from .utils import from_satoshi, to_satoshi, wait_for_condition
+from ..utils import from_satoshi, to_satoshi, wait_for_condition
 
 bitcointx.select_chain_params("bitcoin/regtest")
 

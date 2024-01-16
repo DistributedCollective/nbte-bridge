@@ -8,13 +8,13 @@ try:
     from btclib.tx import Tx, TxIn, TxOut, OutPoint
 except ImportError:
     btclib = pytest.importorskip("btclib")
-from .constants import (
+from ..constants import (
     MULTISIG_XPUBS,
     MULTISIG_XPRVS,
     MULTISIG_ADDRESS,
     MULTISIG_KEY_DERIVATION_PATH,
 )
-from .utils import from_satoshi, to_satoshi
+from ..utils import from_satoshi, to_satoshi
 
 
 @pytest.fixture()

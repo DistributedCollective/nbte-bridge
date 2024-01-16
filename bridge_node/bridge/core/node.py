@@ -10,6 +10,7 @@ from ..p2p.messaging import MessageEnvelope
 from ..evm.scanner import BridgeEventScanner, TransferToBTC
 from ..btc.rpc import BitcoinRPC
 from ..btc.utils import to_satoshi
+from ..btc.multisig import Transfer, BitcoinMultisig
 from ..evm.utils import from_wei
 
 logger = logging.getLogger(__name__)
@@ -20,6 +21,7 @@ class BridgeNode:
     network: Network = autowired(auto)
     evm_scanner: BridgeEventScanner = autowired(auto)
     bitcoin_rpc: BitcoinRPC = autowired(auto)
+    bitcoin_multisig: BitcoinMultisig = autowired(auto)
 
     def __init__(self, container: Container):
         self.container = container
@@ -72,30 +74,23 @@ class BridgeNode:
             logger.info("Not node1, skipping")
             return
 
-        logger.info("Node1, handling transfer")
-        amount_btc = from_wei(transfer.amount_wei)
-        amount_satoshi = to_satoshi(amount_btc)
-        logger.info(
-            "Transferring %s BTC (%s satoshi) to %s",
-            amount_btc,
-            amount_satoshi,
-            transfer.recipient_btc_address,
+        initial_psbt = self.multisig.construct_psbt(
+            transfers=[
+                Transfer(
+                    amount_satoshi=to_satoshi(from_wei(transfer.amount_wei)),
+                    recipient_address=transfer.recipient_btc_address,
+                )
+            ]
         )
-        # balance = self.bitcoin_rpc.getbalance()
-        # print("Balance", balance)
-        # unspent = self.bitcoin_rpc.listunspent()
-        # print("Num utxos", len(unspent))
-        result = self.bitcoin_rpc.call(
-            "sendtoaddress",
-            transfer.recipient_btc_address,
-            str(amount_btc),
-            "",  # comment
-            "",  # commentto
-            False,  # subtractfeefromamount
-            True,  # replaceable
-            None,  # conf_target
-            "unset",  # estimate_mode
-            False,  # avoid reuse
-            1,  # fee_rate (sat/vbyte)
+        logger.info("Constructed PSBT: %s", initial_psbt)
+
+        signed_psbts = self.network.ask(
+            question="sign-psbt",
+            serializedPsbt=initial_psbt.serialize(),
         )
-        logger.info("Sent BTC: %s", result)
+        # TODO: loop while len(signed_psbts) < initial_psbt.threshold_for_self_sign
+        finalized_psbt = self.multisig.combine_and_finalize(
+            initial_psbt=initial_psbt,
+            signed_psbts=signed_psbts,
+        )
+        self.multisig.send_transaction(finalized_psbt)
