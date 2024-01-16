@@ -400,7 +400,6 @@ class BoundPyroProxy(object):
                 if config.LOGWIRE:
                     protocol.log_wiredata(log, "BoundPyroProxy connect sending", msg)
 
-                print("SENDING:DD")
                 conn.send(msg.data)
                 msg = protocol.recv_stub(conn, [protocol.MSG_CONNECTOK, protocol.MSG_CONNECTFAIL])
                 if config.LOGWIRE:
@@ -537,15 +536,12 @@ class BoundPyroProxy(object):
         return self._pyroInvoke("<batch>", calls, None, flags)
 
     def _pyroValidateHandshake(self, response):
-        logging.debug("Validating handshake on client, response: %s", response)
-
-        challenge.validate_message(
-            response,
-            self._pyroConnection.sock.get_channel_binding(cb_type="tls-unique"),
-            self._get_peer_addresses(),
-        )
-
-        logging.debug("Handshake validated")
+        if config.SSL:
+            challenge.validate_message(
+                response,
+                self._pyroConnection.sock.get_channel_binding(cb_type="tls-unique"),
+                self._get_peer_addresses(),
+            )
 
     def _pyroClaimOwnership(self):
         """
