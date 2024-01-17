@@ -83,10 +83,84 @@ def test_construct_sign_combine_and_broadcast_psbt(
         signed_psbts=[signed2, signed3],
     )
     txid = multisig.broadcast_psbt(combined)
-    print(txid)
+    assert isinstance(txid, str)
     user_satoshi_after = wait_for_condition(
         callback=lambda: to_satoshi(user_bitcoin_rpc.getbalance()),
         condition=lambda balance: balance != user_satoshi_before,
         description="user BTC balance change",
     )
     assert user_satoshi_after == user_satoshi_before + 100_000
+
+
+def test_get_virtual_size_1(
+    multisig: BitcoinMultisig,
+    multisig_2: BitcoinMultisig,
+    multisig_3: BitcoinMultisig,
+    user_bitcoin_rpc,
+):
+    unsigned = multisig.construct_psbt(
+        transfers=[
+            Transfer(
+                recipient_address=MULTISIG_ADDRESS,
+                amount_satoshi=100_000,
+            )
+        ]
+    )
+    signed = multisig.combine_and_finalize_psbt(
+        initial_psbt=unsigned,
+        signed_psbts=[multisig.sign_psbt(unsigned), multisig_2.sign_psbt(unsigned)],
+    )
+    expected_size = signed.extract_transaction().get_virtual_size()
+    assert (
+        multisig._get_virtual_size(
+            psbt=unsigned,
+            add_change_out=False,
+        )
+        == expected_size
+    )
+    assert (
+        multisig._get_virtual_size(
+            psbt=signed,
+            add_change_out=False,
+        )
+        == expected_size
+    )
+
+
+def test_get_virtual_size_2(
+    multisig: BitcoinMultisig,
+    multisig_2: BitcoinMultisig,
+    multisig_3: BitcoinMultisig,
+    user_bitcoin_rpc,
+):
+    unsigned = multisig.construct_psbt(
+        transfers=[
+            Transfer(
+                recipient_address=MULTISIG_ADDRESS,
+                amount_satoshi=100_000,
+            ),
+            Transfer(
+                recipient_address=MULTISIG_ADDRESS,
+                amount_satoshi=234_567,
+            ),
+        ]
+    )
+    signed = multisig.combine_and_finalize_psbt(
+        initial_psbt=unsigned,
+        signed_psbts=[multisig.sign_psbt(unsigned), multisig_2.sign_psbt(unsigned)],
+    )
+    expected_size = signed.extract_transaction().get_virtual_size()
+    assert (
+        multisig._get_virtual_size(
+            psbt=unsigned,
+            add_change_out=False,
+        )
+        == expected_size
+    )
+    assert (
+        multisig._get_virtual_size(
+            psbt=signed,
+            add_change_out=False,
+        )
+        == expected_size
+    )

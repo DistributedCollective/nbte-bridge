@@ -3,10 +3,18 @@ from io import BytesIO
 
 from anemic.ioc import service, Container
 
-from bitcointx.core import CTransaction, CTxIn, CTxOut
+from bitcointx.core import (
+    CTransaction,
+    CTxIn,
+    CTxInWitness,
+    CTxOut,
+    CTxWitness,
+    calculate_transaction_virtual_size,
+)
 from bitcointx.wallet import CCoinExtPubKey, CCoinExtKey, P2WSHBitcoinAddress
-from bitcointx.core.script import standard_multisig_redeem_script
+from bitcointx.core.script import CScriptWitness, standard_multisig_redeem_script
 from bitcointx.core.key import KeyStore
+from bitcointx.core.psbt import PSBT_Input, PSBT_Output
 
 from .rpc import BitcoinRPC
 from .utils import encode_segwit_address
@@ -51,6 +59,9 @@ class BitcoinMultisig:
         for transfer in transfers:
             transfer.assert_valid()
 
+        # TODO: proper fee rate!
+        fee_rate_sats_per_vbyte = 50
+
         # Output calculation (disregarding change output)
         vout: list[CTxOut] = [
             CTxOut(
@@ -64,26 +75,36 @@ class BitcoinMultisig:
         # Coin selection/input calculation
         utxos = self._list_utxos()
         input_amount_satoshi = 0
-        input_txs = []
-        vin: list[CTxIn] = []
+        psbt = PSBT()
+        for txout in vout:
+            psbt.add_output(
+                txout=txout,
+                outp=PSBT_Output(),
+            )
         for utxo in utxos:
             input_tx_raw = self._bitcoin_rpc.gettransaction(utxo.txid, True)
             input_tx = CTransaction.stream_deserialize(
                 BytesIO(binascii.unhexlify(input_tx_raw["hex"])),
             )
-            input_txs.append(input_tx)
 
             input_amount_satoshi += utxo.amount_satoshi
-            vin.append(
-                CTxIn(
+
+            psbt.add_input(
+                txin=CTxIn(
                     prevout=utxo.outpoint,
-                )
+                ),
+                inp=PSBT_Input(
+                    witness_script=self._multisig_redeem_script,
+                    utxo=input_tx.vout[utxo.vout],
+                    force_witness_utxo=True,
+                ),
             )
-            fee_satoshi = self._calculate_fee(
-                vin=vin,
-                vout=vout,
-                add_change_out=True,
-                fee_rate_sats_per_vbyte=50,  # TODO: proper fee rate estimation!
+            fee_satoshi = (
+                self._get_virtual_size(
+                    psbt=psbt,
+                    add_change_out=True,
+                )
+                * fee_rate_sats_per_vbyte
             )
             if input_amount_satoshi >= total_transfer_amount_satoshi + fee_satoshi:
                 break
@@ -93,27 +114,14 @@ class BitcoinMultisig:
         change_amount_satoshi = input_amount_satoshi - total_transfer_amount_satoshi - fee_satoshi
         assert change_amount_satoshi >= 0
         if change_amount_satoshi > 0:
-            vout.append(
-                CTxOut(
+            psbt.add_output(
+                txout=CTxOut(
                     nValue=change_amount_satoshi,
                     scriptPubKey=self._multisig_script.to_scriptPubKey(),
-                )
+                ),
+                outp=PSBT_Output(),
             )
-
-        unsigned_tx = CTransaction(
-            vin=vin,
-            vout=vout,
-        )
-        psbt = PSBT(
-            unsigned_tx=unsigned_tx,
-        )
-        for i, psbt_input in enumerate(psbt.inputs):
-            psbt_input.witness_script = self._multisig_redeem_script
-            psbt.set_utxo(
-                index=i,
-                utxo=input_txs[i],
-                force_witness_utxo=True,
-            )
+        assert psbt.get_fee() == fee_satoshi
         return psbt
 
     def sign_psbt(self, psbt: PSBT) -> PSBT:
@@ -158,31 +166,68 @@ class BitcoinMultisig:
         utxos.sort(key=lambda utxo: utxo.confirmations, reverse=True)
         return utxos
 
-    def _calculate_fee(
+    def _get_virtual_size(
         self,
         *,
-        vin: list[CTxIn],
-        vout: list[CTxOut],
+        psbt: PSBT,
         add_change_out: bool,
-        fee_rate_sats_per_vbyte: int,
     ) -> int:
         """
-        Calculate the fee for a transaction with the given inputs and outputs.
-
-        We just create a temporary CTransaction here to utilize bitcointx's virtual size calculation.
+        Calculate the (estimated) size in vBytes of a possibly-unsigned PSBT
         """
-        # TODO: this does not handle witness or scriptSigs correctly
-        vout = vout[:]
-        vin = vin[:]
+        # Mostly copied from CTransaction.get_virtual_size, but accounts for witness data and change output
+        vin = list(psbt.unsigned_tx.vin)
+        vout = list(psbt.unsigned_tx.vout)
         if add_change_out:
-            vout.append(
-                CTxOut(nValue=1, scriptPubKey=self._multisig_script.to_scriptPubKey()),
+            vout.append(CTxOut(nValue=1, scriptPubKey=self._multisig_script.to_scriptPubKey()))
+
+        # Input size calculation
+        f = BytesIO()
+        for txin in vin:
+            txin.stream_serialize(f)
+        inputs_size = len(f.getbuffer())
+
+        # Output size calculation
+        f = BytesIO()
+        for txout in vout:
+            txout.stream_serialize(f)
+        outputs_size = len(f.getbuffer())
+
+        # Witness size calculation
+        # TODO: we just assume that each input is a P2WSH input (reasonable for this multisig)
+        # AND that the signatures are always 71 bytes (might not be 100% accurate but close enough)
+        vtxinwit = []
+        signature_length_bytes = 71
+        for _ in vin:
+            vtxinwit.append(
+                CTxInWitness(
+                    CScriptWitness(
+                        stack=[
+                            b"",
+                            *(
+                                b"\x00" * signature_length_bytes
+                                for _ in range(self._num_required_signers)
+                            ),
+                            self._multisig_redeem_script,
+                        ]
+                    )
+                ),
             )
-        tx = CTransaction(
-            vin=vin,
-            vout=vout,
+        wit = CTxWitness(vtxinwit)
+        if wit.is_null():
+            witness_size = 0
+        else:
+            f = BytesIO()
+            wit.stream_serialize(f)
+            witness_size = len(f.getbuffer())
+
+        return calculate_transaction_virtual_size(
+            num_inputs=len(vin),
+            inputs_serialized_size=inputs_size,
+            num_outputs=len(vout),
+            outputs_serialized_size=outputs_size,
+            witness_size=witness_size,
         )
-        return tx.get_virtual_size() * fee_rate_sats_per_vbyte
 
 
 @service(scope="global", interface_override=BitcoinMultisig)
