@@ -81,6 +81,8 @@ class BitcoinMultisig:
                 txout=txout,
                 outp=PSBT_Output(),
             )
+        # we don't need to initialize fee_satoshi here -- the for loop is quaranteed to run through at least one
+        # iteration or an exception will be raised in the else clause
         for utxo in utxos:
             input_tx_raw = self._bitcoin_rpc.gettransaction(utxo.txid, True)
             input_tx = CTransaction.stream_deserialize(
