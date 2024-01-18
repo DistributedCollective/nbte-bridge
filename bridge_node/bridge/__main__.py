@@ -7,22 +7,23 @@ import bridge
 from anemic.ioc import Container, FactoryRegistrySet
 from bridge.api.app import create_app
 from bridge.core.node import BridgeNode
-from bridge.btc.monkeypatch import BitcoinTxMonkeyPatcher
+from bridge.btc.setup import setup_bitcointx_network
 
 logging.basicConfig(level=os.getenv("LOG_LEVEL", logging.INFO))
 
 
 def main():
+    btc_network = os.getenv("BRIDGE_BTC_NETWORK")
+    if not btc_network:
+        raise RuntimeError("BRIDGE_BTC_NETWORK env variable is not set")
+    setup_bitcointx_network(btc_network)
+
     registries = FactoryRegistrySet()
     global_registry = registries.create_registry("global")
     registries.scan_services(bridge)
 
     global_container = Container(global_registry)
 
-    monkeypatch_bitcointx = global_container.get(interface=BitcoinTxMonkeyPatcher)
-    monkeypatch_bitcointx()
-
-    # Start after monkeybatching bitcointx
     threading.Thread(target=create_app).start()
 
     node = global_container.get(

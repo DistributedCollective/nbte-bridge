@@ -10,10 +10,10 @@ from eth_utils import to_hex
 from bitcointx.rpc import RPCCaller as _RPCCaller
 
 from bridge.evm.utils import create_web3, load_abi
-from bridge.btc.monkeypatch import monkeypatch_bitcointx_network
+from bridge.btc.setup import setup_bitcointx_network
 
 
-monkeypatch_bitcointx_network("regtest")  # it's a global variable, just like Satoshi intended
+setup_bitcointx_network("regtest")  # it's a global variable, just like Satoshi intended
 
 
 WEB3_RPC_URL = "http://localhost:18545"
