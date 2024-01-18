@@ -15,6 +15,9 @@ from ..config import Config
 from .client import BoundPyroProxy
 
 
+logger = logging.getLogger(__name__)
+
+
 class Listener(Protocol):
     def __call__(self, msg: MessageEnvelope):
         ...
@@ -40,7 +43,14 @@ class PyroMessageEnvelope(TypedDict):
 
 class PyroNetwork(Network):
     def __init__(
-        self, *, node_id, host, port, peers, context_cls: SecureContext = None, privkey=None
+        self,
+        *,
+        node_id,
+        host,
+        port,
+        peers,
+        context_cls: SecureContext = None,
+        privkey=None,
     ):
         self.host = host
         self.port = port
@@ -57,6 +67,7 @@ class PyroNetwork(Network):
 
         self.listeners = []
 
+        self._running = False
         self.start()
 
     def create_daemon(self, context_cls: SecureContext | Any = None):
@@ -72,7 +83,7 @@ class PyroNetwork(Network):
         self.uri = self.daemon.register(self, self.node_id)
 
     def broadcast(self, msg: Any):
-        logging.debug(
+        logger.debug(
             "Broadcasting msg %r to all peers: %s",
             msg,
             [peer._pyroUri.location for peer in self.peers],
@@ -85,10 +96,10 @@ class PyroNetwork(Network):
             try:
                 peer.receive(envelope)
             except Pyro5.errors.CommunicationError:
-                logging.exception("Error sending message to peer %s", peer)
+                logger.exception("Error sending message to peer %s", peer)
 
     def send(self, to: str, msg: Any):
-        logging.debug("Sending msg %r to peer %s", msg, to)
+        logger.debug("Sending msg %r to peer %s", msg, to)
         envelope = PyroMessageEnvelope(
             sender=str(self.uri),
             message=msg,
@@ -98,7 +109,7 @@ class PyroNetwork(Network):
 
     @Pyro5.api.expose
     def receive(self, envelope: PyroMessageEnvelope):
-        logging.debug("Received message envelope: %s", envelope)
+        logger.debug("Received message envelope: %s", envelope)
 
         envelope = MessageEnvelope(
             sender=envelope["sender"],
@@ -110,7 +121,7 @@ class PyroNetwork(Network):
     def add_listener(self, listener):
         self.listeners.append(listener)
 
-        logging.debug("Listener added to network: %s", listener)
+        logger.debug("Listener added to network: %s", listener)
 
     def get_peers(self):
         return [
@@ -131,9 +142,25 @@ class PyroNetwork(Network):
         return f"PYRO:{peer_id}@{peer_host}"
 
     def start(self):
-        logging.info("Starting Pyro daemon loop")
-        self.thread = threading.Thread(target=self.daemon.requestLoop)
-        self.thread.start()
+        if self._running:
+            raise RuntimeError("Already running")
+        logger.info("Starting Pyro daemon loop")
+
+        def daemon_thread():
+            self.daemon.requestLoop(loopCondition=lambda: self._running)
+
+        self._running = True
+        self._thread = threading.Thread(target=daemon_thread)
+        self._thread.start()
+        logger.info("Pyro daemon loop started")
+
+    def stop(self):
+        if not self._running:
+            return
+        logger.info("Stopping Pyro daemon loop")
+        self._running = False
+        self._thread.join()
+        logger.info("Pyro daemon loop stopped")
 
 
 @service(scope="global", interface_override=Network)
