@@ -22,7 +22,9 @@ class Config:
         environ.var()
     )  # TODO: should be secret, it has the auth in it (or then let's separate auth)
     btc_master_private_key = environ.var()  # TODO: should be secret
-    btc_master_public_keys = environ.var()  # TODO: should be secret
+    btc_master_public_keys = environ.var(
+        converter=lambda s: [x.strip() for x in s.split(",")]
+    )  # TODO: should be secret
 
 
 @service(interface_override=Config, scope="global")
