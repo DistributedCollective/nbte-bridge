@@ -1,6 +1,6 @@
 from decimal import Decimal
 
-from .utils import evm_mine_blocks, from_satoshi, to_wei, wait_for_condition, wait_for_eth_tx
+from .utils import evm_mine_blocks, to_wei, wait_for_condition, wait_for_eth_tx
 
 
 def test_evm_to_btc(
@@ -10,7 +10,7 @@ def test_evm_to_btc(
     user_bitcoin_rpc,
 ):
     assert user_web3.eth.get_balance(user_account.address) == to_wei(1)
-    user_satoshis_before = user_bitcoin_rpc.getbalance()
+    user_btc_before = user_bitcoin_rpc.getbalance()
     bitcoin_address = user_bitcoin_rpc.getnewaddress()
     transfer_value = Decimal("0.1")
 
@@ -25,12 +25,12 @@ def test_evm_to_btc(
     evm_mine_blocks(user_web3, 5)  # Mine blocks to make it confirm faster
     wait_for_eth_tx(user_web3, tx_hash)
 
-    user_satoshis_after = wait_for_condition(
+    user_btc_after = wait_for_condition(
         callback=user_bitcoin_rpc.getbalance,
-        condition=lambda newsat: newsat != user_satoshis_before,
+        condition=lambda balance: balance != user_btc_before,
         description="user_satoshis_after != user_satoshis_before",
     )
 
     assert (
-        from_satoshi(user_satoshis_after) == from_satoshi(user_satoshis_before) + transfer_value
+        user_btc_after == user_btc_before + transfer_value
     ), "User BTC balance changed, but not by the expected amount"

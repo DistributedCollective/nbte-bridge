@@ -1,9 +1,9 @@
 import logging
 import time
-import random
 
 from anemic.ioc import autowired, auto, service, Container
 
+from ..btc.types import PSBT
 from ..p2p.network import Network
 from ..p2p.messaging import MessageEnvelope
 
@@ -26,6 +26,7 @@ class BridgeNode:
     def __init__(self, container: Container):
         self.container = container
         self.network.add_listener(self.on_message)
+        self.network.answer_with("sign-psbt", self._answer_sign_psbt)
 
     def on_message(self, envelope: MessageEnvelope):
         logger.debug("Received message %r from node %s", envelope.message, envelope.sender)
@@ -48,8 +49,7 @@ class BridgeNode:
 
     def _run_iteration(self):
         logger.debug("Running main loop iteration from node: %s", self.network.node_id)
-        if not random.randint(0, 3):
-            # Randomly ping nodes to demonstrate network connectivity
+        if self.network.is_leader():
             self.ping()
         events = self.evm_scanner.scan_events()
         for event in events:
@@ -68,13 +68,11 @@ class BridgeNode:
             transfer,
         )
 
-        # TODO: temporary code to get the flow working with a single node
-        logger.info("My node id is %s", self.network.node_id)
-        if self.network.node_id != "rollup-bridge-1":
-            logger.info("Not node1, skipping")
-            return
+        if not self.network.is_leader():
+            logger.info("Not leader, not doing anything")
+            pass
 
-        initial_psbt = self.multisig.construct_psbt(
+        initial_psbt = self.bitcoin_multisig.construct_psbt(
             transfers=[
                 Transfer(
                     amount_satoshi=to_satoshi(from_wei(transfer.amount_wei)),
@@ -84,13 +82,21 @@ class BridgeNode:
         )
         logger.info("Constructed PSBT: %s", initial_psbt)
 
-        signed_psbts = self.network.ask(
+        serialized_signed_psbts = self.network.ask(
             question="sign-psbt",
-            serializedPsbt=initial_psbt.serialize(),
+            serialized_psbt=initial_psbt.to_base64(),
         )
+        signed_psbts = [PSBT.from_base64(serialized) for serialized in serialized_signed_psbts]
         # TODO: loop while len(signed_psbts) < initial_psbt.threshold_for_self_sign
-        finalized_psbt = self.multisig.combine_and_finalize(
+        # TODO: error handling
+        finalized_psbt = self.bitcoin_multisig.combine_and_finalize_psbt(
             initial_psbt=initial_psbt,
             signed_psbts=signed_psbts,
         )
-        self.multisig.send_transaction(finalized_psbt)
+        self.bitcoin_multisig.broadcast_psbt(finalized_psbt)
+
+    def _answer_sign_psbt(self, serialized_psbt):
+        # TODO: validation, error handling
+        psbt = PSBT.from_base64(serialized_psbt)
+        signed_psbt = self.bitcoin_multisig.sign_psbt(psbt)
+        return signed_psbt.to_base64()

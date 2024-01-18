@@ -1,4 +1,4 @@
-from typing import Protocol, Any, TypedDict
+from typing import Callable, Protocol, Any, TypedDict
 import logging
 import threading
 
@@ -25,6 +25,15 @@ class Listener(Protocol):
 
 class Network(Protocol):
     node_id: str
+
+    def is_leader(self) -> bool:
+        pass
+
+    def ask(self, question: str, **kwargs: Any) -> list[Any]:
+        ...
+
+    def answer_with(self, question: str, callback: Callable[..., Any]):
+        ...
 
     def broadcast(self, msg):
         ...
@@ -67,6 +76,8 @@ class PyroNetwork(Network):
 
         self.listeners = []
 
+        self._answer_callbacks = {}
+
         self._running = False
         self.start()
 
@@ -81,6 +92,26 @@ class PyroNetwork(Network):
 
         # NOTE: this is a URI object, not a str
         self.uri = self.daemon.register(self, self.node_id)
+
+    def is_leader(self) -> bool:
+        # TODO: temporary implementation
+        return self.node_id == "rollup-bridge-1"
+
+    def ask(self, question: str, **kwargs: Any):
+        logger.debug(
+            "Asking question %r from all peers",
+            question,
+        )
+        answers = []
+        for peer in self.peers:
+            try:
+                answer = peer.answer(question, **kwargs)
+                if answer is not None:
+                    # TODO: proper return type for null answer
+                    answers.append(answer)
+            except Pyro5.errors.CommunicationError:
+                logger.exception("Error asking question %s from peer %s", question, peer)
+        return answers
 
     def broadcast(self, msg: Any):
         logger.debug(
@@ -117,6 +148,27 @@ class PyroNetwork(Network):
         )
         for listener in self.listeners:
             listener(envelope)
+
+    @Pyro5.api.expose
+    def answer(self, question, **kwargs):
+        logger.debug("Answering question %r (thread %s)", question, threading.current_thread().name)
+        answer_callback = self._answer_callbacks.get(question)
+        if answer_callback is None:
+            logger.warning("No answer callback for question %r", question)
+            return None
+        try:
+            ret = answer_callback(**kwargs)
+        except Exception:
+            logger.exception(
+                "Error answering question %r (thread %s)", question, threading.current_thread().name
+            )
+            return None
+        return ret
+
+    def answer_with(self, question: str, callback: Callable[..., Any]):
+        if question in self._answer_callbacks:
+            raise ValueError(f"Question {question} already has a callback")
+        self._answer_callbacks[question] = callback
 
     def add_listener(self, listener):
         self.listeners.append(listener)
