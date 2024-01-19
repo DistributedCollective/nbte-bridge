@@ -1,3 +1,13 @@
+from typing import cast
+import pathlib
+from eth_typing import ChecksumAddress
+
+INTEGRATION_TEST_DIR = pathlib.Path(__file__).parent
+WEB3_RPC_URL = "http://localhost:18545"
+MULTISIG_BITCOIN_RPC_URL = "http://bridgebtc:hunter3@localhost:18443/wallet/multisig"
+USER_BITCOIN_RPC_URL = "http://bridgebtc:hunter3@localhost:18443/wallet/user"
+BRIDGE_CONTRACT_ADDRESS = cast(ChecksumAddress, "0x5FbDB2315678afecb367f032d93F642f64180aa3")
+
 MULTISIG_XPRVS = [
     "tprv8ZgxMBicQKsPdLiVtqrvinq5JyvByQZs4xWMgzZ3YWK7ndu27yQ3qoWivh8cgdtB3bKuYKWRKhaEvtykaFCsDCB7akNdcArjgrCnFhuDjmV",
     "tprv8ZgxMBicQKsPdMXsXv4Ddkgimo1m89QjXBNUrCgAaDRX5tEDMVA8HotnZmHcMvUVtgh1yXbN74StoJqv76jvRxJmkr2wvkPwTbZb1zeXv3Y",
