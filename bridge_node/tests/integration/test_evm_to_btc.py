@@ -9,7 +9,7 @@ def test_evm_to_btc(
     user_bridge_contract,
     user_bitcoin_rpc,
 ):
-    assert user_web3.eth.get_balance(user_account.address) == to_wei(1)
+    assert user_web3.eth.get_balance(user_account.address), "sanity check, user has no balance"
     user_btc_before = user_bitcoin_rpc.getbalance()
     bitcoin_address = user_bitcoin_rpc.getnewaddress()
     transfer_value = Decimal("0.1")
