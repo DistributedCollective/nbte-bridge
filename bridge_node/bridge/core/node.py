@@ -70,7 +70,7 @@ class BridgeNode:
 
         if not self.network.is_leader():
             logger.info("Not leader, not doing anything")
-            pass
+            return
 
         initial_psbt = self.bitcoin_multisig.construct_psbt(
             transfers=[
