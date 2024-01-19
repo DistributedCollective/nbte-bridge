@@ -51,26 +51,32 @@ class BridgeNode:
         logger.debug("Running main loop iteration from node: %s", self.network.node_id)
         if self.network.is_leader():
             self.ping()
+        # TODO: first store to database, then handle the transfers in database (not directly from blockchain)
         events = self.evm_scanner.scan_events()
+        transfers_to_btc: list[TransferToBTC] = []
         for event in events:
             match event:
                 case TransferToBTC():
-                    self._handle_transfer_to_btc(event)
+                    transfers_to_btc.append(event)
                 case _:
                     logger.info("Found unknown event: %s", event)
-
-    def _handle_transfer_to_btc(self, transfer: TransferToBTC):
-        logger.info("Handling transfer to BTC: %s", transfer)
-        for _ in range(5):
-            logger.info("!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!")
-        logger.info(
-            "Found transfer to BTC: %s",
-            transfer,
-        )
 
         if not self.network.is_leader():
             logger.info("Not leader, not doing anything")
             return
+
+        if transfers_to_btc:
+            # TODO: should limit max amount of transfers per psbt
+            self._handle_transfers_to_btc(transfers_to_btc)
+
+    def _handle_transfers_to_btc(self, transfers: list[TransferToBTC]):
+        logger.info("Handling %s transfers to BTC", len(transfers))
+        for i, transfer in enumerate(transfers):
+            logger.info(
+                "#%d: %s",
+                i,
+                transfer,
+            )
 
         initial_psbt = self.bitcoin_multisig.construct_psbt(
             transfers=[
@@ -78,6 +84,7 @@ class BridgeNode:
                     amount_satoshi=to_satoshi(from_wei(transfer.amount_wei)),
                     recipient_address=transfer.recipient_btc_address,
                 )
+                for transfer in transfers
             ]
         )
         logger.info("Constructed PSBT: %s", initial_psbt)
