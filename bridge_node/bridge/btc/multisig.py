@@ -230,9 +230,10 @@ class BitcoinMultisig:
         else:
             result = self._bitcoin_rpc.listsinceblock(lastblock)
         for tx in result["transactions"]:
-            if not tx["label"].startswith("deposit:"):
+            label = tx.get("label", "")
+            if not label.startswith("deposit:"):
                 continue
-            _, evm_address, index = tx["label"].split(":")
+            _, evm_address, index = label.split(":")
             index = int(index)
             info = derive_deposit_address_info(
                 master_xpubs=self._master_xpubs,
