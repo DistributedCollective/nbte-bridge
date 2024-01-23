@@ -97,9 +97,11 @@ def derive_deposit_address_info(
     base_derivation_path=DEPOSIT_ADDRESS_BASE_DERIVATION_PATH,
 ) -> DepositAddressInfo:
     derivation_path = get_derivation_path_for_deposit_address(
-        evm_address=evm_address, index=index, base_derivation_path=base_derivation_path
+        evm_address=evm_address,
+        index=index,
+        base_derivation_path=base_derivation_path,
     )
-    child_pubkeys = [xpub.derive_path(derivation_path) for xpub in master_xpubs]
+    child_pubkeys = [xpub.derive_path(derivation_path).pub for xpub in master_xpubs]
     child_pubkeys.sort()
     redeem_script = standard_multisig_redeem_script(
         total=len(master_xpubs),
