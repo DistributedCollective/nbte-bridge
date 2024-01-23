@@ -1,10 +1,9 @@
 import binascii
-from io import BytesIO
 import logging
+from io import BytesIO
 from types import SimpleNamespace
 
-from anemic.ioc import service, Container
-
+from anemic.ioc import Container, service
 from bitcointx.core import (
     CTransaction,
     CTxIn,
@@ -13,16 +12,15 @@ from bitcointx.core import (
     CTxWitness,
     calculate_transaction_virtual_size,
 )
-from bitcointx.wallet import CCoinExtPubKey, CCoinExtKey, P2WSHBitcoinAddress
-from bitcointx.core.script import CScriptWitness, standard_multisig_redeem_script
 from bitcointx.core.key import KeyStore
 from bitcointx.core.psbt import PSBT_Input, PSBT_Output
+from bitcointx.core.script import CScriptWitness, standard_multisig_redeem_script
+from bitcointx.wallet import CCoinExtKey, CCoinExtPubKey, P2WSHBitcoinAddress
 
-from .rpc import BitcoinRPC
-from .utils import encode_segwit_address, from_satoshi
-from .types import Transfer, PSBT, UTXO
 from .derivation import DepositAddressInfo, derive_deposit_address_info
-
+from .rpc import BitcoinRPC
+from .types import PSBT, Transfer, UTXO
+from .utils import encode_segwit_address, to_satoshi
 
 logger = logging.getLogger(__name__)
 
@@ -233,6 +231,11 @@ class BitcoinMultisig:
             label = tx.get("label", "")
             if not label.startswith("deposit:"):
                 continue
+            amount_btc = tx["amount"]
+            if amount_btc <= 0:
+                logger.warning("Ignoring deposit with amount <= 0: %s", tx)
+                continue
+
             _, evm_address, index = label.split(":")
             index = int(index)
             info = derive_deposit_address_info(
@@ -241,8 +244,9 @@ class BitcoinMultisig:
                 evm_address=evm_address,
                 index=index,
             )
-            assert info.btc_deposit_address == tx["address"]
-            amount_satoshi = from_satoshi(tx["amount"])
+            # this address is not the receiving address, but the user's address
+            # assert info.btc_deposit_address == tx["address"]
+            amount_satoshi = to_satoshi(amount_btc)
             deposits.append(
                 SimpleNamespace(
                     amount_satoshi=amount_satoshi,

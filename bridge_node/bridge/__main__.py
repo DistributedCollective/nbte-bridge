@@ -24,7 +24,7 @@ def main():
 
     global_container = Container(global_registry)
 
-    threading.Thread(target=create_app).start()
+    threading.Thread(target=create_app, args=(global_container,)).start()
 
     node = global_container.get(
         interface=BridgeNode,

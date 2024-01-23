@@ -10,10 +10,10 @@ class BridgeAPIClient:
         if not is_checksum_address(evm_address):
             raise ValueError(f"Invalid evm_address: {evm_address}")
         response = requests.post(
-            self._base_url + "/v1/deposit-addresses/",
+            self._base_url + "/api/v1/deposit-addresses/",
             json={
                 "evm_address": evm_address,
             },
         )
         response.raise_for_status()
-        return response.json()["deposit-address"]
+        return response.json()["deposit_address"]

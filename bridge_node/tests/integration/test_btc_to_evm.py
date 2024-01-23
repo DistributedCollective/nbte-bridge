@@ -1,7 +1,6 @@
 import logging
 from decimal import Decimal
 
-import pytest
 
 from .constants import MULTISIG_ADDRESS
 from .utils import to_wei, wait_for_condition
@@ -17,7 +16,6 @@ def test_generate_deposit_address(
     assert deposit_address.startswith("bcrt1")
 
 
-@pytest.mark.skip
 def test_btc_to_evm(
     user_web3,
     user_account,
@@ -27,6 +25,7 @@ def test_btc_to_evm(
 ):
     assert user_web3.eth.get_balance(user_account.address) == to_wei(1)
     user_bitcoin_address = user_bitcoin_rpc.getnewaddress()
+    logger.info("sender btc address: %s", user_bitcoin_address)
     transfer_value = Decimal("0.1")
     user_btc_balance_before = user_bitcoin_rpc.getbalance()
     user_evm_balance_before_wei = user_web3.eth.get_balance(user_account.address)

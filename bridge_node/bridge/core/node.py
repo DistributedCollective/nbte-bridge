@@ -30,7 +30,7 @@ class BridgeNode:
     def __init__(self, container: Container):
         self.container = container
         self.network.add_listener(self.on_message)
-        self.network.answer_with("sign-psbt", self._answer_sign_psbt)
+        self.network.answer_with("sign-evm-to-btc-psbt", self._answer_sign_evm_to_btc_psbt)
 
     def on_message(self, envelope: MessageEnvelope):
         logger.debug("Received message %r from node %s", envelope.message, envelope.sender)
@@ -76,7 +76,7 @@ class BridgeNode:
             self._handle_transfers_to_btc(transfers_to_btc)
 
         if transfers_to_evm:
-            self._handle_transfers_to_btc(transfers_to_evm)
+            self._handle_transfers_to_evm(transfers_to_evm)
 
     def _handle_transfers_to_btc(self, transfers: list[TransferToBTC]):
         logger.info("Handling %s transfers to BTC", len(transfers))
@@ -99,7 +99,7 @@ class BridgeNode:
         logger.info("Constructed PSBT: %s", initial_psbt)
 
         serialized_signed_psbts = self.network.ask(
-            question="sign-psbt",
+            question="sign-evm-to-btc-psbt",
             serialized_psbt=initial_psbt.to_base64(),
         )
         # TODO: self-sign
@@ -124,19 +124,19 @@ class BridgeNode:
 
         for transfer in transfers:
             amount_wei = to_wei(from_satoshi(transfer.amount_satoshi))
-            evm_address = transfer.info.evm_address
+            evm_address = transfer.address_info.evm_address
             logger.info("Sending %s wei to %s", amount_wei, evm_address)
             tx_hash = self.bridge_contract.functions.acceptTransferFromBtc(
                 evm_address,
                 amount_wei,
-                "0x" + transfers.info.txid,
-                transfer.info.vout,
+                "0x" + transfer.txid,
+                transfer.vout,
             ).transact()
             logger.info("Tx hash %s, waiting...", tx_hash.hex())
-            self.web3.eth.wait_for_transaction_receipt(tx_hash)
+            self.web3.eth.wait_for_transaction_receipt(tx_hash, poll_latency=2)
             logger.info("Tx sent")
 
-    def _answer_sign_psbt(self, serialized_psbt):
+    def _answer_sign_evm_to_btc_psbt(self, serialized_psbt):
         # TODO: validation, error handling
         psbt = PSBT.from_base64(serialized_psbt)
         signed_psbt = self.bitcoin_multisig.sign_psbt(psbt)
