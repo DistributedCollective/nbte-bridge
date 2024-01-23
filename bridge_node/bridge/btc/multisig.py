@@ -1,5 +1,7 @@
 import binascii
 from io import BytesIO
+import logging
+from types import SimpleNamespace
 
 from anemic.ioc import service, Container
 
@@ -17,8 +19,12 @@ from bitcointx.core.key import KeyStore
 from bitcointx.core.psbt import PSBT_Input, PSBT_Output
 
 from .rpc import BitcoinRPC
-from .utils import encode_segwit_address
+from .utils import encode_segwit_address, from_satoshi
 from .types import Transfer, PSBT, UTXO
+from .derivation import DepositAddressInfo, derive_deposit_address_info
+
+
+logger = logging.getLogger(__name__)
 
 
 class BitcoinMultisig:
@@ -161,6 +167,91 @@ class BitcoinMultisig:
             )
         txid = self._bitcoin_rpc.sendrawtransaction(tx_hex)
         return txid
+
+    def generate_deposit_address(
+        self,
+        evm_address: str,
+        index: int,
+    ) -> DepositAddressInfo:
+        # TODO: database, validation, etc
+        info = derive_deposit_address_info(
+            master_xpubs=self._master_xpubs,
+            num_required_signers=self._num_required_signers,
+            evm_address=evm_address,
+            index=index,
+            base_derivation_path=self._key_derivation_path,
+        )
+        logger.info(
+            "Importing deposit address %s (%s:%d)",
+            info.btc_deposit_address,
+            info.evm_address,
+            info.index,
+        )
+        label = f"deposit:{evm_address}:{index}"
+        result = self._bitcoin_rpc.importaddress(info.btc_deposit_address, label, False)
+        logger.info("Imported, result: %s", result)
+        return info
+
+    def scan_new_deposits(self):
+        # TODO: this should not be a part of the multisig... propably
+        """
+        {
+            "transactions": [
+                {
+                    "involvesWatchonly": true,
+                    "address": "bcrt1qf99f7nmqzxulvn92lvk0rlvkur0f3fsldg8hd4w8z0ztwddpyx6sdge5ln",
+                    "category": "receive",
+                    "amount": 0.01000000,
+                    "label": "0x64941c4349b58617763246311DCa009a8dbD9059:0",
+                    "vout": 0,
+                    "confirmations": 6,
+                    "blockhash": "5787833ac84a02703947a9f2644e2104accc796eabfc37e50a491f74af7ccf2c",
+                    "blockheight": 1835,
+                    "blockindex": 1,
+                    "blocktime": 1706012840,
+                    "txid": "831bf838b8c022af9f3646c6fe6a3643b67f37f156f7760ffbc388f976bcf793",
+                    "walletconflicts": [
+                    ],
+                    "time": 1706012830,
+                    "timereceived": 1706012830,
+                    "bip125-replaceable": "no"
+                },
+            ],
+            "removed": [
+            ],
+            "lastblock": "648479dacee23b12962046323ebe2d67236c4fcace22df959650e3197734635b"
+        }
+        """
+        # TODO temporary code, implement the real thing
+        lastblock = getattr(self, "_btc_lastblock", None)
+        deposits = []
+        if lastblock is None:
+            result = self._bitcoin_rpc.listsinceblock()
+        else:
+            result = self._bitcoin_rpc.listsinceblock(lastblock)
+        for tx in result["transactions"]:
+            if not tx["label"].startswith("deposit:"):
+                continue
+            _, evm_address, index = tx["label"].split(":")
+            index = int(index)
+            info = derive_deposit_address_info(
+                master_xpubs=self._master_xpubs,
+                num_required_signers=self._num_required_signers,
+                evm_address=evm_address,
+                index=index,
+            )
+            assert info.btc_deposit_address == tx["address"]
+            amount_satoshi = from_satoshi(tx["amount"])
+            deposits.append(
+                SimpleNamespace(
+                    amount_satoshi=amount_satoshi,
+                    txid=tx["txid"],
+                    vout=tx["vout"],
+                    address_info=info,
+                )
+            )
+        setattr(self, "_btc_lastblock", result["lastblock"])
+        return deposits
 
     def _list_utxos(self) -> list[UTXO]:
         raw_utxos = self._bitcoin_rpc.listunspent(0, 9999999, [self._multisig_address], False)

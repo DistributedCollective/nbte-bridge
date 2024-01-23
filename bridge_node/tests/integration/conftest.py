@@ -9,11 +9,13 @@ from web3.types import RPCEndpoint
 from bridge.btc.setup import setup_bitcointx_network
 from bridge.btc.rpc import BitcoinRPC
 from bridge.evm.utils import create_web3, load_abi
+from bridge.api_client import BridgeAPIClient
 from .constants import (
     BRIDGE_CONTRACT_ADDRESS,
     MULTISIG_BITCOIN_RPC_URL,
     USER_BITCOIN_RPC_URL,
     WEB3_RPC_URL,
+    NODE1_API_BASE_URL,
 )
 
 setup_bitcointx_network("regtest")  # it's a global variable, just like Satoshi intended
@@ -67,3 +69,8 @@ def user_bridge_contract(user_web3):
         address=BRIDGE_CONTRACT_ADDRESS,
         abi=load_abi("Bridge"),
     )
+
+
+@pytest.fixture()
+def bridge_api():
+    return BridgeAPIClient(base_url=NODE1_API_BASE_URL)

@@ -4,14 +4,16 @@ import time
 from anemic.ioc import autowired, auto, service, Container
 
 from ..btc.types import PSBT
+from ..evm.contracts import BridgeContract
 from ..p2p.network import Network
 from ..p2p.messaging import MessageEnvelope
 
 from ..evm.scanner import BridgeEventScanner, TransferToBTC
 from ..btc.rpc import BitcoinRPC
-from ..btc.utils import to_satoshi
+from ..btc.utils import from_satoshi, to_satoshi
 from ..btc.multisig import Transfer, BitcoinMultisig
-from ..evm.utils import from_wei
+from ..evm.utils import from_wei, to_wei
+from web3 import Web3
 
 logger = logging.getLogger(__name__)
 
@@ -22,6 +24,8 @@ class BridgeNode:
     evm_scanner: BridgeEventScanner = autowired(auto)
     bitcoin_rpc: BitcoinRPC = autowired(auto)
     bitcoin_multisig: BitcoinMultisig = autowired(auto)
+    bridge_contract: BridgeContract = autowired(auto)
+    web3: Web3 = autowired(auto)
 
     def __init__(self, container: Container):
         self.container = container
@@ -61,6 +65,8 @@ class BridgeNode:
                 case _:
                     logger.info("Found unknown event: %s", event)
 
+        transfers_to_evm = self.bitcoin_multisig.scan_new_deposits()
+
         if not self.network.is_leader():
             logger.info("Not leader, not doing anything")
             return
@@ -68,6 +74,9 @@ class BridgeNode:
         if transfers_to_btc:
             # TODO: should limit max amount of transfers per psbt
             self._handle_transfers_to_btc(transfers_to_btc)
+
+        if transfers_to_evm:
+            self._handle_transfers_to_btc(transfers_to_evm)
 
     def _handle_transfers_to_btc(self, transfers: list[TransferToBTC]):
         logger.info("Handling %s transfers to BTC", len(transfers))
@@ -93,6 +102,7 @@ class BridgeNode:
             question="sign-psbt",
             serialized_psbt=initial_psbt.to_base64(),
         )
+        # TODO: self-sign
         signed_psbts = [PSBT.from_base64(serialized) for serialized in serialized_signed_psbts]
         # TODO: loop while len(signed_psbts) < initial_psbt.threshold_for_self_sign
         # TODO: error handling
@@ -100,7 +110,31 @@ class BridgeNode:
             initial_psbt=initial_psbt,
             signed_psbts=signed_psbts,
         )
-        self.bitcoin_multisig.broadcast_psbt(finalized_psbt)
+        txid = self.bitcoin_multisig.broadcast_psbt(finalized_psbt)
+        logger.info("Transaction broadcast, txid %s", txid)
+
+    def _handle_transfers_to_evm(self, transfers):
+        logger.info("Handling %s transfers from BTC to EVM", len(transfers))
+        for i, transfer in enumerate(transfers):
+            logger.info(
+                "#%d: %s",
+                i,
+                transfer,
+            )
+
+        for transfer in transfers:
+            amount_wei = to_wei(from_satoshi(transfer.amount_satoshi))
+            evm_address = transfer.info.evm_address
+            logger.info("Sending %s wei to %s", amount_wei, evm_address)
+            tx_hash = self.bridge_contract.functions.acceptTransferFromBtc(
+                evm_address,
+                amount_wei,
+                "0x" + transfers.info.txid,
+                transfer.info.vout,
+            ).transact()
+            logger.info("Tx hash %s, waiting...", tx_hash.hex())
+            self.web3.eth.wait_for_transaction_receipt(tx_hash)
+            logger.info("Tx sent")
 
     def _answer_sign_psbt(self, serialized_psbt):
         # TODO: validation, error handling
