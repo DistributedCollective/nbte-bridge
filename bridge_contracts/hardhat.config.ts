@@ -3,7 +3,13 @@ import {task, types} from "hardhat/config";
 import "@nomicfoundation/hardhat-toolbox";
 
 const config: HardhatUserConfig = {
-    solidity: "0.8.19",
+    solidity: {
+        compilers: [
+            {
+                version: "0.8.19"
+            },
+        ],
+    },
     networks: {
         "docker": {
             url: "http://localhost:18545",
@@ -16,29 +22,68 @@ const config: HardhatUserConfig = {
 // DEPLOYMENT
 // ==========
 
-task("deploy-bridge")
-    .addOptionalParam("owner", "Address of the owner", undefined, types.string)
-    .addOptionalParam("fundAmount", "Decimal amount to fund the bridge with", "0", types.string)
-    .setAction(async ({ owner, fundAmount }, hre) => {
+task("deploy-regtest")
+    .setAction(async ({}, hre) => {
         const ethers = hre.ethers;
-        const fundAmountWei = ethers.parseEther(fundAmount);
 
-        const bridge = await ethers.deployContract("Bridge", [], {
-        });
-
+        const bridge = await ethers.deployContract(
+            "Bridge",
+            [
+                '0x0000000000000000000000000000000000000000',
+                '0x0000000000000000000000000000000000000000',
+                2,
+                [
+                    '0x4091663B0a7a14e35Ff1d6d9d0593cE15cE7710a',
+                    '0x09dcD91DF9300a81a4b9C85FDd04345C3De58F48',
+                    '0xA40013a058E70664367c515246F2560B82552ACb',
+                ],
+            ],
+            {}
+        );
         await bridge.waitForDeployment();
-
         console.log(
             `Bridge deployed to ${bridge.target}`
         );
 
-        if (fundAmountWei) {
-            console.log(`Funding bridge with ${fundAmountWei} wei`);
-            const tx = await bridge.fund({ value: fundAmountWei });
-            console.log('tx hash:', tx.hash, 'waiting for tx...');
-            await tx.wait();
-        }
+        const precompiledMintingContract = await ethers.deployContract(
+            "PrecompiledMintingContractMock",
+            [bridge.target],
+            {}
+        );
+        await precompiledMintingContract.waitForDeployment();
+        console.log(
+            `PrecompiledMintingContractMock deployed to ${precompiledMintingContract.target}`
+        );
 
+        const btcAddressValidator = await ethers.deployContract("BTCAddressValidator", [
+            'bcrt1',
+            [
+                "m", // pubkey hash
+                "n", // pubkey hash
+                "2", // script hash
+            ],
+        ], {});
+        await btcAddressValidator.waitForDeployment();
+        console.log(
+            `BTCAddressValidator deployed to ${btcAddressValidator.target}`
+        );
+
+        console.log("Setting bridge parameters");
+        let tx = await bridge.setPrecompiledMintingContract(precompiledMintingContract.target);
+        console.log('tx hash (setPrecompiledMintingContract):', tx.hash, 'waiting for tx...');
+        await tx.wait();
+        tx = await bridge.setBtcAddressValidator(btcAddressValidator.target);
+        console.log('tx hash (setBtcAddressValidator):', tx.hash, 'waiting for tx...');
+        await tx.wait();
+
+        const fundAmountWei = ethers.parseEther('123.0');
+        console.log(`Funding PrecompiledMintingContractMock with ${fundAmountWei} wei`);
+        tx = await precompiledMintingContract.fund({ value: fundAmountWei });
+        console.log('tx hash:', tx.hash, 'waiting for tx...');
+        await tx.wait();
+
+        // temporarily set node1 as owner
+        const owner = '0x4091663B0a7a14e35Ff1d6d9d0593cE15cE7710a';
         if (owner) {
             console.log(`Setting owner to ${owner}`);
             const tx = await bridge.transferOwnership(owner);

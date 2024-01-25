@@ -28,7 +28,8 @@ def test_evm_to_btc(
         }
     )
     evm_mine_blocks(user_web3, 5)  # Mine blocks to make it confirm faster
-    wait_for_eth_tx(user_web3, tx_hash)
+    receipt = wait_for_eth_tx(user_web3, tx_hash)
+    assert receipt.status, "Transaction failed"
 
     user_btc_after = wait_for_condition(
         callback=user_bitcoin_rpc.getbalance,
