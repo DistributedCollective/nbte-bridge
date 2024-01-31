@@ -133,6 +133,16 @@ class BridgeNode:
             )
 
         for transfer in transfers:
+            if self.bridge_contract.functions.isProcessed(
+                "0x" + transfer.txid,
+                transfer.vout,
+            ).call():
+                logger.warning(
+                    "Transfer %s already processed,skipping",
+                    transfer,
+                )
+                continue
+
             amount_wei = to_wei(from_satoshi(transfer.amount_satoshi))
             evm_address = transfer.address_info.evm_address
             logger.info("Sending %s wei to %s", amount_wei, evm_address)
