@@ -1,6 +1,27 @@
 [
   {
-    "inputs": [],
+    "inputs": [
+      {
+        "internalType": "contract IPrecompiledMintingContract",
+        "name": "_precompiledMintingContract",
+        "type": "address"
+      },
+      {
+        "internalType": "contract IBTCAddressValidator",
+        "name": "_btcAddressValidator",
+        "type": "address"
+      },
+      {
+        "internalType": "uint256",
+        "name": "_numRequiredSigners",
+        "type": "uint256"
+      },
+      {
+        "internalType": "address[]",
+        "name": "_federators",
+        "type": "address[]"
+      }
+    ],
     "stateMutability": "nonpayable",
     "type": "constructor"
   },
@@ -10,17 +31,24 @@
       {
         "indexed": true,
         "internalType": "address",
-        "name": "by",
+        "name": "account",
         "type": "address"
-      },
-      {
-        "indexed": false,
-        "internalType": "uint256",
-        "name": "amount",
-        "type": "uint256"
       }
     ],
-    "name": "Funded",
+    "name": "FederatorAdded",
+    "type": "event"
+  },
+  {
+    "anonymous": false,
+    "inputs": [
+      {
+        "indexed": true,
+        "internalType": "address",
+        "name": "account",
+        "type": "address"
+      }
+    ],
+    "name": "FederatorRemoved",
     "type": "event"
   },
   {
@@ -47,6 +75,12 @@
     "inputs": [
       {
         "indexed": true,
+        "internalType": "uint256",
+        "name": "counter",
+        "type": "uint256"
+      },
+      {
+        "indexed": true,
         "internalType": "address",
         "name": "to",
         "type": "address"
@@ -60,7 +94,7 @@
       {
         "indexed": false,
         "internalType": "bytes32",
-        "name": "btcTxHash",
+        "name": "btcTxId",
         "type": "bytes32"
       },
       {
@@ -76,6 +110,12 @@
   {
     "anonymous": false,
     "inputs": [
+      {
+        "indexed": true,
+        "internalType": "uint256",
+        "name": "counter",
+        "type": "uint256"
+      },
       {
         "indexed": true,
         "internalType": "address",
@@ -112,13 +152,18 @@
       },
       {
         "internalType": "bytes32",
-        "name": "btcTxHash",
+        "name": "btcTxId",
         "type": "bytes32"
       },
       {
         "internalType": "uint256",
         "name": "btcTxVout",
         "type": "uint256"
+      },
+      {
+        "internalType": "bytes[]",
+        "name": "_signatures",
+        "type": "bytes[]"
       }
     ],
     "name": "acceptTransferFromBtc",
@@ -127,10 +172,177 @@
     "type": "function"
   },
   {
-    "inputs": [],
-    "name": "fund",
+    "inputs": [
+      {
+        "internalType": "address",
+        "name": "account",
+        "type": "address"
+      }
+    ],
+    "name": "addFederator",
     "outputs": [],
-    "stateMutability": "payable",
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "inputs": [],
+    "name": "btcAddressValidator",
+    "outputs": [
+      {
+        "internalType": "contract IBTCAddressValidator",
+        "name": "",
+        "type": "address"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "uint256",
+        "name": "",
+        "type": "uint256"
+      }
+    ],
+    "name": "federators",
+    "outputs": [
+      {
+        "internalType": "address",
+        "name": "",
+        "type": "address"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [],
+    "name": "getFederators",
+    "outputs": [
+      {
+        "internalType": "address[]",
+        "name": "",
+        "type": "address[]"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "address",
+        "name": "to",
+        "type": "address"
+      },
+      {
+        "internalType": "uint256",
+        "name": "amount",
+        "type": "uint256"
+      },
+      {
+        "internalType": "bytes32",
+        "name": "btcTxId",
+        "type": "bytes32"
+      },
+      {
+        "internalType": "uint256",
+        "name": "btcTxVout",
+        "type": "uint256"
+      }
+    ],
+    "name": "getTransferFromBtcMessageHash",
+    "outputs": [
+      {
+        "internalType": "bytes32",
+        "name": "",
+        "type": "bytes32"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "address",
+        "name": "account",
+        "type": "address"
+      }
+    ],
+    "name": "isFederator",
+    "outputs": [
+      {
+        "internalType": "bool",
+        "name": "",
+        "type": "bool"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "bytes32",
+        "name": "btcTxId",
+        "type": "bytes32"
+      },
+      {
+        "internalType": "uint256",
+        "name": "btcTxVout",
+        "type": "uint256"
+      }
+    ],
+    "name": "isProcessed",
+    "outputs": [
+      {
+        "internalType": "bool",
+        "name": "",
+        "type": "bool"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [],
+    "name": "numRequiredSigners",
+    "outputs": [
+      {
+        "internalType": "uint256",
+        "name": "",
+        "type": "uint256"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [],
+    "name": "numTransfersFromBtc",
+    "outputs": [
+      {
+        "internalType": "uint256",
+        "name": "",
+        "type": "uint256"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [],
+    "name": "numTransfersToBtc",
+    "outputs": [
+      {
+        "internalType": "uint256",
+        "name": "",
+        "type": "uint256"
+      }
+    ],
+    "stateMutability": "view",
     "type": "function"
   },
   {
@@ -148,7 +360,96 @@
   },
   {
     "inputs": [],
+    "name": "precompiledMintingContract",
+    "outputs": [
+      {
+        "internalType": "contract IPrecompiledMintingContract",
+        "name": "",
+        "type": "address"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "bytes32",
+        "name": "",
+        "type": "bytes32"
+      },
+      {
+        "internalType": "uint256",
+        "name": "",
+        "type": "uint256"
+      }
+    ],
+    "name": "processedByBtcTxIdAndVout",
+    "outputs": [
+      {
+        "internalType": "bool",
+        "name": "",
+        "type": "bool"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "address",
+        "name": "account",
+        "type": "address"
+      }
+    ],
+    "name": "removeFederator",
+    "outputs": [],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "inputs": [],
     "name": "renounceOwnership",
+    "outputs": [],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "contract IBTCAddressValidator",
+        "name": "_btcAddressValidator",
+        "type": "address"
+      }
+    ],
+    "name": "setBtcAddressValidator",
+    "outputs": [],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "uint256",
+        "name": "_numRequiredSigners",
+        "type": "uint256"
+      }
+    ],
+    "name": "setNumRequiredSigners",
+    "outputs": [],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "contract IPrecompiledMintingContract",
+        "name": "_precompiledMintingContract",
+        "type": "address"
+      }
+    ],
+    "name": "setPrecompiledMintingContract",
     "outputs": [],
     "stateMutability": "nonpayable",
     "type": "function"

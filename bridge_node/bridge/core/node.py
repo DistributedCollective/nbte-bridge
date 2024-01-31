@@ -3,12 +3,15 @@ import time
 
 from anemic.ioc import autowired, auto, service, Container
 
+from eth_account.messages import encode_defunct
+
 from ..btc.types import PSBT
 from ..evm.contracts import BridgeContract
 from ..p2p.network import Network
 from ..p2p.messaging import MessageEnvelope
 
 from ..evm.scanner import BridgeEventScanner, TransferToBTC
+from ..evm.account import Account
 from ..btc.rpc import BitcoinRPC
 from ..btc.utils import from_satoshi, to_satoshi
 from ..btc.multisig import Transfer, BitcoinMultisig
@@ -22,6 +25,7 @@ logger = logging.getLogger(__name__)
 class BridgeNode:
     network: Network = autowired(auto)
     evm_scanner: BridgeEventScanner = autowired(auto)
+    evm_account: Account = autowired(auto)
     bitcoin_rpc: BitcoinRPC = autowired(auto)
     bitcoin_multisig: BitcoinMultisig = autowired(auto)
     bridge_contract: BridgeContract = autowired(auto)
@@ -31,6 +35,7 @@ class BridgeNode:
         self.container = container
         self.network.add_listener(self.on_message)
         self.network.answer_with("sign-evm-to-btc-psbt", self._answer_sign_evm_to_btc_psbt)
+        self.network.answer_with("sign-btc-to-evm", self._answer_sign_btc_to_evm)
 
     def on_message(self, envelope: MessageEnvelope):
         logger.debug("Received message %r from node %s", envelope.message, envelope.sender)
@@ -102,8 +107,9 @@ class BridgeNode:
             question="sign-evm-to-btc-psbt",
             serialized_psbt=initial_psbt.to_base64(),
         )
-        # TODO: self-sign
         signed_psbts = [PSBT.from_base64(serialized) for serialized in serialized_signed_psbts]
+        signed_psbts.append(self.bitcoin_multisig.sign_psbt(initial_psbt))
+
         # TODO: loop while len(signed_psbts) < initial_psbt.threshold_for_self_sign
         # TODO: error handling
         finalized_psbt = self.bitcoin_multisig.combine_and_finalize_psbt(
@@ -126,11 +132,22 @@ class BridgeNode:
             amount_wei = to_wei(from_satoshi(transfer.amount_satoshi))
             evm_address = transfer.address_info.evm_address
             logger.info("Sending %s wei to %s", amount_wei, evm_address)
+            signatures = self.network.ask(
+                question="sign-btc-to-evm",
+                evm_address=evm_address,
+                amount_wei=amount_wei,
+                btc_tx_id=transfer.txid,
+                btc_tx_vout=transfer.vout,
+            )
+            logger.info("Got %d signatures", len(signatures))
+            # TODO: validate signatures
+            # TODO: loop if not enough signatures
             tx_hash = self.bridge_contract.functions.acceptTransferFromBtc(
                 evm_address,
                 amount_wei,
                 "0x" + transfer.txid,
                 transfer.vout,
+                signatures,
             ).transact()
             logger.info("Tx hash %s, waiting...", tx_hash.hex())
             self.web3.eth.wait_for_transaction_receipt(tx_hash, poll_latency=2)
@@ -141,3 +158,27 @@ class BridgeNode:
         psbt = PSBT.from_base64(serialized_psbt)
         signed_psbt = self.bitcoin_multisig.sign_psbt(psbt)
         return signed_psbt.to_base64()
+
+    def _answer_sign_btc_to_evm(
+        self,
+        *,
+        evm_address: str,
+        amount_wei: int,
+        btc_tx_id: str,
+        btc_tx_vout: int,
+    ) -> str:
+        if self.bridge_contract.functions.isProcessed(
+            "0x" + btc_tx_id,
+            btc_tx_vout,
+        ):
+            raise ValueError("Transfer already processed")
+        # TODO: validate that the transfer actually happened
+        message_hash = self.bridge_contract.functions.getTransferFromBtcMessageHash(
+            evm_address,
+            amount_wei,
+            "0x" + btc_tx_id,
+            btc_tx_vout,
+        ).call()
+        signable_message = encode_defunct(primitive=message_hash)
+        signed_message = self.evm_account.sign_message(signable_message)
+        return signed_message.signature.hex()
