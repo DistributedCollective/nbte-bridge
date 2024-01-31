@@ -3,9 +3,11 @@ import logging
 from anemic.ioc import Container, service, autowired, auto
 from hexbytes import HexBytes
 from web3 import Web3
+from sqlalchemy.orm.session import Session
 from .contracts import BridgeContract
 from .utils import get_events
-
+from ..common.key_value_store import KeyValueStore
+from ..config import Config
 
 logger = logging.getLogger(__name__)
 
@@ -22,27 +24,33 @@ class TransferToBTC:
     event_log_index: int
 
 
-@service(scope="global")
+@service(scope="transaction")
 class BridgeEventScanner:
     web3: Web3 = autowired(auto)
     bridge_contract: BridgeContract = autowired(auto)
-    _last_scanned_block = 0
-    block_safety_margin = 5  # TODO: make configurable
+    key_value_store: KeyValueStore = autowired(auto)
+    dbsession: Session = autowired(auto)
+    config: Config = autowired(auto)
 
     def __init__(self, container: Container):
         self.container = container
 
     def scan_events(self):
         # TODO: should rather add these to the DB instead of returning
+        last_scanned_block_key = "evm:events:last-scanned-block"
         current_block = self.web3.eth.block_number
-        from_block = self._last_scanned_block + 1
-        to_block = current_block - self.block_safety_margin
+        last_scanned_block = self.key_value_store.get_value(
+            last_scanned_block_key,
+            self.config.evm_start_block,
+        )
+        from_block = last_scanned_block + 1
+        to_block = current_block - self.config.evm_block_safety_margin
         if to_block < from_block:
             logger.info(
                 "No new blocks to scan. Last scanned block: %s, current block: %s, margin: %s",
-                self._last_scanned_block,
+                last_scanned_block,
                 current_block,
-                self.block_safety_margin,
+                self.config.evm_block_safety_margin,
             )
             return []
 
@@ -68,5 +76,5 @@ class BridgeEventScanner:
             )
             ret.append(obj)
 
-        self._last_scanned_block = to_block
+        self.key_value_store.set_value(last_scanned_block_key, to_block)
         return ret
