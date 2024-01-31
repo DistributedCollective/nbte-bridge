@@ -2,7 +2,10 @@ from typing import cast
 import pathlib
 from eth_typing import ChecksumAddress
 
+# __base__/bridge_node/tests/integration
 INTEGRATION_TEST_DIR = pathlib.Path(__file__).parent
+PROJECT_BASE_DIR = INTEGRATION_TEST_DIR.parent.parent.parent
+
 WEB3_RPC_URL = "http://localhost:18545"
 MULTISIG_BITCOIN_RPC_URL = "http://bridgebtc:hunter3@localhost:18443/wallet/multisig"
 USER_BITCOIN_RPC_URL = "http://bridgebtc:hunter3@localhost:18443/wallet/user"

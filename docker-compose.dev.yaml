@@ -45,6 +45,8 @@ services:
     restart: always
     depends_on:
       - postgres
+      - hardhat
+      - bitcoin-regtest
     ports:
       - 127.0.0.1:8081:8080
     # TODO: needs to be added later, this does not work without pyramid

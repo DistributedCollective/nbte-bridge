@@ -1,0 +1,85 @@
+import os
+import logging
+import subprocess
+import time
+import shutil
+
+import pytest
+
+from bridge.api_client import BridgeAPIClient
+from ..constants import NODE1_API_BASE_URL, PROJECT_BASE_DIR
+
+logger = logging.getLogger(__name__)
+
+NO_START_HARNESS = os.environ.get("NO_START_HARNESS") == "1"
+
+
+class IntegrationTestHarness:
+    MAX_START_WAIT_TIME_S = 120
+    WAIT_INTERVAL_S = 5
+
+    def __init__(self, *, verbose=False):
+        self._api_client = BridgeAPIClient(NODE1_API_BASE_URL)
+        self.verbose = verbose
+
+    def start(self):
+        if self.is_started():
+            raise ValueError("Integration test docker compose harness is already started")
+
+        logger.info("Starting integration test harness")
+        self._clean()
+        logger.info("Starting docker compose")
+        self._run_docker_compose_command("up", "--build", "--detach")
+        logger.info("Waiting for bridge node to start")
+        start_time = time.time()
+        while time.time() - start_time < self.MAX_START_WAIT_TIME_S:
+            if self.is_started():
+                logger.info("Bridge node started.")
+                break
+            time.sleep(self.WAIT_INTERVAL_S)
+        logger.info("Integration test harness started.")
+
+    def stop(self):
+        logger.info("Stopping integration test harness")
+        logger.info("Stopping docker compose")
+        self._run_docker_compose_command("down")
+        logger.info("Stopped.")
+
+    def is_started(self):
+        return self._api_client.is_healthy()
+
+    def _clean(self):
+        # DB data directory needs to be cleaned before this can be started
+        # TODO: maybe it should not have a persistent volume in the dev compose after all!
+        db_data_dir = PROJECT_BASE_DIR / "db_data"
+        if db_data_dir.exists():
+            logger.info("Cleaning db_data directory %s", db_data_dir.absolute())
+            shutil.rmtree(db_data_dir)
+
+    def _run_docker_compose_command(self, *args):
+        extra_kwargs = {}
+        if not self.verbose:
+            extra_kwargs.update(
+                dict(
+                    stdout=subprocess.DEVNULL,
+                    stderr=subprocess.DEVNULL,
+                )
+            )
+
+        subprocess.run(
+            ("docker-compose", "-f", "docker-compose.dev.yaml") + args,
+            cwd=PROJECT_BASE_DIR,
+            check=True,
+            **extra_kwargs,
+        )
+
+
+@pytest.fixture(scope="session", autouse=True)
+def harness(request) -> IntegrationTestHarness:
+    harness = IntegrationTestHarness()
+    if NO_START_HARNESS:
+        logger.info("Skipping harness autostart because NO_START_HARNESS=1")
+    else:
+        request.addfinalizer(harness.stop)
+        harness.start()
+    return harness

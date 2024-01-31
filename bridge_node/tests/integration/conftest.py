@@ -18,6 +18,9 @@ from .constants import (
     NODE1_API_BASE_URL,
 )
 
+# we need the fixtures from other modules to be available automatically, so let's import them
+from .fixtures.harness import harness as harness_fixture  # noqa
+
 setup_bitcointx_network("regtest")  # it's a global variable, just like Satoshi intended
 
 
@@ -37,8 +40,9 @@ def multisig_bitcoin_rpc():
 
 
 @pytest.fixture(scope="session", autouse=True)
-def integration_test_smoketest(web3, user_bitcoin_rpc, multisig_bitcoin_rpc):
+def integration_test_smoketest(harness, web3, user_bitcoin_rpc, multisig_bitcoin_rpc):
     fail_msg = "Integration test smoketest failed. Check that the docker-compose is running"
+    assert harness.is_started(), fail_msg
     assert web3.is_connected(), fail_msg
     assert web3.eth.chain_id == 31337, fail_msg
     assert web3.eth.block_number > 0, fail_msg
