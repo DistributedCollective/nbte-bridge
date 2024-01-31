@@ -12,13 +12,14 @@ from ..config import Config
 
 
 class JSONRPCError(requests.HTTPError):
-    def __init__(self, *, message, code=None, request=None, response=None):
+    def __init__(self, *, message, code=None, request=None, response=None, jsonrpc_data=None):
         self.code = code
         self.message = message
         super().__init__(
             {
                 "message": message,
                 "code": code,
+                "jsonrpc_data": jsonrpc_data,
             },
             request=request,
             response=response,
@@ -72,13 +73,14 @@ class BitcoinRPC:
     def _jsonrpc_call(self, method, params):
         self._id_count += 1
 
+        jsonrpc_data = {
+            "jsonrpc": "2.0",
+            "id": self._id_count,
+            "method": method,
+            "params": params,
+        }
         postdata = json.dumps(
-            {
-                "jsonrpc": "2.0",
-                "id": self._id_count,
-                "method": method,
-                "params": params,
-            },
+            jsonrpc_data,
             cls=bitcointx.rpc.DecimalJSONEncoder,
         )
         response = requests.post(
@@ -95,6 +97,7 @@ class BitcoinRPC:
             raise JSONRPCError(
                 message=str(e),
                 response=response,
+                jsonrpc_data=jsonrpc_data,
             ) from e
 
         try:
@@ -106,6 +109,7 @@ class BitcoinRPC:
             raise JSONRPCError(
                 message=str(e),
                 response=response,
+                jsonrpc_data=jsonrpc_data,
             ) from e
         error = response_json.get("error")
         if error is not None:
@@ -114,15 +118,18 @@ class BitcoinRPC:
                     message=error["message"],
                     code=error["code"],
                     response=response,
+                    jsonrpc_data=jsonrpc_data,
                 )
             raise JSONRPCError(
                 message=str(error),
                 response=response,
+                jsonrpc_data=jsonrpc_data,
             )
         if "result" not in response_json:
             raise JSONRPCError(
                 message="No result in response",
                 response=response,
+                jsonrpc_data=jsonrpc_data,
             )
         return response_json["result"]
 

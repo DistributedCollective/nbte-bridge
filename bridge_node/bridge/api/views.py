@@ -5,7 +5,7 @@ from eth_utils import is_checksum_address
 from pyramid.config import Configurator
 from pyramid.view import view_config, view_defaults
 
-from ..btc.multisig import BitcoinMultisig
+from ..btc.deposits import BitcoinDepositService
 
 logger = logging.getLogger(__name__)
 
@@ -16,7 +16,7 @@ class ApiException(Exception):
 
 @view_defaults(renderer="json")
 class ApiViews:
-    btc_multisig: BitcoinMultisig = autowired(auto)
+    btc_deposit_service: BitcoinDepositService = autowired(auto)
 
     def __init__(self, request):
         self.request = request
@@ -30,7 +30,7 @@ class ApiViews:
                 f"Invalid evm_address: {evm_address}. "
                 "Address must be a checksummed 0x-prefixed EVM address"
             )
-        deposit_info = self.btc_multisig.generate_deposit_address(evm_address, index=0)
+        deposit_info = self.btc_deposit_service.generate_deposit_address(evm_address, index=0)
         return {
             "deposit_address": deposit_info.btc_deposit_address,
         }

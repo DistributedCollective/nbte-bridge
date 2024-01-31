@@ -8,6 +8,7 @@ from anemic.ioc import Container, FactoryRegistrySet
 from bridge.api.app import create_app
 from bridge.core.node import BridgeNode
 from bridge.btc.setup import setup_bitcointx_network
+from bridge.common.transactions import register_transaction_manager
 
 logging.basicConfig(level=os.getenv("LOG_LEVEL", logging.INFO))
 
@@ -20,7 +21,13 @@ def main():
 
     registries = FactoryRegistrySet()
     global_registry = registries.create_registry("global")
+    transaction_registry = registries.create_registry("transaction")
     registries.scan_services(bridge)
+
+    register_transaction_manager(
+        global_registry=global_registry,
+        transaction_registry=transaction_registry,
+    )
 
     global_container = Container(global_registry)
 

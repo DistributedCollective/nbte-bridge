@@ -2,21 +2,21 @@ import logging
 import time
 
 from anemic.ioc import autowired, auto, service, Container
-
 from eth_account.messages import encode_defunct
+from web3 import Web3
 
+from ..btc.deposits import BitcoinDepositService
 from ..btc.types import PSBT
+from ..common.transactions import TransactionManager
 from ..evm.contracts import BridgeContract
 from ..p2p.network import Network
 from ..p2p.messaging import MessageEnvelope
-
 from ..evm.scanner import BridgeEventScanner, TransferToBTC
 from ..evm.account import Account
 from ..btc.rpc import BitcoinRPC
 from ..btc.utils import from_satoshi, to_satoshi
 from ..btc.multisig import Transfer, BitcoinMultisig
 from ..evm.utils import from_wei, to_wei
-from web3 import Web3
 
 logger = logging.getLogger(__name__)
 
@@ -24,7 +24,7 @@ logger = logging.getLogger(__name__)
 @service(scope="global")
 class BridgeNode:
     network: Network = autowired(auto)
-    evm_scanner: BridgeEventScanner = autowired(auto)
+    transaction_manager: TransactionManager = autowired(auto)
     evm_account: Account = autowired(auto)
     bitcoin_rpc: BitcoinRPC = autowired(auto)
     bitcoin_multisig: BitcoinMultisig = autowired(auto)
@@ -61,16 +61,20 @@ class BridgeNode:
         if self.network.is_leader():
             self.ping()
         # TODO: first store to database, then handle the transfers in database (not directly from blockchain)
-        events = self.evm_scanner.scan_events()
-        transfers_to_btc: list[TransferToBTC] = []
-        for event in events:
-            match event:
-                case TransferToBTC():
-                    transfers_to_btc.append(event)
-                case _:
-                    logger.info("Found unknown event: %s", event)
+        with self.transaction_manager.transaction() as transaction:
+            evm_scanner = transaction.find_service(BridgeEventScanner)
+            btc_deposit_scanner = transaction.find_service(BitcoinDepositService)
 
-        transfers_to_evm = self.bitcoin_multisig.scan_new_deposits()
+            events = evm_scanner.scan_events()
+            transfers_to_btc: list[TransferToBTC] = []
+            for event in events:
+                match event:
+                    case TransferToBTC():
+                        transfers_to_btc.append(event)
+                    case _:
+                        logger.info("Found unknown event: %s", event)
+
+            transfers_to_evm = btc_deposit_scanner.scan_new_deposits()
 
         if not self.network.is_leader():
             logger.info("Not leader, not doing anything")
@@ -170,7 +174,7 @@ class BridgeNode:
         if self.bridge_contract.functions.isProcessed(
             "0x" + btc_tx_id,
             btc_tx_vout,
-        ):
+        ).call():
             raise ValueError("Transfer already processed")
         # TODO: validate that the transfer actually happened
         message_hash = self.bridge_contract.functions.getTransferFromBtcMessageHash(

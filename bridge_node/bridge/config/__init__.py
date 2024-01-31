@@ -17,6 +17,7 @@ class Config:
     btc_num_required_signers = environ.var(converter=int)
 
     # TODO: handle secrets properly
+    db_url = environ.var()
     evm_private_key = environ.var()  # TODO: should be secret
     btc_rpc_url = (
         environ.var()

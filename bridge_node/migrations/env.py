@@ -1,4 +1,5 @@
 from __future__ import with_statement
+import os
 from alembic import context
 from sqlalchemy import engine_from_config, pool
 from logging.config import fileConfig
@@ -22,6 +23,11 @@ target_metadata = metadata
 # can be acquired:
 # my_important_option = config.get_main_option("my_important_option")
 # ... etc.
+
+db_url = os.environ.get("BRIDGE_DB_URL")
+if db_url:
+    print(f"Using BRIDGE_DB_URL={db_url}")
+    config.set_main_option("sqlalchemy.url", db_url)
 
 
 def run_migrations_offline():

@@ -1,3 +1,1 @@
-__all__ = ["MyModel"]
-
-from .example import MyModel
+from . import key_value_store  # noqa

@@ -1,21 +1,28 @@
-from waitress import serve
-from pyramid.request import Request
+from anemic.ioc import Container
 from pyramid.config import Configurator
-from anemic.ioc import Container, FactoryRegistry
+from pyramid.request import Request
+from waitress import serve
+
+from bridge.common.transactions import TransactionManager
 
 
 def create_app(
     global_container: Container,
 ):
-    request_registry = FactoryRegistry(
-        "request"
-    )  # TODO: dummy factory, think about db sessions later
-
     def get_request_container(request: Request) -> Container:
-        return Container(
-            request_registry,
-            parent=global_container,
-        )
+        tx_manager: TransactionManager = global_container.get(interface=TransactionManager)
+        tx = tx_manager.transaction()
+        tx.begin()
+
+        def commit_callback(req):
+            if req.exception is not None:
+                tx.rollback()
+            else:
+                tx.commit()
+
+        request.add_finished_callback(commit_callback)
+
+        return tx.container
 
     with Configurator() as config:
         config.scan("bridge.api")
