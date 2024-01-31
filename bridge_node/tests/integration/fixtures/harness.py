@@ -24,7 +24,10 @@ class IntegrationTestHarness:
 
     def start(self):
         if self.is_started():
-            raise ValueError("Integration test docker compose harness is already started")
+            raise ValueError(
+                "Integration test docker compose harness is already started. "
+                "To disable automatic harness start, set the env var NO_START_HARNESS=1"
+            )
 
         logger.info("Starting integration test harness")
         self._clean()
