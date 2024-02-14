@@ -1,24 +1,24 @@
 version: "3.8"
 services:
-  bitcoin-regtest:
-    image:
-      sovryn-bitcoind-regtest:latest
-
-    build:
-      context: ./local_dev/bitcoind-regtest/
-
-    environment:
-     # NOTE: these "secrets" are supposed to be there -- they are not used in the real world. Don't report them.
-     - NODE1_HDSEED=cTj4tA23bVHAnA42bYGGPfv13G2dfuChxtenJKsZffkCVMvofcfC
-     - NODE2_HDSEED=cUroJKmyKxRJVaeKzprMZExtPoZqt9HPnfhhJvAqtprWCVsuzUBU
-     - NODE3_HDSEED=cSsv1YhxQqce8ywLiwhMjKcq9L1J7J2wm66zX7kfB1eLBBBaTt8N
-     - USER_HDSEED=cUrw2SDAMapEqZ2pQnh5angJHqzGWvPMPdJNJWTDFagHMcdcciu8
-     # sorted !!
-     - PUBKEYS=["02f2bfc7a7d86f04d675083c7157d95c5741e85ff69b0c1357059fe1ee52271218","0380d87958cc14e1178f55584ee437b05c155a5a7d9f1951beb927195abaa7a7ed","0397ff0a671bea40a8346d7487810f3a96be95732717e5c568a7c8090a73a6c88b"]
-     - MULTISIG_ADDRESS=bcrt1qtxysk2megp39dnpw9va32huk5fesrlvutl0zdpc29asar4hfkrlqs2kzv5
-
-    ports:
-      - 127.0.0.1:18443:18443
+#  bitcoin-regtest:
+#    image:
+#      sovryn-bitcoind-regtest:latest
+#
+#    build:
+#      context: ./local_dev/bitcoind-regtest/
+#
+#    environment:
+#     # NOTE: these "secrets" are supposed to be there -- they are not used in the real world. Don't report them.
+#     - NODE1_HDSEED=cTj4tA23bVHAnA42bYGGPfv13G2dfuChxtenJKsZffkCVMvofcfC
+#     - NODE2_HDSEED=cUroJKmyKxRJVaeKzprMZExtPoZqt9HPnfhhJvAqtprWCVsuzUBU
+#     - NODE3_HDSEED=cSsv1YhxQqce8ywLiwhMjKcq9L1J7J2wm66zX7kfB1eLBBBaTt8N
+#     - USER_HDSEED=cUrw2SDAMapEqZ2pQnh5angJHqzGWvPMPdJNJWTDFagHMcdcciu8
+#     # sorted !!
+#     - PUBKEYS=["02f2bfc7a7d86f04d675083c7157d95c5741e85ff69b0c1357059fe1ee52271218","0380d87958cc14e1178f55584ee437b05c155a5a7d9f1951beb927195abaa7a7ed","0397ff0a671bea40a8346d7487810f3a96be95732717e5c568a7c8090a73a6c88b"]
+#     - MULTISIG_ADDRESS=bcrt1qtxysk2megp39dnpw9va32huk5fesrlvutl0zdpc29asar4hfkrlqs2kzv5
+#
+#    ports:
+#      - 127.0.0.1:19443:18443
 
   hardhat:
     image:
@@ -37,7 +37,6 @@ services:
     ports:
       - 127.0.0.1:18545:8545
 
-
   bridge-node-1:
     image: bridge_node:latest
     build:
@@ -46,17 +45,20 @@ services:
     depends_on:
       - postgres
       - hardhat
-      - bitcoin-regtest
+      - alice-tap
     ports:
-      - 127.0.0.1:8081:8080
+      - 127.0.0.1:8181:8080
     # TODO: needs to be added later, this does not work without pyramid
     # healthcheck:
     #   test: ["CMD", "curl", "-f", "http://localhost:6543/health"]
     #   interval: 120s
     #   timeout: 1s
+    volumes:
+      - ./volumes/lnd/alice:/var/bridge/lnd
+      - ./volumes/tapd/alice-tap:/var/bridge/tapd
     environment:
       # NOTE: the private keys and other secrets are supposed to be here -- they are not used in the real world, only regtest. Don't report them.
-      - BRIDGE_NODE_ID=nbte-bridge-1
+      - BRIDGE_NODE_ID=node-1
       - BRIDGE_HOSTNAME=bridge-node-1
       - BRIDGE_DB_URL=postgresql://bridge1:a5f83ab52f2c6c8d0a31e99c@postgres:5432/bridge1
       - LOG_LEVEL=DEBUG
@@ -64,9 +66,9 @@ services:
       # ^-- address 0x4091663B0a7a14e35Ff1d6d9d0593cE15cE7710a
       - BRIDGE_EVM_BRIDGE_CONTRACT_ADDRESS=0x5FbDB2315678afecb367f032d93F642f64180aa3
       - BRIDGE_EVM_RPC_URL=http://hardhat:8545
-      - BRIDGE_PEERS=nbte-bridge-2@bridge-node-2:5000,nbte-bridge-3@bridge-node-3:5000
+      - BRIDGE_PEERS=node-2@bridge-node-2:5000,node-3@bridge-node-3:5000
       - BRIDGE_BTC_NETWORK=regtest
-      - BRIDGE_BTC_RPC_URL=http://bridgebtc:hunter3@bitcoin-regtest:18443/wallet/multisig
+      - BRIDGE_BTC_RPC_URL=http://polaruser:polarpass@backend1:18443
       - BRIDGE_BTC_MASTER_PRIVATE_KEY=tprv8ZgxMBicQKsPdLiVtqrvinq5JyvByQZs4xWMgzZ3YWK7ndu27yQ3qoWivh8cgdtB3bKuYKWRKhaEvtykaFCsDCB7akNdcArjgrCnFhuDjmV
       - BRIDGE_BTC_MASTER_PUBLIC_KEYS=tpubD6NzVbkrYhZ4WokHnVXX8CVBt1S88jkmeG78yWbLxn7Wd89nkNDe2J8b6opP4K38mRwXf9d9VVN5uA58epPKjj584R1rnDDbk6oHUD1MoWD,tpubD6NzVbkrYhZ4WpZfRZip3ALqLpXhHUbe6UyG8iiTzVDuvNUyysyiUJWejtbszZYrDaUM8UZpjLmHyvtV7r1QQNFmTqciAz1fYSYkw28Ux6y,tpubD6NzVbkrYhZ4WQZnWqU8ieBsujhoZKZLF6wMvTApJ4ZiGmipk481DyM2su3y5BDeB9fFLwSmmmsGDGJum79he2fnuQMnpWhe3bGir7Mf4uS
       - BRIDGE_BTC_KEY_DERIVATION_PATH=m/0/0/0
@@ -80,11 +82,15 @@ services:
     depends_on:
       - postgres
       - bridge-node-1
+      - bob-tap
     ports:
-      - 127.0.0.1:8082:8080
+      - 127.0.0.1:8182:8080
+    volumes:
+      - ./volumes/lnd/bob:/var/bridge/lnd
+      - ./volumes/tapd/bob-tap:/var/bridge/tapd
     environment:
       # NOTE: the private keys and other secrets are supposed to be here -- they are not used in the real world, only regtest. Don't report them.
-      - BRIDGE_NODE_ID=nbte-bridge-2
+      - BRIDGE_NODE_ID=node-2
       - BRIDGE_HOSTNAME=bridge-node-2
       - BRIDGE_DB_URL=postgresql://bridge2:b2a8658e648ddc59b5172dfe@postgres:5432/bridge2
       - LOG_LEVEL=DEBUG
@@ -92,38 +98,10 @@ services:
       # ^-- address: 0x09dcD91DF9300a81a4b9C85FDd04345C3De58F48
       - BRIDGE_EVM_BRIDGE_CONTRACT_ADDRESS=0x5FbDB2315678afecb367f032d93F642f64180aa3
       - BRIDGE_EVM_RPC_URL=http://hardhat:8545
-      - BRIDGE_PEERS=nbte-bridge-1@bridge-node-1:5000,nbte-bridge-3@bridge-node-3:5000
+      - BRIDGE_PEERS=node-1@bridge-node-1:5000,node-3@bridge-node-3:5000
       - BRIDGE_BTC_NETWORK=regtest
-      - BRIDGE_BTC_RPC_URL=http://bridgebtc:hunter3@bitcoin-regtest:18443/wallet/multisig
+      - BRIDGE_BTC_RPC_URL=http://polaruser:polarpass@backend1:18443
       - BRIDGE_BTC_MASTER_PRIVATE_KEY=tprv8ZgxMBicQKsPdMXsXv4Ddkgimo1m89QjXBNUrCgAaDRX5tEDMVA8HotnZmHcMvUVtgh1yXbN74StoJqv76jvRxJmkr2wvkPwTbZb1zeXv3Y
-      - BRIDGE_BTC_MASTER_PUBLIC_KEYS=tpubD6NzVbkrYhZ4WokHnVXX8CVBt1S88jkmeG78yWbLxn7Wd89nkNDe2J8b6opP4K38mRwXf9d9VVN5uA58epPKjj584R1rnDDbk6oHUD1MoWD,tpubD6NzVbkrYhZ4WpZfRZip3ALqLpXhHUbe6UyG8iiTzVDuvNUyysyiUJWejtbszZYrDaUM8UZpjLmHyvtV7r1QQNFmTqciAz1fYSYkw28Ux6y,tpubD6NzVbkrYhZ4WQZnWqU8ieBsujhoZKZLF6wMvTApJ4ZiGmipk481DyM2su3y5BDeB9fFLwSmmmsGDGJum79he2fnuQMnpWhe3bGir7Mf4uS
-      - BRIDGE_BTC_KEY_DERIVATION_PATH=m/0/0/0
-      - BRIDGE_BTC_NUM_REQUIRED_SIGNERS=2
-
-  bridge-node-3:
-    image: bridge_node:latest
-    build:
-      context: bridge_node
-    restart: always
-    depends_on:
-      - postgres
-      - bridge-node-2
-    ports:
-      - 127.0.0.1:8083:8080
-    environment:
-      # NOTE: the private keys and other secrets are supposed to be here -- they are not used in the real world, only regtest. Don't report them.
-      - BRIDGE_NODE_ID=nbte-bridge-3
-      - BRIDGE_HOSTNAME=bridge-node-3
-      - BRIDGE_DB_URL=postgresql://bridge3:c42de11895851bc9a052617d@postgres:5432/bridge3
-      - LOG_LEVEL=DEBUG
-      - BRIDGE_EVM_PRIVATE_KEY=0xbce34f7111bb4a3174f90b34f327b5a92788a19bbda6b73aa4b945e149c06ba8
-      # ^-- address: 0xA40013a058E70664367c515246F2560B82552ACb
-      - BRIDGE_EVM_BRIDGE_CONTRACT_ADDRESS=0x5FbDB2315678afecb367f032d93F642f64180aa3
-      - BRIDGE_EVM_RPC_URL=http://hardhat:8545
-      - BRIDGE_PEERS=nbte-bridge-1@bridge-node-1:5000,nbte-bridge-2@bridge-node-2:5000
-      - BRIDGE_BTC_NETWORK=regtest
-      - BRIDGE_BTC_RPC_URL=http://bridgebtc:hunter3@bitcoin-regtest:18443/wallet/multisig
-      - BRIDGE_BTC_MASTER_PRIVATE_KEY=tprv8ZgxMBicQKsPcwXzdBoYKEXmLiBsPzNRfoLadw8WsnmKSHU47fJR3UjAhni8kt5bx5jFG9JZ4oZuxnaX6beTNwc2C5coMHmAvnKpqHA8xVb
       - BRIDGE_BTC_MASTER_PUBLIC_KEYS=tpubD6NzVbkrYhZ4WokHnVXX8CVBt1S88jkmeG78yWbLxn7Wd89nkNDe2J8b6opP4K38mRwXf9d9VVN5uA58epPKjj584R1rnDDbk6oHUD1MoWD,tpubD6NzVbkrYhZ4WpZfRZip3ALqLpXhHUbe6UyG8iiTzVDuvNUyysyiUJWejtbszZYrDaUM8UZpjLmHyvtV7r1QQNFmTqciAz1fYSYkw28Ux6y,tpubD6NzVbkrYhZ4WQZnWqU8ieBsujhoZKZLF6wMvTApJ4ZiGmipk481DyM2su3y5BDeB9fFLwSmmmsGDGJum79he2fnuQMnpWhe3bGir7Mf4uS
       - BRIDGE_BTC_KEY_DERIVATION_PATH=m/0/0/0
       - BRIDGE_BTC_NUM_REQUIRED_SIGNERS=2
@@ -145,3 +123,143 @@ services:
       test: ["CMD-SHELL", "pg_isready -U bridge1 -d bridge1 -h postgres"]
       interval: 1s
       timeout: 120s
+
+  backend1:
+    environment:
+      USERID: ${USERID:-1000}
+      GROUPID: ${GROUPID:-1000}
+    stop_grace_period: 5m
+    image: polarlightning/bitcoind:26.0
+    hostname: backend1
+    command: >-
+      bitcoind -server=1 -regtest=1
+      -rpcauth=polaruser:5e5e98c21f5c814568f8b55d83b23c1c$$066b03f92df30b11de8e4b1b1cd5b1b4281aa25205bd57df9be82caf97a05526
+      -debug=1 -zmqpubrawblock=tcp://0.0.0.0:28334
+      -zmqpubrawtx=tcp://0.0.0.0:28335 -zmqpubhashblock=tcp://0.0.0.0:28336
+      -txindex=1 -dnsseed=0 -upnp=0 -rpcbind=0.0.0.0 -rpcallowip=0.0.0.0/0
+      -rpcport=18443 -rest -listen=1 -listenonion=0 -fallbackfee=0.0002
+      -blockfilterindex=1 -peerblockfilters=1
+    volumes:
+      - ./volumes/bitcoind/backend1:/home/bitcoin/.bitcoin
+    expose:
+      - '18443'
+      - '18444'
+      - '28334'
+      - '28335'
+    ports:
+      - '18443:18443'
+      - '19444:18444'
+      - '28334:28334'
+      - '29335:28335'
+  alice:
+    environment:
+      USERID: ${USERID:-1000}
+      GROUPID: ${GROUPID:-1000}
+    stop_grace_period: 2m
+    image: polarlightning/lnd:0.17.3-beta
+    hostname: alice
+    depends_on:
+      - backend1
+    command: >-
+      lnd --noseedbackup --trickledelay=5000 --alias=alice --externalip=alice
+      --tlsextradomain=alice --tlsextradomain=alice
+      --tlsextradomain=host.docker.internal --listen=0.0.0.0:9735
+      --rpclisten=0.0.0.0:10009 --restlisten=0.0.0.0:8080 --bitcoin.active
+      --bitcoin.regtest --bitcoin.node=bitcoind
+      --bitcoind.rpchost=backend1 --bitcoind.rpcuser=polaruser
+      --bitcoind.rpcpass=polarpass
+      --bitcoind.zmqpubrawblock=tcp://backend1:28334
+      --bitcoind.zmqpubrawtx=tcp://backend1:28335
+    restart: always
+    volumes:
+      - ./volumes/lnd/alice:/home/lnd/.lnd
+    expose:
+      - '8080'
+      - '10009'
+      - '9735'
+    ports:
+      - '8082:8080'
+      - '10002:10009'
+      - '9736:9735'
+  bob:
+    environment:
+      USERID: ${USERID:-1000}
+      GROUPID: ${GROUPID:-1000}
+    stop_grace_period: 2m
+    image: polarlightning/lnd:0.17.3-beta
+    hostname: bob
+    depends_on:
+      - backend1
+    command: >-
+      lnd --noseedbackup --trickledelay=5000 --alias=bob --externalip=bob
+      --tlsextradomain=bob --tlsextradomain=bob
+      --tlsextradomain=host.docker.internal --listen=0.0.0.0:9735
+      --rpclisten=0.0.0.0:10009 --restlisten=0.0.0.0:8080 --bitcoin.active
+      --bitcoin.regtest --bitcoin.node=bitcoind
+      --bitcoind.rpchost=backend1 --bitcoind.rpcuser=polaruser
+      --bitcoind.rpcpass=polarpass
+      --bitcoind.zmqpubrawblock=tcp://backend1:28334
+      --bitcoind.zmqpubrawtx=tcp://backend1:28335
+    restart: always
+    volumes:
+      - ./volumes/lnd/bob:/home/lnd/.lnd
+    expose:
+      - '8080'
+      - '10009'
+      - '9735'
+    ports:
+      - '8083:8080'
+      - '10003:10009'
+      - '9737:9735'
+  alice-tap:
+    environment:
+      USERID: ${USERID:-1000}
+      GROUPID: ${GROUPID:-1000}
+    stop_grace_period: 2m
+    image: polarlightning/tapd:0.3.2-alpha
+    hostname: alice-tap
+    depends_on:
+      - alice
+    command: >-
+      tapd --network=regtest --debuglevel=debug --tlsextradomain=alice-tap
+      --tlsextradomain=alice-tap --rpclisten=0.0.0.0:10029
+      --restlisten=0.0.0.0:8089 --lnd.host=alice:10009
+      --lnd.macaroonpath=/home/tap/.lnd/data/chain/bitcoin/regtest/admin.macaroon
+      --lnd.tlspath=/home/tap/.lnd/tls.cert --allow-public-uni-proof-courier
+      --allow-public-stats --universe.public-access
+    restart: always
+    volumes:
+      - ./volumes/lnd/alice:/home/tap/.lnd
+      - ./volumes/tapd/alice-tap:/home/tap/.tapd
+    expose:
+      - '8089'
+      - '10029'
+    ports:
+      - '8289:8089'
+      - '12029:10029'
+  bob-tap:
+    environment:
+      USERID: ${USERID:-1000}
+      GROUPID: ${GROUPID:-1000}
+    stop_grace_period: 2m
+    image: polarlightning/tapd:0.3.2-alpha
+    hostname: bob-tap
+    depends_on:
+      - bob
+    command: >-
+      tapd --network=regtest --debuglevel=debug --tlsextradomain=bob-tap
+      --tlsextradomain=bob-tap --rpclisten=0.0.0.0:10029
+      --restlisten=0.0.0.0:8089 --lnd.host=bob:10009
+      --lnd.macaroonpath=/home/tap/.lnd/data/chain/bitcoin/regtest/admin.macaroon
+      --lnd.tlspath=/home/tap/.lnd/tls.cert --allow-public-uni-proof-courier
+      --allow-public-stats --universe.public-access
+    restart: always
+    volumes:
+      - ./volumes/lnd/bob:/home/tap/.lnd
+      - ./volumes/tapd/bob-tap:/home/tap/.tapd
+    expose:
+      - '8089'
+      - '10029'
+    ports:
+      - '8290:8089'
+      - '12030:10029'

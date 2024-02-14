@@ -24,4 +24,4 @@ MULTISIG_XPUBS = [
 MULTISIG_KEY_DERIVATION_PATH = "m/0/0/0"
 MULTISIG_ADDRESS = "bcrt1qtxysk2megp39dnpw9va32huk5fesrlvutl0zdpc29asar4hfkrlqs2kzv5"
 
-NODE1_API_BASE_URL = "http://localhost:8081"
+NODE1_API_BASE_URL = "http://localhost:8181"

@@ -1,5 +1,6 @@
 db_data/
 node_modules/
+volumes/
 
 # Mostly copied from
 # https://github.com/github/gitignore/blob/main/Python.gitignore
