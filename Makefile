@@ -24,11 +24,15 @@ lint:
 
 .PHONY: test
 test:
-	cd bridge_node && poetry run pytest
+	cd bridge_node && poetry run python -m pytest -s --no-cov --log-cli-level=info -v
+
+.PHONY: test-cov
+test:
+	cd bridge_node && poetry run python -m pytest -s --log-cli-level=info -v
 
 .PHONY: unit-test
 unit-test:
-	cd bridge_node && poetry run python -m pytest -m "not integration" --no-cov
+	cd bridge_node && poetry run python -m pytest -m "not integration" --no-cov --log-cli-level=info -s
 
 .PHONY: integration-test
 integration-test:
