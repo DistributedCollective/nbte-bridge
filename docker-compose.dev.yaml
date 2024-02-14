@@ -56,7 +56,7 @@ services:
     #   timeout: 1s
     environment:
       # NOTE: the private keys and other secrets are supposed to be here -- they are not used in the real world, only regtest. Don't report them.
-      - BRIDGE_NODE_ID=rollup-bridge-1
+      - BRIDGE_NODE_ID=nbte-bridge-1
       - BRIDGE_HOSTNAME=bridge-node-1
       - BRIDGE_DB_URL=postgresql://bridge1:a5f83ab52f2c6c8d0a31e99c@postgres:5432/bridge1
       - LOG_LEVEL=DEBUG
@@ -64,7 +64,7 @@ services:
       # ^-- address 0x4091663B0a7a14e35Ff1d6d9d0593cE15cE7710a
       - BRIDGE_EVM_BRIDGE_CONTRACT_ADDRESS=0x5FbDB2315678afecb367f032d93F642f64180aa3
       - BRIDGE_EVM_RPC_URL=http://hardhat:8545
-      - BRIDGE_PEERS=rollup-bridge-2@bridge-node-2:5000,rollup-bridge-3@bridge-node-3:5000
+      - BRIDGE_PEERS=nbte-bridge-2@bridge-node-2:5000,nbte-bridge-3@bridge-node-3:5000
       - BRIDGE_BTC_NETWORK=regtest
       - BRIDGE_BTC_RPC_URL=http://bridgebtc:hunter3@bitcoin-regtest:18443/wallet/multisig
       - BRIDGE_BTC_MASTER_PRIVATE_KEY=tprv8ZgxMBicQKsPdLiVtqrvinq5JyvByQZs4xWMgzZ3YWK7ndu27yQ3qoWivh8cgdtB3bKuYKWRKhaEvtykaFCsDCB7akNdcArjgrCnFhuDjmV
@@ -84,7 +84,7 @@ services:
       - 127.0.0.1:8082:8080
     environment:
       # NOTE: the private keys and other secrets are supposed to be here -- they are not used in the real world, only regtest. Don't report them.
-      - BRIDGE_NODE_ID=rollup-bridge-2
+      - BRIDGE_NODE_ID=nbte-bridge-2
       - BRIDGE_HOSTNAME=bridge-node-2
       - BRIDGE_DB_URL=postgresql://bridge2:b2a8658e648ddc59b5172dfe@postgres:5432/bridge2
       - LOG_LEVEL=DEBUG
@@ -92,7 +92,7 @@ services:
       # ^-- address: 0x09dcD91DF9300a81a4b9C85FDd04345C3De58F48
       - BRIDGE_EVM_BRIDGE_CONTRACT_ADDRESS=0x5FbDB2315678afecb367f032d93F642f64180aa3
       - BRIDGE_EVM_RPC_URL=http://hardhat:8545
-      - BRIDGE_PEERS=rollup-bridge-1@bridge-node-1:5000,rollup-bridge-3@bridge-node-3:5000
+      - BRIDGE_PEERS=nbte-bridge-1@bridge-node-1:5000,nbte-bridge-3@bridge-node-3:5000
       - BRIDGE_BTC_NETWORK=regtest
       - BRIDGE_BTC_RPC_URL=http://bridgebtc:hunter3@bitcoin-regtest:18443/wallet/multisig
       - BRIDGE_BTC_MASTER_PRIVATE_KEY=tprv8ZgxMBicQKsPdMXsXv4Ddkgimo1m89QjXBNUrCgAaDRX5tEDMVA8HotnZmHcMvUVtgh1yXbN74StoJqv76jvRxJmkr2wvkPwTbZb1zeXv3Y
@@ -112,7 +112,7 @@ services:
       - 127.0.0.1:8083:8080
     environment:
       # NOTE: the private keys and other secrets are supposed to be here -- they are not used in the real world, only regtest. Don't report them.
-      - BRIDGE_NODE_ID=rollup-bridge-3
+      - BRIDGE_NODE_ID=nbte-bridge-3
       - BRIDGE_HOSTNAME=bridge-node-3
       - BRIDGE_DB_URL=postgresql://bridge3:c42de11895851bc9a052617d@postgres:5432/bridge3
       - LOG_LEVEL=DEBUG
@@ -120,7 +120,7 @@ services:
       # ^-- address: 0xA40013a058E70664367c515246F2560B82552ACb
       - BRIDGE_EVM_BRIDGE_CONTRACT_ADDRESS=0x5FbDB2315678afecb367f032d93F642f64180aa3
       - BRIDGE_EVM_RPC_URL=http://hardhat:8545
-      - BRIDGE_PEERS=rollup-bridge-1@bridge-node-1:5000,rollup-bridge-2@bridge-node-2:5000
+      - BRIDGE_PEERS=nbte-bridge-1@bridge-node-1:5000,nbte-bridge-2@bridge-node-2:5000
       - BRIDGE_BTC_NETWORK=regtest
       - BRIDGE_BTC_RPC_URL=http://bridgebtc:hunter3@bitcoin-regtest:18443/wallet/multisig
       - BRIDGE_BTC_MASTER_PRIVATE_KEY=tprv8ZgxMBicQKsPcwXzdBoYKEXmLiBsPzNRfoLadw8WsnmKSHU47fJR3UjAhni8kt5bx5jFG9JZ4oZuxnaX6beTNwc2C5coMHmAvnKpqHA8xVb

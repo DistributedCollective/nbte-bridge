@@ -33,7 +33,7 @@ def create_web3(
         w3.middleware_onion.add(construct_sign_and_send_raw_middleware(account))
         w3.eth.default_account = account.address
 
-    # TODO: gas price strategy (rollup might not support new-style transactions)
+    # TODO: gas price strategy
 
     return w3
 
