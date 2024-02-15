@@ -16,7 +16,7 @@ logger = logging.getLogger(__name__)
 class TransferToTap:
     sender_evm_address: HexBytes
     recipient_tap_address: str
-    amount_wei: int
+    #amount_wei: int
     event_tx_hash: HexBytes
     event_block_number: int
     event_block_hash: bytes
@@ -67,7 +67,7 @@ class BridgeEventScanner:
             obj = TransferToTap(
                 sender_evm_address=args["from"],
                 recipient_tap_address=args["tapAddress"],
-                amount_wei=args["amountWei"],
+                #amount_wei=args["amountWei"],
                 event_tx_hash=event["transactionHash"],
                 event_block_number=event["blockNumber"],
                 event_block_hash=event["blockHash"],

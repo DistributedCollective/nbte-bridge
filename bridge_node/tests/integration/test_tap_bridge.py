@@ -15,7 +15,7 @@ TAP_MINT_AMOUNT = 1_000_000
 TAP_AMOUNT_DIVISOR = 10**18 // TAP_MINT_AMOUNT
 
 
-@pytest.fixture(scope='module')
+@pytest.fixture()
 def tap_asset(alice_tap, bob_tap, bitcoin_rpc) -> Asset:
     """
     Mint a new asset from bob, finalize the batch, and return it
@@ -39,7 +39,7 @@ def tap_asset(alice_tap, bob_tap, bitcoin_rpc) -> Asset:
     return asset
 
 
-@pytest.fixture(scope='module')
+@pytest.fixture()
 def evm_token(
     harness,
     alice_web3,
@@ -52,7 +52,18 @@ def evm_token(
     )
 
 
-@pytest.fixture(scope='module')
+@pytest.fixture()
+def user_evm_token(
+    user_web3,
+    evm_token,
+):
+    return user_web3.eth.contract(
+        evm_token.address,
+        abi=evm_token.abi,
+    )
+
+
+@pytest.fixture()
 def bridgeable_asset(
     owner_bridge_contract,
     alice_web3,
@@ -89,7 +100,7 @@ def test_tap_to_rsk(
 ):
     assert bob_tap.get_asset_balance(tap_asset.asset_id) == 0
     assert evm_token.functions.balanceOf(user_evm_account.address).call() == 0
-    assert evm_token.functions.balanceOf(owner_bridge_contract.address).call() == TAP_MINT_AMOUNT * TAP_AMOUNT_DIVISOR
+    initial_bridge_balance = evm_token.functions.balanceOf(owner_bridge_contract.address).call()
 
     tap_transfer_amount = 1_000
     bob_initial_address_response = bob_tap.create_address(
@@ -122,4 +133,69 @@ def test_tap_to_rsk(
     )
 
     assert user_new_balance == tap_transfer_amount * TAP_AMOUNT_DIVISOR
+    assert evm_token.functions.balanceOf(owner_bridge_contract.address).call() == (
+        initial_bridge_balance - tap_transfer_amount * TAP_AMOUNT_DIVISOR)
     assert bob_tap.get_asset_balance(tap_asset.asset_id) == 0
+
+
+def test_rsk_to_tap(
+    tap_asset,
+    alice_tap,
+    bob_tap,
+    bridge_api,
+    bridgeable_asset,
+    bitcoin_rpc,
+    evm_token,
+    user_evm_token,
+    user_evm_account,
+    user_bridge_contract,
+    user_web3,
+):
+    assert bob_tap.get_asset_balance(tap_asset.asset_id) == 0
+
+    tap_transfer_amount = 1_000
+    rsk_transfer_amount = tap_transfer_amount * TAP_AMOUNT_DIVISOR
+    initial_bridge_balance = evm_token.functions.balanceOf(user_bridge_contract.address).call()
+    assert initial_bridge_balance > rsk_transfer_amount
+
+    evm_token.functions.mint(user_evm_account.address, rsk_transfer_amount).transact()
+    user_rsk_balance = wait_for_condition(
+        callback=lambda: evm_token.functions.balanceOf(user_evm_account.address).call(),
+        condition=lambda balance: balance > 0,
+        description="evm_token.functions.balanceOf(user_evm_account.address).call() > 0",
+    )
+    assert user_rsk_balance == rsk_transfer_amount
+
+    receiver_address_response = bob_tap.create_address(
+        asset_id=tap_asset.asset_id,
+        amount=tap_transfer_amount,
+    )
+
+    tx_hash = user_evm_token.functions.approve(user_bridge_contract.address, rsk_transfer_amount).transact({
+        'gas': 100_000,
+    })
+    receipt = user_web3.eth.wait_for_transaction_receipt(tx_hash, poll_latency=2)
+    assert receipt.status
+
+    tx_hash = user_bridge_contract.functions.transferToTap(
+        receiver_address_response.address,
+    ).transact({
+        'gas': 2_000_000,
+    })
+    receipt = user_web3.eth.wait_for_transaction_receipt(tx_hash, poll_latency=2)
+    assert receipt.status
+    assert evm_token.functions.balanceOf(user_evm_account.address).call() == 0
+    assert evm_token.functions.balanceOf(user_bridge_contract.address).call() == (
+        initial_bridge_balance + rsk_transfer_amount)
+
+    def callback():
+        bitcoin_rpc.mine_blocks(2)
+        return bob_tap.get_asset_balance(tap_asset.asset_id)
+
+    user_tap_balance = wait_for_condition(
+        callback=callback,
+        condition=lambda balance: balance > 0,
+        description="bob_tap.get_asset_balance(tap_asset.asset_id) > 0",
+    )
+
+    assert user_tap_balance == tap_transfer_amount
