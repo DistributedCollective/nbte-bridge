@@ -3,8 +3,10 @@ import logging
 import subprocess
 import time
 import shutil
+import shlex
 
 import pytest
+import json
 
 from bridge.api_client import BridgeAPIClient
 from ..constants import NODE1_API_BASE_URL, PROJECT_BASE_DIR
@@ -12,6 +14,7 @@ from ..constants import NODE1_API_BASE_URL, PROJECT_BASE_DIR
 logger = logging.getLogger(__name__)
 
 NO_START_HARNESS = os.environ.get("NO_START_HARNESS") == "1"
+HARNESS_VERBOSE = os.environ.get("HARNESS_VERBOSE") == "1"
 
 
 class IntegrationTestHarness:
@@ -33,6 +36,9 @@ class IntegrationTestHarness:
         self._clean()
         logger.info("Starting docker compose")
         self._run_docker_compose_command("up", "--build", "--detach")
+
+        self._bitcoind_lnd_init()
+
         logger.info("Waiting for bridge node to start")
         start_time = time.time()
         while time.time() - start_time < self.MAX_START_WAIT_TIME_S:
@@ -40,6 +46,10 @@ class IntegrationTestHarness:
                 logger.info("Bridge node started.")
                 break
             time.sleep(self.WAIT_INTERVAL_S)
+        else:
+            raise TimeoutError(
+                f"Bridge node did not start in {self.MAX_START_WAIT_TIME_S} seconds"
+            )
         logger.info("Integration test harness started.")
 
     def stop(self):
@@ -58,6 +68,36 @@ class IntegrationTestHarness:
         if db_data_dir.exists():
             logger.info("Cleaning db_data directory %s", db_data_dir.absolute())
             shutil.rmtree(db_data_dir)
+        volumes_dir = PROJECT_BASE_DIR / "volumes"
+        if volumes_dir.exists():
+            logger.info("Cleaning volumes directory %s", volumes_dir.absolute())
+            shutil.rmtree(volumes_dir)
+
+    def _bitcoind_lnd_init(self):
+        logger.info("bitcoind/lnd init")
+        logger.info("Waiting for bitcoin rpc startup")
+        time.sleep(5)  # Quick and dirty, just sleep x amount of time
+        logger.info("Mining initial btc block")
+        # NOTE: the btc address is random and not really important
+        self._run_docker_compose_command(
+            *shlex.split("exec backend1 bitcoin-cli -datadir=/home/bitcoin/.bitcoin -regtest generatetoaddress 1 bcrt1qtxysk2megp39dnpw9va32huk5fesrlvutl0zdpc29asar4hfkrlqs2kzv5")
+        )
+        logger.info("Giving some time for LND nodes to start and connect to bitcoind.")
+        time.sleep(10)  # Quick and dirty sleep again
+        for lnd_container in ['alice', 'bob']:
+            logger.info("Depositing funds to %s", lnd_container)
+            addr_response = subprocess.check_output(
+                ("docker-compose", "-f", "docker-compose.dev.yaml", "exec", "-u", "lnd", lnd_container,
+                 "/opt/lnd/lncli", "-n", "regtest", "newaddress", "p2tr"),
+                cwd=PROJECT_BASE_DIR,
+            )
+            addr = json.loads(addr_response)['address']
+            logger.info("Mining 101 blocks to %s's addr %s", lnd_container, addr)
+            self._run_docker_compose_command(
+                *shlex.split(f"exec backend1 bitcoin-cli -datadir=/home/bitcoin/.bitcoin -regtest generatetoaddress 101 {addr}")
+            )
+            logger.info("Mined.")
+        logger.info("bitcoind/lnd init done")
 
     def _run_docker_compose_command(self, *args):
         extra_kwargs = {}
@@ -79,7 +119,7 @@ class IntegrationTestHarness:
 
 @pytest.fixture(scope="session", autouse=True)
 def harness(request) -> IntegrationTestHarness:
-    harness = IntegrationTestHarness()
+    harness = IntegrationTestHarness(verbose=HARNESS_VERBOSE)
     if NO_START_HARNESS:
         logger.info("Skipping harness autostart because NO_START_HARNESS=1")
     else:

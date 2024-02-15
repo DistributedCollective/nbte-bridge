@@ -44,41 +44,19 @@ task("deploy-regtest")
             `Bridge deployed to ${bridge.target}`
         );
 
-        const precompiledMintingContract = await ethers.deployContract(
-            "PrecompiledMintingContractMock",
-            [bridge.target],
+        const tapUtils = await ethers.deployContract(
+            "TapUtils",
+            ["taprt"],
             {}
         );
-        await precompiledMintingContract.waitForDeployment();
+        await tapUtils.waitForDeployment();
         console.log(
-            `PrecompiledMintingContractMock deployed to ${precompiledMintingContract.target}`
-        );
-
-        const btcAddressValidator = await ethers.deployContract("BTCAddressValidator", [
-            'bcrt1',
-            [
-                "m", // pubkey hash
-                "n", // pubkey hash
-                "2", // script hash
-            ],
-        ], {});
-        await btcAddressValidator.waitForDeployment();
-        console.log(
-            `BTCAddressValidator deployed to ${btcAddressValidator.target}`
+            `TapUtils deployed to ${tapUtils.target}`
         );
 
         console.log("Setting bridge parameters");
-        let tx = await bridge.setPrecompiledMintingContract(precompiledMintingContract.target);
-        console.log('tx hash (setPrecompiledMintingContract):', tx.hash, 'waiting for tx...');
-        await tx.wait();
-        tx = await bridge.setBtcAddressValidator(btcAddressValidator.target);
-        console.log('tx hash (setBtcAddressValidator):', tx.hash, 'waiting for tx...');
-        await tx.wait();
-
-        const fundAmountWei = ethers.parseEther('123.0');
-        console.log(`Funding PrecompiledMintingContractMock with ${fundAmountWei} wei`);
-        tx = await precompiledMintingContract.fund({ value: fundAmountWei });
-        console.log('tx hash:', tx.hash, 'waiting for tx...');
+        let tx = await bridge.setTapUtils(tapUtils.target);
+        console.log('tx hash (setTapUtils):', tx.hash, 'waiting for tx...');
         await tx.wait();
 
         // temporarily set node1 as owner

@@ -1,0 +1,184 @@
+[
+  {
+    "inputs": [
+      {
+        "internalType": "string",
+        "name": "_tapAddressPrefix",
+        "type": "string"
+      }
+    ],
+    "stateMutability": "nonpayable",
+    "type": "constructor"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "string",
+        "name": "validPrefix",
+        "type": "string"
+      },
+      {
+        "internalType": "string",
+        "name": "input",
+        "type": "string"
+      },
+      {
+        "internalType": "uint256",
+        "name": "checksumConstant",
+        "type": "uint256"
+      }
+    ],
+    "name": "decodeBech32",
+    "outputs": [
+      {
+        "internalType": "bytes",
+        "name": "",
+        "type": "bytes"
+      }
+    ],
+    "stateMutability": "pure",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "string",
+        "name": "validPrefix",
+        "type": "string"
+      },
+      {
+        "internalType": "string",
+        "name": "input",
+        "type": "string"
+      },
+      {
+        "internalType": "uint256",
+        "name": "checksumConstant",
+        "type": "uint256"
+      }
+    ],
+    "name": "decodeBech32Address",
+    "outputs": [
+      {
+        "internalType": "bytes",
+        "name": "",
+        "type": "bytes"
+      }
+    ],
+    "stateMutability": "pure",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "string",
+        "name": "tapAddress",
+        "type": "string"
+      }
+    ],
+    "name": "decodeTapAddress",
+    "outputs": [
+      {
+        "components": [
+          {
+            "internalType": "string",
+            "name": "chainParamsHrp",
+            "type": "string"
+          },
+          {
+            "internalType": "uint8",
+            "name": "addressVersion",
+            "type": "uint8"
+          },
+          {
+            "internalType": "uint8",
+            "name": "assetVersion",
+            "type": "uint8"
+          },
+          {
+            "internalType": "bytes32",
+            "name": "assetId",
+            "type": "bytes32"
+          },
+          {
+            "internalType": "bytes",
+            "name": "groupKey",
+            "type": "bytes"
+          },
+          {
+            "internalType": "bytes",
+            "name": "scriptKey",
+            "type": "bytes"
+          },
+          {
+            "internalType": "bytes",
+            "name": "internalKey",
+            "type": "bytes"
+          },
+          {
+            "internalType": "bytes",
+            "name": "tapscriptSibling",
+            "type": "bytes"
+          },
+          {
+            "internalType": "uint64",
+            "name": "amount",
+            "type": "uint64"
+          },
+          {
+            "internalType": "bytes",
+            "name": "assetType",
+            "type": "bytes"
+          }
+        ],
+        "internalType": "struct TapUtils.TapAddress",
+        "name": "ret",
+        "type": "tuple"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "bytes",
+        "name": "stream",
+        "type": "bytes"
+      },
+      {
+        "internalType": "uint256",
+        "name": "offset",
+        "type": "uint256"
+      }
+    ],
+    "name": "readBigSize",
+    "outputs": [
+      {
+        "internalType": "uint64",
+        "name": "",
+        "type": "uint64"
+      },
+      {
+        "internalType": "uint256",
+        "name": "",
+        "type": "uint256"
+      }
+    ],
+    "stateMutability": "pure",
+    "type": "function"
+  },
+  {
+    "inputs": [],
+    "name": "tapAddressPrefix",
+    "outputs": [
+      {
+        "internalType": "string",
+        "name": "",
+        "type": "string"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  }
+]

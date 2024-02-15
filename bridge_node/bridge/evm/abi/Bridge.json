@@ -2,13 +2,8 @@
   {
     "inputs": [
       {
-        "internalType": "contract IPrecompiledMintingContract",
-        "name": "_precompiledMintingContract",
-        "type": "address"
-      },
-      {
-        "internalType": "contract IBTCAddressValidator",
-        "name": "_btcAddressValidator",
+        "internalType": "contract TapUtils",
+        "name": "_tapUtils",
         "type": "address"
       },
       {
@@ -24,6 +19,62 @@
     ],
     "stateMutability": "nonpayable",
     "type": "constructor"
+  },
+  {
+    "anonymous": false,
+    "inputs": [
+      {
+        "indexed": false,
+        "internalType": "address",
+        "name": "rskToken",
+        "type": "address"
+      },
+      {
+        "indexed": false,
+        "internalType": "bytes32",
+        "name": "tapAssetId",
+        "type": "bytes32"
+      },
+      {
+        "indexed": false,
+        "internalType": "uint256",
+        "name": "tapAmountDivisor",
+        "type": "uint256"
+      },
+      {
+        "indexed": false,
+        "internalType": "bool",
+        "name": "tapNative",
+        "type": "bool"
+      },
+      {
+        "indexed": false,
+        "internalType": "string",
+        "name": "tapAssetName",
+        "type": "string"
+      }
+    ],
+    "name": "BridgeableAssetAdded",
+    "type": "event"
+  },
+  {
+    "anonymous": false,
+    "inputs": [
+      {
+        "indexed": false,
+        "internalType": "address",
+        "name": "rskToken",
+        "type": "address"
+      },
+      {
+        "indexed": false,
+        "internalType": "bytes32",
+        "name": "tapAssetId",
+        "type": "bytes32"
+      }
+    ],
+    "name": "BridgeableAssetRemoved",
+    "type": "event"
   },
   {
     "anonymous": false,
@@ -86,6 +137,12 @@
         "type": "address"
       },
       {
+        "indexed": true,
+        "internalType": "address",
+        "name": "rskToken",
+        "type": "address"
+      },
+      {
         "indexed": false,
         "internalType": "uint256",
         "name": "amountWei",
@@ -104,7 +161,7 @@
         "type": "uint256"
       }
     ],
-    "name": "TransferFromBTC",
+    "name": "TransferFromTap",
     "type": "event"
   },
   {
@@ -124,31 +181,25 @@
       },
       {
         "indexed": false,
-        "internalType": "uint256",
-        "name": "amountWei",
-        "type": "uint256"
-      },
-      {
-        "indexed": false,
         "internalType": "string",
-        "name": "btcAddress",
+        "name": "tapAddress",
         "type": "string"
       }
     ],
-    "name": "TransferToBTC",
+    "name": "TransferToTap",
     "type": "event"
   },
   {
     "inputs": [
       {
-        "internalType": "address payable",
+        "internalType": "address",
         "name": "to",
         "type": "address"
       },
       {
-        "internalType": "uint256",
-        "name": "amount",
-        "type": "uint256"
+        "internalType": "string",
+        "name": "transferTapAddress",
+        "type": "string"
       },
       {
         "internalType": "bytes32",
@@ -162,11 +213,44 @@
       },
       {
         "internalType": "bytes[]",
-        "name": "_signatures",
+        "name": "signatures",
         "type": "bytes[]"
       }
     ],
-    "name": "acceptTransferFromBtc",
+    "name": "acceptTransferFromTap",
+    "outputs": [],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "contract IERC20",
+        "name": "_rskToken",
+        "type": "address"
+      },
+      {
+        "internalType": "bytes32",
+        "name": "_tapAssetId",
+        "type": "bytes32"
+      },
+      {
+        "internalType": "uint256",
+        "name": "_tapAmountDivisor",
+        "type": "uint256"
+      },
+      {
+        "internalType": "bool",
+        "name": "_tapNative",
+        "type": "bool"
+      },
+      {
+        "internalType": "string",
+        "name": "_tapAssetName",
+        "type": "string"
+      }
+    ],
+    "name": "addBridgeableAsset",
     "outputs": [],
     "stateMutability": "nonpayable",
     "type": "function"
@@ -185,13 +269,117 @@
     "type": "function"
   },
   {
-    "inputs": [],
-    "name": "btcAddressValidator",
+    "inputs": [
+      {
+        "internalType": "uint256",
+        "name": "",
+        "type": "uint256"
+      }
+    ],
+    "name": "assets",
     "outputs": [
       {
-        "internalType": "contract IBTCAddressValidator",
+        "internalType": "contract IERC20",
+        "name": "rskToken",
+        "type": "address"
+      },
+      {
+        "internalType": "bytes32",
+        "name": "tapAssetId",
+        "type": "bytes32"
+      },
+      {
+        "internalType": "uint256",
+        "name": "tapAmountDivisor",
+        "type": "uint256"
+      },
+      {
+        "internalType": "bool",
+        "name": "tapNative",
+        "type": "bool"
+      },
+      {
+        "internalType": "string",
+        "name": "tapAssetName",
+        "type": "string"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "address",
         "name": "",
         "type": "address"
+      }
+    ],
+    "name": "assetsByRskTokenAddress",
+    "outputs": [
+      {
+        "internalType": "contract IERC20",
+        "name": "rskToken",
+        "type": "address"
+      },
+      {
+        "internalType": "bytes32",
+        "name": "tapAssetId",
+        "type": "bytes32"
+      },
+      {
+        "internalType": "uint256",
+        "name": "tapAmountDivisor",
+        "type": "uint256"
+      },
+      {
+        "internalType": "bool",
+        "name": "tapNative",
+        "type": "bool"
+      },
+      {
+        "internalType": "string",
+        "name": "tapAssetName",
+        "type": "string"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "bytes32",
+        "name": "",
+        "type": "bytes32"
+      }
+    ],
+    "name": "assetsByTaprootAssetId",
+    "outputs": [
+      {
+        "internalType": "contract IERC20",
+        "name": "rskToken",
+        "type": "address"
+      },
+      {
+        "internalType": "bytes32",
+        "name": "tapAssetId",
+        "type": "bytes32"
+      },
+      {
+        "internalType": "uint256",
+        "name": "tapAmountDivisor",
+        "type": "uint256"
+      },
+      {
+        "internalType": "bool",
+        "name": "tapNative",
+        "type": "bool"
+      },
+      {
+        "internalType": "string",
+        "name": "tapAssetName",
+        "type": "string"
       }
     ],
     "stateMutability": "view",
@@ -237,9 +425,9 @@
         "type": "address"
       },
       {
-        "internalType": "uint256",
-        "name": "amount",
-        "type": "uint256"
+        "internalType": "string",
+        "name": "transferTapAddress",
+        "type": "string"
       },
       {
         "internalType": "bytes32",
@@ -252,7 +440,7 @@
         "type": "uint256"
       }
     ],
-    "name": "getTransferFromBtcMessageHash",
+    "name": "getTransferFromTapMessageHash",
     "outputs": [
       {
         "internalType": "bytes32",
@@ -321,7 +509,7 @@
   },
   {
     "inputs": [],
-    "name": "numTransfersFromBtc",
+    "name": "numTransfersFromTap",
     "outputs": [
       {
         "internalType": "uint256",
@@ -334,7 +522,7 @@
   },
   {
     "inputs": [],
-    "name": "numTransfersToBtc",
+    "name": "numTransfersToTap",
     "outputs": [
       {
         "internalType": "uint256",
@@ -351,19 +539,6 @@
     "outputs": [
       {
         "internalType": "address",
-        "name": "",
-        "type": "address"
-      }
-    ],
-    "stateMutability": "view",
-    "type": "function"
-  },
-  {
-    "inputs": [],
-    "name": "precompiledMintingContract",
-    "outputs": [
-      {
-        "internalType": "contract IPrecompiledMintingContract",
         "name": "",
         "type": "address"
       }
@@ -399,6 +574,19 @@
     "inputs": [
       {
         "internalType": "address",
+        "name": "_rskTokenAddress",
+        "type": "address"
+      }
+    ],
+    "name": "removeBridgeableAsset",
+    "outputs": [],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "address",
         "name": "account",
         "type": "address"
       }
@@ -411,19 +599,6 @@
   {
     "inputs": [],
     "name": "renounceOwnership",
-    "outputs": [],
-    "stateMutability": "nonpayable",
-    "type": "function"
-  },
-  {
-    "inputs": [
-      {
-        "internalType": "contract IBTCAddressValidator",
-        "name": "_btcAddressValidator",
-        "type": "address"
-      }
-    ],
-    "name": "setBtcAddressValidator",
     "outputs": [],
     "stateMutability": "nonpayable",
     "type": "function"
@@ -444,14 +619,27 @@
   {
     "inputs": [
       {
-        "internalType": "contract IPrecompiledMintingContract",
-        "name": "_precompiledMintingContract",
+        "internalType": "contract TapUtils",
+        "name": "_tapUtils",
         "type": "address"
       }
     ],
-    "name": "setPrecompiledMintingContract",
+    "name": "setTapUtils",
     "outputs": [],
     "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "inputs": [],
+    "name": "tapUtils",
+    "outputs": [
+      {
+        "internalType": "contract TapUtils",
+        "name": "",
+        "type": "address"
+      }
+    ],
+    "stateMutability": "view",
     "type": "function"
   },
   {
@@ -471,13 +659,13 @@
     "inputs": [
       {
         "internalType": "string",
-        "name": "btcAddress",
+        "name": "receiverTapAddress",
         "type": "string"
       }
     ],
-    "name": "transferToBtc",
+    "name": "transferToTap",
     "outputs": [],
-    "stateMutability": "payable",
+    "stateMutability": "nonpayable",
     "type": "function"
   }
 ]

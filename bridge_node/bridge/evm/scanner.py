@@ -13,9 +13,9 @@ logger = logging.getLogger(__name__)
 
 
 @dataclasses.dataclass
-class TransferToBTC:
+class TransferToTap:
     sender_evm_address: HexBytes
-    recipient_btc_address: str
+    recipient_tap_address: str
     amount_wei: int
     event_tx_hash: HexBytes
     event_block_number: int
@@ -57,16 +57,16 @@ class BridgeEventScanner:
         logger.info("Scanning events from block %s to block %s", from_block, to_block)
 
         events = get_events(
-            event=self.bridge_contract.events.TransferToBTC,
+            event=self.bridge_contract.events.TransferToTap,
             from_block=from_block,
             to_block=to_block,
         )
         ret = []
         for event in events:
             args = event["args"]
-            obj = TransferToBTC(
+            obj = TransferToTap(
                 sender_evm_address=args["from"],
-                recipient_btc_address=args["btcAddress"],
+                recipient_tap_address=args["tapAddress"],
                 amount_wei=args["amountWei"],
                 event_tx_hash=event["transactionHash"],
                 event_block_number=event["blockNumber"],

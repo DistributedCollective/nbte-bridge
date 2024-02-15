@@ -86,7 +86,7 @@ class Asset:
 
 
 @dataclasses.dataclass()
-class CreateAddressRespose:
+class CreateAddressResponse:
     address: str
     asset_id: str
     amount: int
@@ -97,6 +97,35 @@ class CreateAddressRespose:
     taproot_output_key: str
     proof_courier_addr: str
     asset_version: str
+
+
+class AddrDict(TypedDict):
+    encoded: str
+    asset_id: str
+    asset_type: str
+    amount: int
+    group_key: str
+    script_key: str
+    internal_key: str
+    tapscript_sibling: str
+    taproot_output_key: str
+    proof_courier_addr: str
+    asset_version: str
+
+
+class AddrEventDict(TypedDict):
+    creation_time_unix_seconds: int
+    addr: AddrDict
+    status: str
+    outpoint: str
+    utxo_amt_sat: int
+    taproot_sibling: str
+    confirmation_height: int
+    has_proof: bool
+
+
+class ListReceivesDict(TypedDict):
+    events: list[AddrEventDict]
 
 
 class TapRestError(requests.HTTPError):
@@ -231,7 +260,7 @@ class TapRestClient:
         amount: int,
         script_key: ScriptKeyDict|None = None,
         internal_key: KeyDescDict|None = None
-    ) -> CreateAddressRespose:
+    ) -> CreateAddressResponse:
         if script_key is None:
             script_key = self.next_script_key()
         if internal_key is None:
@@ -243,7 +272,7 @@ class TapRestClient:
             'internal_key': internal_key,
             'asset_version': DEFAULT_ASSET_VERSION,
         })
-        return CreateAddressRespose(
+        return CreateAddressResponse(
             address=response['encoded'],
             asset_id=response['asset_id'],
             amount=int(response['amount']),
@@ -255,6 +284,19 @@ class TapRestClient:
             proof_courier_addr=response['proof_courier_addr'],
             asset_version=response['asset_version'],
         )
+
+    def list_receives(
+        self,
+        *,
+        address: str = None,
+        status: str = None
+    ) -> ListReceivesDict:
+        body = {}
+        if address is not None:
+            body['filter_addr'] = address
+        if status is not None:
+            body['filter_status'] = status
+        return self.post('/addrs/receives', body)
 
     def export_proof(self, asset_id: str, script_key_pubkey: str) -> ProofDict:
         return self.post('/proofs/export', {

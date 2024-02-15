@@ -35,13 +35,22 @@ class BridgeAPIClient:
             return False
         return True
 
-    def generate_deposit_address(self, evm_address: str) -> str:
-        if not is_checksum_address(evm_address):
-            raise ValueError(f"Invalid evm_address: {evm_address}")
+    def generate_tap_deposit_address(
+        self,
+        tap_asset_id,
+        tap_amount,
+        user_rsk_address,
+        rsk_token_address,
+        rsk_amount,
+    ) -> str:
         response = requests.post(
-            self._base_url + "/api/v1/deposit-addresses/",
+            self._base_url + "/api/v1/tap/deposit-addresses/",
             json={
-                "evm_address": evm_address,
+                "tap_asset_id": tap_asset_id,
+                "tap_amount": tap_amount,
+                "rsk_address": user_rsk_address,
+                "rsk_token_address": rsk_token_address,
+                "rsk_amount": rsk_amount,
             },
         )
         response.raise_for_status()

@@ -5,10 +5,12 @@ from eth_utils import is_checksum_address
 from pyramid.config import Configurator
 from pyramid.view import view_config, view_defaults
 
+from eth_utils import is_hex, is_hex_address
 from ..btc.deposits import BitcoinDepositService
 from ..evm.provider import Web3
 from ..evm.account import Account
 from ..evm.contracts import BridgeContract
+from ..tap.deposits import TapDepositService
 
 logger = logging.getLogger(__name__)
 
@@ -23,6 +25,7 @@ class ApiViews:
     web3: Web3 = autowired(auto)
     evm_account: Account = autowired(auto)
     bridge_contract: BridgeContract = autowired(auto)
+    tap_deposit_service: TapDepositService = autowired(auto)
 
     def __init__(self, request):
         self.request = request
@@ -49,17 +52,53 @@ class ApiViews:
             "reason": reason,
         }
 
-    @view_config(route_name="generate_deposit_address", request_method="POST")
-    def generate_deposit_address(self):
-        evm_address = self.request.json_body["evm_address"]
-        if not is_checksum_address(evm_address):
-            raise ApiException(
-                f"Invalid evm_address: {evm_address}. "
-                "Address must be a checksummed 0x-prefixed EVM address"
-            )
-        deposit_info = self.btc_deposit_service.generate_deposit_address(evm_address, index=0)
+    @view_config(route_name="generate_tap_deposit_address", request_method="POST")
+    def generate_tap_deposit_address(self):
+        data = self.request.json_body
+
+        rsk_address = data.get('rsk_address')
+        if not rsk_address:
+            raise ApiException('Must specify rsk_address')
+
+        if not is_hex_address(rsk_address):
+            raise ApiException('rsk_address must be a hex address')
+
+        rsk_token_address = data.get('rsk_token_address')
+        if rsk_token_address is not None and not is_hex_address(rsk_token_address):
+            raise ApiException('rskTokenAddress must be a hex address')
+
+        tap_asset_id = data.get('tap_asset_id')
+        if tap_asset_id is not None and not is_hex(tap_asset_id):
+            raise ApiException('tap_asset_id must be a hex string')
+
+        if not (tap_asset_id or rsk_token_address):
+            raise ApiException('Must specify either tap_assed_id or rsk_token_address')
+        if tap_asset_id and rsk_token_address:
+            raise ApiException('Must specify only one of tap_assed_id or rsk_token_address')
+
+        tap_amount = data.get('tap_amount')
+        rsk_amount = data.get('rsk_amount')
+        if rsk_amount is not None and tap_amount is not None:
+            raise ApiException('Only one of tap_amount or rsk_amount must be specified')
+        if not (rsk_amount or tap_amount):
+            raise ApiException('Either tap_amount or rsk_amount must be specified')
+        try:
+            if rsk_amount is not None:
+                rsk_amount = int(rsk_amount)
+            if tap_amount is not None:
+                tap_amount = int(tap_amount)
+        except ValueError:
+            raise ApiException('Amounts must be (convertible to) integers')
+
+        address = self.tap_deposit_service.generate_deposit_address(
+            tap_asset_id=tap_asset_id,
+            tap_amount=tap_amount,
+            user_rsk_address=rsk_address,
+            rsk_token_address=rsk_token_address,
+            rsk_amount=rsk_amount,
+        )
         return {
-            "deposit_address": deposit_info.btc_deposit_address,
+            'deposit_address': address.tap_address
         }
 
     @view_config(context=ApiException)
@@ -87,4 +126,4 @@ def index(request):
 
 def includeme(config: Configurator):
     config.add_route("stats", "/stats/")
-    config.add_route("generate_deposit_address", "/deposit-addresses/")
+    config.add_route("generate_tap_deposit_address", "/tap/deposit-addresses/")
