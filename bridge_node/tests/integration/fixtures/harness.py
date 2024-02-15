@@ -86,11 +86,19 @@ class IntegrationTestHarness:
         time.sleep(10)  # Quick and dirty sleep again
         for lnd_container in ['alice', 'bob']:
             logger.info("Depositing funds to %s", lnd_container)
-            addr_response = subprocess.check_output(
-                ("docker-compose", "-f", "docker-compose.dev.yaml", "exec", "-u", "lnd", lnd_container,
-                 "/opt/lnd/lncli", "-n", "regtest", "newaddress", "p2tr"),
-                cwd=PROJECT_BASE_DIR,
-            )
+            # Try multiple times because maybe the lnd node is not yet started
+            for tries_left in range(5, 0, -1):
+                try:
+                    addr_response = self._capture_docker_compose_output(
+                        "exec", "-u", "lnd", lnd_container, "/opt/lnd/lncli", "-n", "regtest", "newaddress", "p2tr",
+                    )
+                    break
+                except Exception as e:
+                    if tries_left <= 1:
+                        raise e
+                    time.sleep(10)
+            else:
+                raise Exception("should not get here")
             addr = json.loads(addr_response)['address']
             logger.info("Mining 101 blocks to %s's addr %s", lnd_container, addr)
             self._run_docker_compose_command(
@@ -114,6 +122,19 @@ class IntegrationTestHarness:
             cwd=PROJECT_BASE_DIR,
             check=True,
             **extra_kwargs,
+        )
+
+    def _capture_docker_compose_output(self, *args):
+        return subprocess.check_output(
+            ("docker-compose", "-f", "docker-compose.dev.yaml") + args,
+            cwd=PROJECT_BASE_DIR,
+        )
+
+    def run_hardhat_json_command(self, *args):
+        return json.loads(
+            self._capture_docker_compose_output(
+                "exec", "hardhat", "npx", "hardhat", "--network", "localhost", *args
+            )
         )
 
 

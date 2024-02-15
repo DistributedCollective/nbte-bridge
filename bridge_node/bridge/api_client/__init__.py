@@ -37,18 +37,19 @@ class BridgeAPIClient:
 
     def generate_tap_deposit_address(
         self,
-        tap_asset_id,
-        tap_amount,
-        user_rsk_address,
-        rsk_token_address,
-        rsk_amount,
+        rsk_address,
+        *,
+        tap_asset_id: str = None,
+        tap_amount: int = None,
+        rsk_token_address: str = None,
+        rsk_amount: int = None,
     ) -> str:
         response = requests.post(
             self._base_url + "/api/v1/tap/deposit-addresses/",
             json={
                 "tap_asset_id": tap_asset_id,
                 "tap_amount": tap_amount,
-                "rsk_address": user_rsk_address,
+                "rsk_address": rsk_address,
                 "rsk_token_address": rsk_token_address,
                 "rsk_amount": rsk_amount,
             },

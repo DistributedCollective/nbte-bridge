@@ -165,7 +165,13 @@ class TapRestClient:
         headers = {'Grpc-Metadata-macaroon': self._macaroon}
         if method == 'POST':
             headers['Content-Type'] = 'application/json'
-        r = requests.request(method, url, headers=headers, json=data, verify=str(self._tls_cert_path))
+        r = requests.request(
+            method,
+            url,
+            headers=headers,
+            json=data,
+            verify=str(self._tls_cert_path),
+        )
         try:
             r.raise_for_status()
         except Exception as e:

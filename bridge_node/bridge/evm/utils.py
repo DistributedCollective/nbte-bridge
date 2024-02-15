@@ -7,6 +7,7 @@ from web3 import Web3
 from web3.contract.contract import ContractEvent
 from web3.middleware import geth_poa_middleware, construct_sign_and_send_raw_middleware
 from web3.types import EventData
+from web3.gas_strategies.rpc import rpc_gas_price_strategy
 from eth_account.account import LocalAccount
 
 THIS_DIR = os.path.dirname(__file__)
@@ -20,6 +21,10 @@ def create_web3(
     rpc_url: str,
     *,
     account: Optional[LocalAccount] = None,
+    # we default to rpc_gas_price_strategy because it makes things work on RSK and RSK Testnet,
+    # and it works on hardhat too. it also works on ethereum and other chains, though it might be less
+    # efficient than other strategies.
+    gas_price_strategy=rpc_gas_price_strategy,
 ) -> Web3:
     w3 = Web3(Web3.HTTPProvider(rpc_url))
 
@@ -29,11 +34,11 @@ def create_web3(
     # Refer to http://web3py.readthedocs.io/en/stable/middleware.html#geth-style-proof-of-authority for more details.
     w3.middleware_onion.inject(geth_poa_middleware, layer=0)
 
+    w3.eth.set_gas_price_strategy(gas_price_strategy)
+
     if account:
         w3.middleware_onion.add(construct_sign_and_send_raw_middleware(account))
         w3.eth.default_account = account.address
-
-    # TODO: gas price strategy
 
     return w3
 

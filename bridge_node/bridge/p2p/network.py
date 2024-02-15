@@ -95,7 +95,7 @@ class PyroNetwork(Network):
 
     def is_leader(self) -> bool:
         # TODO: temporary implementation
-        return self.node_id == "nbte-bridge-1"
+        return self.node_id == "node-1"
 
     def ask(self, question: str, **kwargs: Any):
         logger.debug(

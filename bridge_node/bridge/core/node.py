@@ -1,20 +1,17 @@
 import logging
 import time
 
-from anemic.ioc import autowired, auto, service, Container
+from anemic.ioc import Container, auto, autowired, service
 from eth_account.messages import encode_defunct
+from eth_utils import add_0x_prefix
 from web3 import Web3
 
-from ..btc.deposits import BitcoinDepositService
-from ..btc.types import PSBT
 from ..common.transactions import TransactionManager
-from ..evm.contracts import BridgeContract
-from ..p2p.network import Network
-from ..p2p.messaging import MessageEnvelope
-from ..evm.scanner import BridgeEventScanner, TransferToTap
 from ..evm.account import Account
-from ..btc.multisig import Transfer
-from ..evm.utils import from_wei, to_wei
+from ..evm.contracts import BridgeContract
+from ..evm.scanner import BridgeEventScanner, TransferToTap
+from ..p2p.messaging import MessageEnvelope
+from ..p2p.network import Network
 from ..tap.client import TapRestClient
 from ..tap.deposits import TapDeposit, TapDepositService
 
@@ -82,10 +79,10 @@ class BridgeNode:
 
         if transfers_to_tap:
             # TODO: should limit max amount of transfers per psbt
-            self._handle_transfers_to_btc(transfers_to_tap)
+            self._handle_transfers_to_tap(transfers_to_tap)
 
         if transfers_from_tap:
-            self._handle_transfers_from_tap(transfers_to_tap)
+            self._handle_transfers_from_tap(transfers_from_tap)
 
     def _handle_transfers_to_tap(self, transfers: list[TransferToTap]):
         logger.info("Handling %s transfers to Tap", len(transfers))
@@ -106,7 +103,7 @@ class BridgeNode:
         logger.info("Transaction broadcast: %s", ret)
 
     def _handle_transfers_from_tap(self, transfers: list[TapDeposit]):
-        logger.info("Handling %s transfers from BTC to EVM", len(transfers))
+        logger.info("Handling %s transfers from Tap to EVM", len(transfers))
         for i, transfer in enumerate(transfers):
             logger.info(
                 "#%d: %s",
@@ -127,16 +124,21 @@ class BridgeNode:
 
             signatures = self.network.ask(
                 question="sign-tap-to-evm",
+                receiver_rsk_address=transfer.receiver_rsk_address,
                 deposit_tap_address=transfer.deposit_tap_address,
                 btc_tx_id=transfer.btc_tx_id,
                 btc_tx_vout=transfer.btc_tx_vout,
             )
             logger.info("Got %d signatures", len(signatures))
             tx_hash = self.bridge_contract.functions.acceptTransferFromTap(
+                transfer.receiver_rsk_address,
                 transfer.deposit_tap_address,
-                "0x" + transfer.btc_tx_id,
+                add_0x_prefix(transfer.btc_tx_id),
                 transfer.btc_tx_vout,
-            ).transact()
+                signatures,
+            ).transact({
+                'gas': 20_000_000,
+            })
             logger.info("Tx hash %s, waiting...", tx_hash.hex())
             self.web3.eth.wait_for_transaction_receipt(tx_hash, poll_latency=2)
             logger.info("Tx sent")
@@ -144,19 +146,21 @@ class BridgeNode:
     def _answer_sign_tap_to_evm(
         self,
         *,
-        transfer_tap_address: str,
+        receiver_rsk_address: str,
+        deposit_tap_address: str,
         btc_tx_id: str,
         btc_tx_vout: int,
     ) -> str:
         if self.bridge_contract.functions.isProcessed(
-            "0x" + btc_tx_id,
+            add_0x_prefix(btc_tx_id),
             btc_tx_vout,
         ).call():
             raise ValueError("Transfer already processed")
-        # TODO: validate that the transfer actually happened
+        # TODO: more validation
         message_hash = self.bridge_contract.functions.getTransferFromTapMessageHash(
-            transfer_tap_address,
-            "0x" + btc_tx_id,
+            receiver_rsk_address,
+            deposit_tap_address,
+            add_0x_prefix(btc_tx_id),
             btc_tx_vout,
         ).call()
         signable_message = encode_defunct(primitive=message_hash)

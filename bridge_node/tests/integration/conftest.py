@@ -12,7 +12,8 @@ from bridge.evm.utils import create_web3, load_abi
 from bridge.api_client import BridgeAPIClient
 from bridge.tap.client import TapRestClient
 from .constants import (
-    ALICE_EVM_PRIVATE_KEY, PROJECT_BASE_DIR,
+    ALICE_EVM_PRIVATE_KEY,
+    PROJECT_BASE_DIR,
     BRIDGE_CONTRACT_ADDRESS,
     USER_BITCOIN_RPC_URL,
     WEB3_RPC_URL,
@@ -31,7 +32,7 @@ def web3():
 
 
 @pytest.fixture(scope="session")
-def user_bitcoin_rpc():
+def bitcoin_rpc():
     return BitcoinRPC(USER_BITCOIN_RPC_URL)
 
 
@@ -39,7 +40,7 @@ def user_bitcoin_rpc():
 def alice_tap():
     base_dir = PROJECT_BASE_DIR / 'volumes' / 'tapd' / 'alice-tap'
     return TapRestClient(
-        rest_host="http://localhost:8089",
+        rest_host="localhost:8289",
         macaroon_path=base_dir / 'data' / 'regtest' / 'admin.macaroon',
         tls_cert_path=base_dir / 'tls.cert',
     )
@@ -49,7 +50,7 @@ def alice_tap():
 def bob_tap():
     base_dir = PROJECT_BASE_DIR / 'volumes' / 'tapd' / 'bob-tap'
     return TapRestClient(
-        rest_host="http://localhost:8090",
+        rest_host="localhost:8290",
         macaroon_path=base_dir / 'data' / 'regtest' / 'admin.macaroon',
         tls_cert_path=base_dir / 'tls.cert',
     )
@@ -73,7 +74,7 @@ def bob_tap():
 
 
 @pytest.fixture()
-def user_account(web3):
+def user_evm_account(web3):
     account = Account.create()
     # Set initial balance for all created accounts
     initial_balance = Web3.to_wei(1, "ether")
@@ -85,8 +86,8 @@ def user_account(web3):
 
 
 @pytest.fixture()
-def user_web3(user_account) -> Web3:
-    return create_web3(WEB3_RPC_URL, account=user_account)
+def user_web3(user_evm_account) -> Web3:
+    return create_web3(WEB3_RPC_URL, account=user_evm_account)
 
 
 @pytest.fixture()
@@ -97,7 +98,7 @@ def user_bridge_contract(user_web3):
     )
 
 
-@pytest.fixture()
+@pytest.fixture(scope="session")
 def alice_evm_account(web3):
     account = Account.from_key(ALICE_EVM_PRIVATE_KEY)
     # Set initial balance for all created accounts
@@ -109,19 +110,19 @@ def alice_evm_account(web3):
     return account
 
 
-@pytest.fixture()
+@pytest.fixture(scope="session")
 def alice_web3(alice_evm_account) -> Web3:
-    return create_web3(WEB3_RPC_URL, account=user_account)
+    return create_web3(WEB3_RPC_URL, account=alice_evm_account)
 
 
-@pytest.fixture()
-def alice_bridge_contract(alice_web3):
+@pytest.fixture(scope="session")
+def owner_bridge_contract(alice_web3):
     return alice_web3.eth.contract(
         address=BRIDGE_CONTRACT_ADDRESS,
         abi=load_abi("Bridge"),
     )
 
 
-@pytest.fixture()
+@pytest.fixture(scope="session")
 def bridge_api():
     return BridgeAPIClient(base_url=NODE1_API_BASE_URL)

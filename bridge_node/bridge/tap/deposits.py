@@ -179,15 +179,15 @@ class TapDepositService:
                 if outpoint in processed_event_outpoints:
                     logger.info("Already processed %s", outpoint)
                     continue
-                processed_event_outpoints.add(outpoint)
 
                 if event['addr']['encoded'] != tap_address:
                     raise ValueError("Address mismatch: {} != {}".format(event['addr']['encoded'], tap_address))
                 status = event['status']
-                logger.info("Found %s: %s", outpoint, status)
                 btc_tx_id, btc_tx_vout = outpoint.split(':')
                 btc_tx_vout = int(btc_tx_vout)
                 if status == 'ADDR_EVENT_STATUS_COMPLETED':
+                    logger.info("Found %s: %s", outpoint, status)
+                    processed_event_outpoints.add(outpoint)
                     ret.append(
                         TapDeposit(
                             receiver_rsk_address=deposit_address.user_rsk_address,
@@ -196,6 +196,8 @@ class TapDepositService:
                             btc_tx_vout=btc_tx_vout,
                         )
                     )
+                else:
+                    logger.info("Outpoint %s not yet completed, status: %s", outpoint, status)
 
         self.key_value_store.set_value('tap:processed_event_outpoints', list(processed_event_outpoints))
         logger.info("Done scanning deposits.")

@@ -70,33 +70,24 @@ task("deploy-regtest")
     });
 
 
+
 // ============
 // TEST HELPERS
 // ============
 
-task("transfer-to-btc")
-    .addParam("bridgeAddress", "Address of the bridge contract")
-    .addParam("amount", "Decimal amount to transfer", undefined, types.string)
-    .addParam("btcAddress", "Recipient BTC address")
-    .addOptionalParam("from", "Address to transfer from (defaults to first account)")
-    .setAction(async ({ bridgeAddress, amount, btcAddress, from }, hre) => {
+task("deploy-testtoken")
+    .setAction(async ({}, hre) => {
         const ethers = hre.ethers;
-        let bridge = await ethers.getContractAt("Bridge", bridgeAddress);
-        if (from) {
-            const signer = await ethers.getSigner(from);
-            bridge = bridge.connect(signer);
-        }
 
-        const amountWei = ethers.parseEther(amount);
-        console.log(`Transferring ${amount} BTC (${amountWei} wei) to ${btcAddress}`);
+        const testToken = await ethers.deployContract(
+            "TestToken",
+            ["TestToken", "TT", 18],
+            {}
+        );
+        await testToken.waitForDeployment();
+        console.log(JSON.stringify({"address": testToken.target}));
+    })
 
-        const tx = await bridge.transferToBtc(btcAddress, {
-            value: amountWei,
-        });
-        console.log('tx hash:', tx.hash, 'waiting for tx...');
-        const receipt = await tx.wait();
-        console.log('tx receipt:', receipt);
-    });
 
 task("accounts", "Prints the list of accounts", async (args, hre) => {
     const accounts = await hre.ethers.getSigners();
