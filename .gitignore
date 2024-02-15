@@ -34,7 +34,6 @@ htmlcov/
 cover/
 nosetests.xml
 coverage
-test
 .ruff_cache/
 
 # Distribution / packaging

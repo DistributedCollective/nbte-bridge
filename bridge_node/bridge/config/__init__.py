@@ -18,6 +18,10 @@ class Config:
     btc_key_derivation_path = environ.var()
     btc_num_required_signers = environ.var(converter=int)
 
+    tap_host = environ.var()
+    tap_macaroon_path = environ.var()
+    tap_tls_cert_path = environ.var()
+
     # TODO: handle secrets properly
     db_url = environ.var()
     evm_private_key = environ.var()  # TODO: should be secret

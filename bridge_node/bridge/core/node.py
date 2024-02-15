@@ -17,6 +17,7 @@ from ..btc.rpc import BitcoinRPC
 from ..btc.utils import from_satoshi, to_satoshi
 from ..btc.multisig import Transfer, BitcoinMultisig
 from ..evm.utils import from_wei, to_wei
+from ..tap.client import TapRestClient
 
 logger = logging.getLogger(__name__)
 
@@ -26,10 +27,9 @@ class BridgeNode:
     network: Network = autowired(auto)
     transaction_manager: TransactionManager = autowired(auto)
     evm_account: Account = autowired(auto)
-    bitcoin_rpc: BitcoinRPC = autowired(auto)
-    bitcoin_multisig: BitcoinMultisig = autowired(auto)
     bridge_contract: BridgeContract = autowired(auto)
     web3: Web3 = autowired(auto)
+    tap_client: TapRestClient = autowired(auto)
 
     def __init__(self, container: Container):
         self.container = container
@@ -60,6 +60,9 @@ class BridgeNode:
         logger.debug("Running main loop iteration from node: %s", self.network.node_id)
         if self.network.is_leader():
             self.ping()
+
+        logger.info("My assets: %s", self.tap_client.list_assets())
+        return "baha"
         # TODO: first store to database, then handle the transfers in database (not directly from blockchain)
         with self.transaction_manager.transaction() as transaction:
             evm_scanner = transaction.find_service(BridgeEventScanner)
