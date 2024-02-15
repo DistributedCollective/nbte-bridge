@@ -1,11 +1,11 @@
 [tool.poetry]
-name = "SovrynRollupBridge"
+name = "SovrynNbteBridge"
 version = "0.0"
-description = "SovrynRollupBridge"
-authors = ["Sovryn <info@interjektio.fi>"]
+description = "Sovryn NBTE Bridge"
+authors = ["Sovryn <info+sovryn@interjektio.fi>"]
 license = "BSD"
 readme = ["README.md"]
-repository = "https://github.com/interjektio/<your-repo>"
+repository = "https://github.com/DistributedCollective/nbte-bridge"
 classifiers = [
     "Programming Language :: Python",
     "Framework :: Pyramid",
