@@ -27,7 +27,7 @@ test:
 	cd bridge_node && poetry run python -m pytest -s --no-cov --log-cli-level=info -v
 
 .PHONY: test-cov
-test:
+test-cov:
 	cd bridge_node && poetry run python -m pytest -s --log-cli-level=info -v
 
 .PHONY: unit-test
