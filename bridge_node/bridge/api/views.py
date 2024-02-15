@@ -6,7 +6,6 @@ from pyramid.config import Configurator
 from pyramid.view import view_config, view_defaults
 
 from eth_utils import is_hex, is_hex_address
-from ..btc.deposits import BitcoinDepositService
 from ..evm.provider import Web3
 from ..evm.account import Account
 from ..evm.contracts import BridgeContract
@@ -21,7 +20,6 @@ class ApiException(Exception):
 
 @view_defaults(renderer="json")
 class ApiViews:
-    btc_deposit_service: BitcoinDepositService = autowired(auto)
     web3: Web3 = autowired(auto)
     evm_account: Account = autowired(auto)
     bridge_contract: BridgeContract = autowired(auto)
