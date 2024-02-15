@@ -93,7 +93,7 @@ class BridgeNode:
                 transfer,
             )
 
-        # TODO: vpsbt shenanigans
+        # TODO: proper VPSBT handling with proof transfers
         ret = self.tap_client.send_assets(
             *[
                 t.recipient_tap_address

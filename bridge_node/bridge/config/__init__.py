@@ -8,12 +8,16 @@ from typing import Literal
 class Config:
     node_id = environ.var()
     hostname = environ.var(socket.gethostname())
+    leader_node_id = environ.var()
     port = environ.var(5000, converter=int)
+    peers = environ.var(converter=lambda s: [x.split("@") for x in s.split(",")])
+
     evm_bridge_contract_address = environ.var()
     evm_rpc_url = environ.var()
     evm_block_safety_margin = environ.var(converter=int, default=5)
     evm_start_block = environ.var(converter=int, default=1)
-    peers = environ.var(converter=lambda s: [x.split("@") for x in s.split(",")])
+
+
     btc_network: Literal["mainnet", "testnet", "signet", "regtest"] = environ.var()
 
     tap_host = environ.var()

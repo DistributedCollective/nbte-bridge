@@ -60,10 +60,12 @@ class PyroNetwork(Network):
         peers,
         context_cls: SecureContext = None,
         privkey=None,
+        leader_node_id=None,
     ):
         self.host = host
         self.port = port
         self.node_id = node_id
+        self.leader_node_id = leader_node_id
         self.context = None
         self.privkey = privkey
 
@@ -94,8 +96,8 @@ class PyroNetwork(Network):
         self.uri = self.daemon.register(self, self.node_id)
 
     def is_leader(self) -> bool:
-        # TODO: temporary implementation
-        return self.node_id == "node-1"
+        # Leader is hardcoded in config
+        return self.node_id == self.leader_node_id
 
     def ask(self, question: str, **kwargs: Any):
         logger.debug(
@@ -225,6 +227,7 @@ def create_pyro_network(container: Container):
         peers=config.peers,
         context_cls=PyroSecureContext,
         privkey=config.evm_private_key,
+        leader_node_id=config.leader_node_id,
     )
 
     # TODO: VERY UGLY! But we don't want to crash on startup if network not started
