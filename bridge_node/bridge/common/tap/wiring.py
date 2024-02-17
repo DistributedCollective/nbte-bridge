@@ -1,7 +1,7 @@
 from anemic.ioc import Container, service
 
 from .client import TapRestClient
-from ..config import Config
+from bridge.config import Config
 
 
 @service(interface_override=TapRestClient, scope="global")

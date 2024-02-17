@@ -4,7 +4,7 @@ import logging
 from Pyro5 import config, core, serializers, protocol, errors, socketutil
 from Pyro5.client import _RemoteMethod, _StreamResultIterator, SerializedBlob
 from Pyro5.callcontext import current_context
-from bridge.auth import challenge
+from bridge.common.p2p.auth import challenge
 
 try:
     from greenlet import getcurrent as get_ident

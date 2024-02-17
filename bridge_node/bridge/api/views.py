@@ -1,15 +1,15 @@
 import logging
 
 from anemic.ioc import auto, autowired
-from eth_utils import is_checksum_address
 from pyramid.config import Configurator
 from pyramid.view import view_config, view_defaults
 
 from eth_utils import is_hex, is_hex_address
-from ..evm.provider import Web3
-from ..evm.account import Account
-from ..evm.contracts import BridgeContract
-from ..tap.deposits import TapDepositService
+from bridge.common.evm.provider import Web3
+from bridge.common.evm.account import Account
+from bridge.common.evm.contracts import BridgeContract
+from bridge.common.tap.deposits import TapDepositService
+
 
 logger = logging.getLogger(__name__)
 

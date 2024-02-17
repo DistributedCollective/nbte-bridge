@@ -3,7 +3,7 @@ from pyramid.config import Configurator
 from pyramid.request import Request
 from waitress import serve
 
-from bridge.common.transactions import TransactionManager
+from bridge.common.services.transactions import TransactionManager
 
 
 def create_app(

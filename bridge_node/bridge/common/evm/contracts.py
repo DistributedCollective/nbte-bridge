@@ -3,7 +3,7 @@ from web3 import Web3
 from web3.contract import Contract
 from anemic.ioc import service, Container
 from .utils import load_abi
-from ..config import Config
+from bridge.config import Config
 
 
 BridgeContract = NewType("BridgeContract", Contract)

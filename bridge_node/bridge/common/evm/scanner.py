@@ -6,8 +6,8 @@ from web3 import Web3
 from sqlalchemy.orm.session import Session
 from .contracts import BridgeContract
 from .utils import get_events
-from ..common.key_value_store import KeyValueStore
-from ..config import Config
+from ..services.key_value_store import KeyValueStore
+from bridge.config import Config
 
 logger = logging.getLogger(__name__)
 

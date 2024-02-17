@@ -9,7 +9,7 @@ from anemic.ioc import Container, service
 import bitcointx
 import bitcointx.rpc
 
-from ..config import Config
+from bridge.config import Config
 
 
 class JSONRPCError(requests.HTTPError):

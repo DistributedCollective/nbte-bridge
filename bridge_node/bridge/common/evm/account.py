@@ -1,6 +1,6 @@
 from eth_account import Account
 from anemic.ioc import service, Container
-from ..config import Config
+from bridge.config import Config
 
 
 @service(interface_override=Account, scope="global")

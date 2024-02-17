@@ -8,9 +8,9 @@ import Pyro5.errors
 from anemic.ioc import Container, service
 from .messaging import MessageEnvelope
 
-from ..auth.bridge_ssl import SecureContext, PyroSecureContext
+from bridge.common.p2p.auth.bridge_ssl import SecureContext, PyroSecureContext
 
-from ..config import Config
+from bridge.config import Config
 
 from .client import BoundPyroProxy
 

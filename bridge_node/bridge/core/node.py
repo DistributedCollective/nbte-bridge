@@ -6,14 +6,14 @@ from eth_account.messages import encode_defunct
 from eth_utils import add_0x_prefix
 from web3 import Web3
 
-from ..common.transactions import TransactionManager
-from ..evm.account import Account
-from ..evm.contracts import BridgeContract
-from ..evm.scanner import BridgeEventScanner, TransferToTap
-from ..p2p.messaging import MessageEnvelope
-from ..p2p.network import Network
-from ..tap.client import TapRestClient
-from ..tap.deposits import TapDeposit, TapDepositService
+from bridge.common.services.transactions import TransactionManager
+from bridge.common.evm.account import Account
+from bridge.common.evm.contracts import BridgeContract
+from bridge.common.evm.scanner import BridgeEventScanner, TransferToTap
+from bridge.common.p2p.messaging import MessageEnvelope
+from bridge.common.p2p.network import Network
+from bridge.common.tap.client import TapRestClient
+from bridge.common.tap.deposits import TapDeposit, TapDepositService
 
 logger = logging.getLogger(__name__)
 

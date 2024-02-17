@@ -1,6 +1,5 @@
 import logging
 import requests
-from eth_utils import is_checksum_address
 
 
 logger = logging.getLogger(__name__)

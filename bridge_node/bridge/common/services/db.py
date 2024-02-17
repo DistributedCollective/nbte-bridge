@@ -1,7 +1,7 @@
 from sqlalchemy import create_engine, Engine
 from sqlalchemy.orm import Session
 from anemic.ioc import service, Container
-from ..config import Config
+from bridge.config import Config
 
 
 @service(scope="global", interface_override=Engine)

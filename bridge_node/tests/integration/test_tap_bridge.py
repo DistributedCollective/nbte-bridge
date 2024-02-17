@@ -4,8 +4,8 @@ import time
 import pytest
 
 from eth_utils import add_0x_prefix
-from bridge.evm.utils import load_abi
-from bridge.tap.client import Asset
+from bridge.common.evm.utils import load_abi
+from bridge.common.tap.client import Asset
 from .utils import wait_for_condition
 
 logger = logging.getLogger(__name__)

@@ -3,7 +3,7 @@ from eth_account import Account
 from web3 import Web3
 
 from .utils import create_web3
-from ..config import Config
+from bridge.config import Config
 
 
 @service(interface_override=Web3, scope="global")

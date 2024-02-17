@@ -6,11 +6,11 @@ from eth_utils import to_hex
 from web3 import Web3
 from web3.types import RPCEndpoint
 
-from bridge.btc.setup import setup_bitcointx_network
-from bridge.btc.rpc import BitcoinRPC
-from bridge.evm.utils import create_web3, load_abi
+from bridge.common.btc.setup import setup_bitcointx_network
+from bridge.common.btc.rpc import BitcoinRPC
+from bridge.common.evm.utils import create_web3, load_abi
 from bridge.api_client import BridgeAPIClient
-from bridge.tap.client import TapRestClient
+from bridge.common.tap.client import TapRestClient
 from .constants import (
     ALICE_EVM_PRIVATE_KEY,
     PROJECT_BASE_DIR,

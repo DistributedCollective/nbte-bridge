@@ -7,9 +7,9 @@ from sqlalchemy.orm.session import Session
 
 from eth_utils import remove_0x_prefix, to_checksum_address, add_0x_prefix
 from web3.constants import ADDRESS_ZERO
-from ..common.key_value_store import KeyValueStore
+from bridge.common.services.key_value_store import KeyValueStore
 from .client import TapRestClient
-from ..evm.contracts import BridgeContract
+from bridge.common.evm.contracts import BridgeContract
 
 logger = logging.getLogger(__name__)
 

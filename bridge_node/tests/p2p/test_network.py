@@ -4,8 +4,8 @@ import pytest
 
 import Pyro5
 
-from bridge.p2p.network import Network, PyroNetwork, PyroMessageEnvelope
-from bridge.auth.bridge_ssl import PyroSecureContext
+from bridge.common.p2p.network import Network, PyroNetwork, PyroMessageEnvelope
+from bridge.common.p2p.auth.bridge_ssl import PyroSecureContext
 
 
 @pytest.fixture
@@ -114,7 +114,7 @@ def test_methods_can_be_exposed_to_pyro_network(test_pyro_network):
 
 def test_pyro_network_can_broadcast_messages(mocker, test_pyro_network):
     peer = PeerStub()
-    mocker.patch("bridge.p2p.network.BoundPyroProxy", peer)
+    mocker.patch("bridge.common.p2p.network.BoundPyroProxy", peer)
 
     # TODO: I don't want to actually start a server in an unit test
     # so I mock the peer.
@@ -132,7 +132,7 @@ def test_pyro_network_can_broadcast_messages(mocker, test_pyro_network):
 
 def test_pyro_network_can_send_messages(mocker, test_pyro_network):
     peer = PeerStub()
-    mocker.patch("bridge.p2p.network.BoundPyroProxy", peer)
+    mocker.patch("bridge.common.p2p.network.BoundPyroProxy", peer)
 
     network = test_pyro_network
     network._peers = [("test2", "localhost:8080")]
