@@ -43,7 +43,7 @@ def setup_db(logger):
         raise e from None
 
 
-@pytest.fixture
-def dbsession() -> Session:
-    # TODO
-    pass
+# @pytest.fixture
+# def dbsession() -> Session:
+#     # TODO
+#     pass

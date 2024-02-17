@@ -1,10 +1,11 @@
 from eth_account import Account as EthAccount
+from eth_account.account import LocalAccount
 from typing import NewType
 from anemic.ioc import service, Container
 from bridge.config import Config
 
 
-Account = NewType("Account", EthAccount)
+Account = NewType("Account", LocalAccount)
 
 
 @service(interface_override=Account, scope="global")

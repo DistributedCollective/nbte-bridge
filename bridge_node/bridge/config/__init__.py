@@ -17,7 +17,6 @@ class Config:
     evm_block_safety_margin = environ.var(converter=int, default=5)
     evm_start_block = environ.var(converter=int, default=1)
 
-
     btc_network: Literal["mainnet", "testnet", "signet", "regtest"] = environ.var()
 
     tap_host = environ.var()

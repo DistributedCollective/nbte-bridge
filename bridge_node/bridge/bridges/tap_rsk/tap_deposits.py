@@ -9,33 +9,16 @@ from eth_utils import remove_0x_prefix, to_checksum_address, add_0x_prefix
 from web3.constants import ADDRESS_ZERO
 from bridge.common.services.key_value_store import KeyValueStore
 from bridge.common.tap.client import TapRestClient
-from .common import KEY_VALUE_STORE_NAMESPACE
 from .rsk import BridgeContract
+from .models import (
+    TapDepositAddress,
+    TapToRskTransfer,
+)
 
 logger = logging.getLogger(__name__)
 
 
-# TODO: use a real DB model for deposit addresses and deposits instead of keyvaluestore
-@dataclasses.dataclass
-class DepositAddress:
-    CURRENT_VERSION = 1
-    version: int
-    user_rsk_address: str
-    tap_address: str
-    tap_asset_id: str
-    rsk_token_address: str
-    tap_amount: int
-    rsk_amount: int
-
-
-@dataclasses.dataclass
-class TapDeposit:
-    receiver_rsk_address: str
-    deposit_tap_address: str
-    btc_tx_id: str
-    btc_tx_vout: int
-
-
+# TODO: have this in a model too
 @dataclasses.dataclass
 class BridgeableAsset:
     """
@@ -72,7 +55,7 @@ class TapDepositService:
         tap_asset_id: str = None,
         rsk_amount: int = None,
         rsk_token_address: str = None
-    ) -> DepositAddress:
+    ) -> TapDepositAddress:
         if tap_amount is None and rsk_amount is None:
             raise ValueError("Either tap_amount or rsk_amount must be specified")
         if tap_amount is not None and rsk_amount is not None:
@@ -103,28 +86,19 @@ class TapDepositService:
             amount=tap_amount,
         )
 
-        ret = DepositAddress(
-            version=DepositAddress.CURRENT_VERSION,
-            user_rsk_address=user_rsk_address,
+        ret = TapDepositAddress(
+            rsk_address=user_rsk_address,
             tap_address=tap_address_response.address,
             rsk_token_address=asset.rsk_token,
             tap_asset_id=asset.tap_asset_id,
             tap_amount=tap_amount,
             rsk_amount=rsk_amount,
         )
-
-        # TODO: use a real model instead of keyvaluestore
-        deposit_addresses = self.key_value_store.get_value(f'{KEY_VALUE_STORE_NAMESPACE}:tap:deposit_addresses', [])
-        deposit_addresses.append(dataclasses.asdict(ret))
-        self.key_value_store.set_value(f'{KEY_VALUE_STORE_NAMESPACE}:tap:deposit_addresses', deposit_addresses)
+        self.dbsession.add(ret)
         return ret
 
-    def get_deposit_addresses(self) -> list[DepositAddress]:
-        deposit_addresses_raw = self.key_value_store.get_value(f'{KEY_VALUE_STORE_NAMESPACE}:tap:deposit_addresses', [])
-        return [
-            DepositAddress(**d)
-            for d in deposit_addresses_raw
-        ]
+    def get_deposit_addresses(self) -> list[TapDepositAddress]:
+        return self.dbsession.query(TapDepositAddress).all()
 
     def _get_bridgeable_asset(self, *, rsk_token: str = None, tap_asset_id: str = None):
         if rsk_token and tap_asset_id:
@@ -151,55 +125,58 @@ class TapDepositService:
             tap_asset_name=tap_asset_name,
         )
 
-    def scan_new_deposits(self) -> list[TapDeposit]:
-        # TODO: better datamodel for this
-        processed_event_outpoints = set(self.key_value_store.get_value(f'{KEY_VALUE_STORE_NAMESPACE}:tap:processed_event_outpoints', []))
+    def scan_new_deposits(self):
+        # TODO: this should to be improved so that we don't have to scan everything every time
+        # maybe use this: https://lightning.engineering/api-docs/api/taproot-assets/taproot-assets/subscribe-receive-asset-event-ntfns/index.html
+        previous_deposits = self.dbsession.query(
+            TapToRskTransfer.deposit_btc_tx_id,
+            TapToRskTransfer.deposit_btc_tx_vout
+        ).all()
+        previous_outpoints = set(
+            (deposit_btc_tx_id, deposit_btc_tx_vout)
+            for deposit_btc_tx_id, deposit_btc_tx_vout in previous_deposits
+        )
 
         deposit_addresses = self.get_deposit_addresses()
-        ret: list[TapDeposit] = []
         logger.info(
-            "Processing deposits (%s addresses, %s processed deposits)...",
+            "Processing deposits (%s addresses, %s seen deposits)...",
             len(deposit_addresses),
-            len(processed_event_outpoints),
+            len(previous_outpoints),
         )
         for deposit_address in deposit_addresses:
-            if deposit_address.version != DepositAddress.CURRENT_VERSION:
-                # Could migrate DepositAddress here. But maybe we want to use SQLAlchemy anyway
-                logger.error(
-                    "Invalid version (expected %s): %s",
-                    DepositAddress.CURRENT_VERSION,
-                    deposit_address,
-                )
-                continue
             tap_address = deposit_address.tap_address
             logger.info("Checking %s...", tap_address)
-            result = self.tap_client.list_receives(address=tap_address)
+            result = self.tap_client.list_receives(
+                address=tap_address,
+                status='ADDR_EVENT_STATUS_COMPLETED',
+            )
             events = result['events']
             for event in events:
-                outpoint = event['outpoint']
-                if outpoint in processed_event_outpoints:
+                outpoint_raw = event['outpoint']
+                btc_tx_id, btc_tx_vout = outpoint_raw.split(':')
+                btc_tx_vout = int(btc_tx_vout)
+                outpoint = (btc_tx_id, btc_tx_vout)
+
+                if outpoint in previous_outpoints:
                     logger.info("Already processed %s", outpoint)
                     continue
 
                 if event['addr']['encoded'] != tap_address:
                     raise ValueError("Address mismatch: {} != {}".format(event['addr']['encoded'], tap_address))
                 status = event['status']
-                btc_tx_id, btc_tx_vout = outpoint.split(':')
-                btc_tx_vout = int(btc_tx_vout)
                 if status == 'ADDR_EVENT_STATUS_COMPLETED':
                     logger.info("Found %s: %s", outpoint, status)
-                    processed_event_outpoints.add(outpoint)
-                    ret.append(
-                        TapDeposit(
-                            receiver_rsk_address=deposit_address.user_rsk_address,
-                            deposit_tap_address=tap_address,
-                            btc_tx_id=btc_tx_id,
-                            btc_tx_vout=btc_tx_vout,
-                        )
+                    previous_outpoints.add(outpoint)
+                    deposit = TapToRskTransfer(
+                        deposit_address=deposit_address,
+                        deposit_btc_tx_id=btc_tx_id,
+                        deposit_btc_tx_vout=btc_tx_vout,
                     )
+                    self.dbsession.add(deposit)
+                    self.dbsession.flush()
                 else:
-                    logger.info("Outpoint %s not yet completed, status: %s", outpoint, status)
+                    # Just raise error because list_receives filter should work
+                    raise ValueError("Outpoint {} not yet completed, status: {}".format(outpoint, status))
+                    #logger.info("Outpoint %s not yet completed, status: %s", outpoint, status)
 
-        self.key_value_store.set_value(f'{KEY_VALUE_STORE_NAMESPACE}:tap:processed_event_outpoints', list(processed_event_outpoints))
         logger.info("Done scanning deposits.")
-        return ret

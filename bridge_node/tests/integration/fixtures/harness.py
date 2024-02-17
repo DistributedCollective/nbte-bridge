@@ -120,14 +120,23 @@ class IntegrationTestHarness:
             else:
                 raise Exception("should not get here")
             addr = json.loads(addr_response)['address']
-            logger.info("Mining 101 blocks to %s's addr %s", lnd_container, addr)
+            logger.info("Mining 2 blocks to %s's addr %s", lnd_container, addr)
             self._run_docker_compose_command(
                 "exec", self.BITCOIND_CONTAINER,
                 "bitcoin-cli", "-datadir=/home/bitcoin/.bitcoin", "-regtest",
-                "generatetoaddress", "101", addr,
+                "generatetoaddress", "2", addr,
                 verbose=False,
             )
             logger.info("Mined.")
+
+        logger.info("Mining 100 blocks to a random address to see mining rewards")
+        self._run_docker_compose_command(
+            "exec",
+            self.BITCOIND_CONTAINER,
+            "bitcoin-cli", "-datadir=/home/bitcoin/.bitcoin", "-regtest",
+            "generatetoaddress", "101", "bcrt1qtxysk2megp39dnpw9va32huk5fesrlvutl0zdpc29asar4hfkrlqs2kzv5",
+            verbose=False,
+        )
 
         logger.info("Waiting for macaroons to be available (start of tapd)")
         for _ in range(20):

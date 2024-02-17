@@ -66,12 +66,10 @@ contract Bridge is Ownable, ReentrancyGuard {
 
     BridgeableAsset[] public assets;
 
-
     uint256 public numRequiredSigners;
     address[] public federators;
 
-    uint256 public numTransfersToTap;
-    uint256 public numTransfersFromTap;
+    uint256 public numTransfersTotal;
 
     TapUtils public tapUtils;
 
@@ -95,6 +93,7 @@ contract Bridge is Ownable, ReentrancyGuard {
             for (uint256 j = i + 1; j < _federators.length; j++) {
                 require(_federators[i] != _federators[j], "duplicate federator");
             }
+            emit FederatorAdded(_federators[i]);
         }
         federators = _federators;
     }
@@ -122,9 +121,9 @@ contract Bridge is Ownable, ReentrancyGuard {
         // TODO: burn native tokens
         asset.rskToken.safeTransferFrom(msg.sender, address(this), rskAmount);
 
-        numTransfersToTap++;
+        numTransfersTotal++;
         emit TransferToTap(
-            numTransfersToTap,
+            numTransfersTotal,
             msg.sender,
             receiverTapAddress
         );
@@ -133,7 +132,6 @@ contract Bridge is Ownable, ReentrancyGuard {
     // Federator API
     // -------------
 
-    /// @dev This is the "mint" function in the PRD
     function acceptTransferFromTap(
         address to,
         string calldata transferTapAddress,
@@ -160,6 +158,40 @@ contract Bridge is Ownable, ReentrancyGuard {
         require(rskAmount > 0, "amount must be greater than 0");
 
         // signature validation
+        _validateTransferFromTapSignatures(
+            to,
+            transferTapAddress,
+            btcTxId,
+            btcTxVout,
+            signatures
+        );
+
+        processedByBtcTxIdAndVout[btcTxId][btcTxVout] = true;
+
+        // todo: mint tap-native assets
+        asset.rskToken.safeTransfer(to, rskAmount);
+
+        numTransfersTotal++;
+        emit TransferFromTap(
+            numTransfersTotal,
+            to,
+            address(asset.rskToken),
+            rskAmount,
+            btcTxId,
+            btcTxVout
+        );
+    }
+
+    function _validateTransferFromTapSignatures(
+        address to,
+        string calldata transferTapAddress,
+        bytes32 btcTxId,
+        uint256 btcTxVout,
+        bytes[] memory signatures
+    )
+    internal
+    {
+        // signature validation
         bytes32 signedMessageHash = ECDSA.toEthSignedMessageHash(
             getTransferFromTapMessageHash(
                 to,
@@ -168,7 +200,6 @@ contract Bridge is Ownable, ReentrancyGuard {
                 btcTxVout
             )
         );
-        uint256 numRequired = numRequiredSigners;
 
         address[] memory seen = new address[](signatures.length);
         uint256 numConfirmations = 0;
@@ -193,22 +224,7 @@ contract Bridge is Ownable, ReentrancyGuard {
             numConfirmations++;
         }
 
-        require(numConfirmations >= numRequired, "not enough confirmations");
-
-        processedByBtcTxIdAndVout[btcTxId][btcTxVout] = true;
-
-        // todo: mint tap-native assets
-        asset.rskToken.safeTransfer(to, rskAmount);
-
-        numTransfersFromTap++;
-        emit TransferFromTap(
-            numTransfersFromTap,
-            to,
-            address(asset.rskToken),
-            rskAmount,
-            btcTxId,
-            btcTxVout
-        );
+        require(numConfirmations >= numRequiredSigners, "not enough confirmations");
     }
 
     // Views/utilities

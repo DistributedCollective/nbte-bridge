@@ -8,7 +8,7 @@ from eth_utils import is_hex, is_hex_address
 from bridge.common.evm.provider import Web3
 from ..common.evm.account import Account
 from ..bridges.tap_rsk.rsk import BridgeContract
-from ..bridges.tap_rsk.tap import TapDepositService
+from ..bridges.tap_rsk.tap_deposits import TapDepositService
 
 
 logger = logging.getLogger(__name__)

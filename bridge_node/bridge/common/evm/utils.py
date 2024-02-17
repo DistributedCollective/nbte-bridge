@@ -4,6 +4,7 @@ import os
 import pathlib
 import time
 from typing import Any, Optional
+from eth_account import Account as EthAccount
 from web3 import Web3
 from web3.contract.contract import ContractEvent
 from web3.middleware import geth_poa_middleware, construct_sign_and_send_raw_middleware
@@ -122,3 +123,10 @@ def to_wei(number, unit="ether"):
 
 def from_wei(number, unit="ether"):
     return Web3.from_wei(number, unit)
+
+
+def recover_message(content, signature):
+    return EthAccount.recover_message(
+        content,
+        signature=signature,
+    )
