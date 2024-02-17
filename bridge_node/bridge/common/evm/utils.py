@@ -1,6 +1,7 @@
 import logging
 import json
 import os
+import pathlib
 import time
 from typing import Any, Optional
 from web3 import Web3
@@ -43,10 +44,10 @@ def create_web3(
     return w3
 
 
-def load_abi(name: str) -> list[dict[str, Any]]:
-    abi_path = os.path.join(ABI_DIR, f"{name}.json")
-    if not os.path.abspath(abi_path).startswith(os.path.abspath(ABI_DIR)):
-        raise ValueError(f"Invalid ABI name: {name} (path outside ABI dir {ABI_DIR})")
+def load_abi(name: str, abi_dir: str | pathlib.Path = ABI_DIR) -> list[dict[str, Any]]:
+    abi_path = os.path.join(abi_dir, f"{name}.json")
+    if not os.path.abspath(abi_path).startswith(os.path.abspath(abi_dir)):
+        raise ValueError(f"Invalid ABI name: {name} (path outside ABI dir {abi_dir})")
     with open(abi_path) as f:
         return json.load(f)
 

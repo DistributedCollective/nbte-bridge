@@ -8,8 +8,9 @@ from sqlalchemy.orm.session import Session
 from eth_utils import remove_0x_prefix, to_checksum_address, add_0x_prefix
 from web3.constants import ADDRESS_ZERO
 from bridge.common.services.key_value_store import KeyValueStore
-from .client import TapRestClient
-from bridge.common.evm.contracts import BridgeContract
+from bridge.common.tap.client import TapRestClient
+from .common import KEY_VALUE_STORE_NAMESPACE
+from .rsk import BridgeContract
 
 logger = logging.getLogger(__name__)
 
@@ -113,13 +114,13 @@ class TapDepositService:
         )
 
         # TODO: use a real model instead of keyvaluestore
-        deposit_addresses = self.key_value_store.get_value('tap:deposit_addresses', [])
+        deposit_addresses = self.key_value_store.get_value(f'{KEY_VALUE_STORE_NAMESPACE}:tap:deposit_addresses', [])
         deposit_addresses.append(dataclasses.asdict(ret))
-        self.key_value_store.set_value('tap:deposit_addresses', deposit_addresses)
+        self.key_value_store.set_value(f'{KEY_VALUE_STORE_NAMESPACE}:tap:deposit_addresses', deposit_addresses)
         return ret
 
     def get_deposit_addresses(self) -> list[DepositAddress]:
-        deposit_addresses_raw = self.key_value_store.get_value('tap:deposit_addresses', [])
+        deposit_addresses_raw = self.key_value_store.get_value(f'{KEY_VALUE_STORE_NAMESPACE}:tap:deposit_addresses', [])
         return [
             DepositAddress(**d)
             for d in deposit_addresses_raw
@@ -152,7 +153,7 @@ class TapDepositService:
 
     def scan_new_deposits(self) -> list[TapDeposit]:
         # TODO: better datamodel for this
-        processed_event_outpoints = set(self.key_value_store.get_value('tap:processed_event_outpoints', []))
+        processed_event_outpoints = set(self.key_value_store.get_value(f'{KEY_VALUE_STORE_NAMESPACE}:tap:processed_event_outpoints', []))
 
         deposit_addresses = self.get_deposit_addresses()
         ret: list[TapDeposit] = []
@@ -199,6 +200,6 @@ class TapDepositService:
                 else:
                     logger.info("Outpoint %s not yet completed, status: %s", outpoint, status)
 
-        self.key_value_store.set_value('tap:processed_event_outpoints', list(processed_event_outpoints))
+        self.key_value_store.set_value(f'{KEY_VALUE_STORE_NAMESPACE}:tap:processed_event_outpoints', list(processed_event_outpoints))
         logger.info("Done scanning deposits.")
         return ret

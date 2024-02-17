@@ -6,7 +6,7 @@ import threading
 import bridge
 from anemic.ioc import Container, FactoryRegistrySet
 from bridge.api.app import create_app
-from bridge.core.node import BridgeNode
+from bridge.main_bridge import MainBridge
 from bridge.common.btc.setup import setup_bitcointx_network
 from bridge.common.services.transactions import register_transaction_manager
 
@@ -33,7 +33,8 @@ def main():
 
     threading.Thread(target=create_app, args=(global_container,)).start()
 
-    node = global_container.get(
-        interface=BridgeNode,
+    main_bridge = global_container.get(
+        interface=MainBridge,
     )
-    node.enter_main_loop()
+    main_bridge.init()
+    main_bridge.enter_main_loop()

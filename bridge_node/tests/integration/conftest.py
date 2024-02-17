@@ -11,6 +11,7 @@ from bridge.common.btc.rpc import BitcoinRPC
 from bridge.common.evm.utils import create_web3, load_abi
 from bridge.api_client import BridgeAPIClient
 from bridge.common.tap.client import TapRestClient
+from bridge.bridges.tap_rsk.rsk import ABI_DIR
 from .constants import (
     ALICE_EVM_PRIVATE_KEY,
     PROJECT_BASE_DIR,
@@ -121,7 +122,7 @@ def user_web3(user_evm_account) -> Web3:
 def user_bridge_contract(user_web3):
     return user_web3.eth.contract(
         address=BRIDGE_CONTRACT_ADDRESS,
-        abi=load_abi("Bridge"),
+        abi=load_abi("Bridge", abi_dir=ABI_DIR),
     )
 
 
@@ -146,7 +147,7 @@ def alice_web3(alice_evm_account) -> Web3:
 def owner_bridge_contract(alice_web3):
     return alice_web3.eth.contract(
         address=BRIDGE_CONTRACT_ADDRESS,
-        abi=load_abi("Bridge"),
+        abi=load_abi("Bridge", abi_dir=ABI_DIR),
     )
 
 

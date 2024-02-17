@@ -1,6 +1,6 @@
 from anemic.ioc import Container, service
 
-from .client import TapRestClient
+from bridge.common.tap.client import TapRestClient
 from bridge.config import Config
 
 

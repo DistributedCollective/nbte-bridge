@@ -1,25 +1,26 @@
 import logging
-import time
 
 from anemic.ioc import Container, auto, autowired, service
 from eth_account.messages import encode_defunct
 from eth_utils import add_0x_prefix
 from web3 import Web3
 
-from bridge.common.services.transactions import TransactionManager
 from bridge.common.evm.account import Account
-from bridge.common.evm.contracts import BridgeContract
-from bridge.common.evm.scanner import BridgeEventScanner, TransferToTap
-from bridge.common.p2p.messaging import MessageEnvelope
+from .rsk import BridgeContract
 from bridge.common.p2p.network import Network
+from bridge.common.services.transactions import TransactionManager
 from bridge.common.tap.client import TapRestClient
-from bridge.common.tap.deposits import TapDeposit, TapDepositService
+from bridge.common.interfaces.bridge import Bridge
+from .rsk import RskBridgeService, TransferToTap
+from .tap import TapDeposit, TapDepositService
 
 logger = logging.getLogger(__name__)
 
 
 @service(scope="global")
-class BridgeNode:
+class TapRskBridge(Bridge):
+    name = 'TAP_RSK_BRIDGE'
+
     network: Network = autowired(auto)
     transaction_manager: TransactionManager = autowired(auto)
     evm_account: Account = autowired(auto)
@@ -29,40 +30,20 @@ class BridgeNode:
 
     def __init__(self, container: Container):
         self.container = container
-        self.network.add_listener(self.on_message)
+
+    def init(self):
         self.network.answer_with("sign-evm-to-tap", self._answer_sign_evm_to_tap)
         self.network.answer_with("sign-tap-to-evm", self._answer_sign_tap_to_evm)
 
-    def on_message(self, envelope: MessageEnvelope):
-        logger.debug("Received message %r from node %s", envelope.message, envelope.sender)
-
-        if envelope.message == "Ping":
-            self.network.send(envelope.sender, "Pong")
-
-    def ping(self):
-        self.network.broadcast("Ping")
-
-    def enter_main_loop(self):
-        while True:
-            try:
-                self._run_iteration()
-            except KeyboardInterrupt:
-                break
-            except Exception:
-                logger.exception("Error in main loop")
-            time.sleep(10)
-
-    def _run_iteration(self):
-        logger.debug("Running main loop iteration from node: %s", self.network.node_id)
-        if self.network.is_leader():
-            self.ping()
+    def run_iteration(self):
+        logger.debug("Running TAP-EVM bridge iteration from node: %s", self.network.node_id)
 
         # TODO: first store to database, then handle the transfers in database (not directly from blockchain)
         with self.transaction_manager.transaction() as transaction:
-            evm_scanner = transaction.find_service(BridgeEventScanner)
+            rsk_service = transaction.find_service(RskBridgeService)
             tap_deposit_service = transaction.find_service(TapDepositService)
 
-            events = evm_scanner.scan_events()
+            events = rsk_service.scan_new_events()
             transfers_to_tap: list[TransferToTap] = []
             for event in events:
                 match event:

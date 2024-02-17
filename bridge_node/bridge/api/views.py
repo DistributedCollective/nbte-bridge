@@ -6,9 +6,9 @@ from pyramid.view import view_config, view_defaults
 
 from eth_utils import is_hex, is_hex_address
 from bridge.common.evm.provider import Web3
-from bridge.common.evm.account import Account
-from bridge.common.evm.contracts import BridgeContract
-from bridge.common.tap.deposits import TapDepositService
+from ..common.evm.account import Account
+from ..bridges.tap_rsk.rsk import BridgeContract
+from ..bridges.tap_rsk.tap import TapDepositService
 
 
 logger = logging.getLogger(__name__)
