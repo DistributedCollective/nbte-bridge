@@ -23,9 +23,9 @@ class IntegrationTestHarness:
     FEDERATORS = (
         'alice',
         'bob',
+        # 'carol',
     )
     EXTRA_LND_CONTAINERS = [
-        'carol-lnd',
         'user-lnd',
     ]
     VOLUMES_PATH = PROJECT_BASE_DIR / "volumes"

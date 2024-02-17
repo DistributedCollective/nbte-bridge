@@ -193,36 +193,39 @@ services:
       - '8083:8080'
       - '10003:10009'
       - '9737:9735'
-  carol-lnd:
-    environment:
-      USERID: ${USERID:-1000}
-      GROUPID: ${GROUPID:-1000}
-    stop_grace_period: 2m
-    image: polarlightning/lnd:0.17.3-beta
-    hostname: carol-lnd
-    depends_on:
-      - bitcoind-regtest
-    command: >-
-      lnd --noseedbackup --trickledelay=5000 --alias=carol-lnd --externalip=carol-lnd
-      --tlsextradomain=carol-lnd --tlsextradomain=carol-lnd
-      --tlsextradomain=host.docker.internal --listen=0.0.0.0:9735
-      --rpclisten=0.0.0.0:10009 --restlisten=0.0.0.0:8080 --bitcoin.active
-      --bitcoin.regtest --bitcoin.node=bitcoind
-      --bitcoind.rpchost=bitcoind-regtest --bitcoind.rpcuser=polaruser
-      --bitcoind.rpcpass=polarpass
-      --bitcoind.zmqpubrawblock=tcp://bitcoind-regtest:28334
-      --bitcoind.zmqpubrawtx=tcp://bitcoind-regtest:28335
-    restart: always
-    volumes:
-      - ./volumes/lnd/carol-lnd:/home/lnd/.lnd
-    expose:
-      - '8080'
-      - '10009'
-      - '9735'
-    ports:
-      - '8084:8080'
-      - '10004:10009'
-      - '9738:9735'
+
+  # TODO: re-enable carol after tests are rewritten for 2-of-3 multisig
+#  carol-lnd:
+#    environment:
+#      USERID: ${USERID:-1000}
+#      GROUPID: ${GROUPID:-1000}
+#    stop_grace_period: 2m
+#    image: polarlightning/lnd:0.17.3-beta
+#    hostname: carol-lnd
+#    depends_on:
+#      - bitcoind-regtest
+#    command: >-
+#      lnd --noseedbackup --trickledelay=5000 --alias=carol-lnd --externalip=carol-lnd
+#      --tlsextradomain=carol-lnd --tlsextradomain=carol-lnd
+#      --tlsextradomain=host.docker.internal --listen=0.0.0.0:9735
+#      --rpclisten=0.0.0.0:10009 --restlisten=0.0.0.0:8080 --bitcoin.active
+#      --bitcoin.regtest --bitcoin.node=bitcoind
+#      --bitcoind.rpchost=bitcoind-regtest --bitcoind.rpcuser=polaruser
+#      --bitcoind.rpcpass=polarpass
+#      --bitcoind.zmqpubrawblock=tcp://bitcoind-regtest:28334
+#      --bitcoind.zmqpubrawtx=tcp://bitcoind-regtest:28335
+#    restart: always
+#    volumes:
+#      - ./volumes/lnd/carol-lnd:/home/lnd/.lnd
+#    expose:
+#      - '8080'
+#      - '10009'
+#      - '9735'
+#    ports:
+#      - '8084:8080'
+#      - '10004:10009'
+#      - '9738:9735'
+
   user-lnd:
     environment:
       USERID: ${USERID:-1000}
@@ -305,32 +308,33 @@ services:
     ports:
       - '8290:8089'
       - '12030:10029'
-  carol-tap:
-    environment:
-      USERID: ${USERID:-1000}
-      GROUPID: ${GROUPID:-1000}
-    stop_grace_period: 2m
-    image: polarlightning/tapd:0.3.2-alpha
-    hostname: carol-tap
-    depends_on:
-      - carol-lnd
-    command: >-
-      tapd --network=regtest --debuglevel=debug --tlsextradomain=carol-tap
-      --tlsextradomain=carol-tap --rpclisten=0.0.0.0:10029
-      --restlisten=0.0.0.0:8089 --lnd.host=carol-lnd:10009
-      --lnd.macaroonpath=/home/tap/.lnd/data/chain/bitcoin/regtest/admin.macaroon
-      --lnd.tlspath=/home/tap/.lnd/tls.cert --allow-public-uni-proof-courier
-      --allow-public-stats --universe.public-access
-    restart: always
-    volumes:
-      - ./volumes/lnd/carol-lnd:/home/tap/.lnd
-      - ./volumes/tapd/carol-tap:/home/tap/.tapd
-    expose:
-      - '8089'
-      - '10029'
-    ports:
-      - '8291:8089'
-      - '12031:10029'
+  # TODO: re-enable carol after tests are rewritten for 2-of-3 multisig
+#  carol-tap:
+#    environment:
+#      USERID: ${USERID:-1000}
+#      GROUPID: ${GROUPID:-1000}
+#    stop_grace_period: 2m
+#    image: polarlightning/tapd:0.3.2-alpha
+#    hostname: carol-tap
+#    depends_on:
+#      - carol-lnd
+#    command: >-
+#      tapd --network=regtest --debuglevel=debug --tlsextradomain=carol-tap
+#      --tlsextradomain=carol-tap --rpclisten=0.0.0.0:10029
+#      --restlisten=0.0.0.0:8089 --lnd.host=carol-lnd:10009
+#      --lnd.macaroonpath=/home/tap/.lnd/data/chain/bitcoin/regtest/admin.macaroon
+#      --lnd.tlspath=/home/tap/.lnd/tls.cert --allow-public-uni-proof-courier
+#      --allow-public-stats --universe.public-access
+#    restart: always
+#    volumes:
+#      - ./volumes/lnd/carol-lnd:/home/tap/.lnd
+#      - ./volumes/tapd/carol-tap:/home/tap/.tapd
+#    expose:
+#      - '8089'
+#      - '10029'
+#    ports:
+#      - '8291:8089'
+#      - '12031:10029'
   user-tap:
     environment:
       USERID: ${USERID:-1000}
