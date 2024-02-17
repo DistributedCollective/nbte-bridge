@@ -40,6 +40,7 @@ def bitcoin_rpc():
 def alice_tap():
     base_dir = PROJECT_BASE_DIR / 'volumes' / 'tapd' / 'alice-tap'
     return TapRestClient(
+        public_universe_host='alice-tap',
         rest_host="localhost:8289",
         macaroon_path=base_dir / 'data' / 'regtest' / 'admin.macaroon',
         tls_cert_path=base_dir / 'tls.cert',
@@ -54,6 +55,32 @@ def bob_tap():
         macaroon_path=base_dir / 'data' / 'regtest' / 'admin.macaroon',
         tls_cert_path=base_dir / 'tls.cert',
     )
+
+
+@pytest.fixture(scope="session")
+def carol_tap():
+    base_dir = PROJECT_BASE_DIR / 'volumes' / 'tapd' / 'carol-tap'
+    return TapRestClient(
+        rest_host="localhost:8291",
+        macaroon_path=base_dir / 'data' / 'regtest' / 'admin.macaroon',
+        tls_cert_path=base_dir / 'tls.cert',
+    )
+
+
+@pytest.fixture(scope="session")
+def user_tap():
+    base_dir = PROJECT_BASE_DIR / 'volumes' / 'tapd' / 'user-tap'
+    return TapRestClient(
+        rest_host="localhost:8292",
+        macaroon_path=base_dir / 'data' / 'regtest' / 'admin.macaroon',
+        tls_cert_path=base_dir / 'tls.cert',
+    )
+
+
+@pytest.fixture(scope="session")
+def tap_nodes(alice_tap, bob_tap, user_tap):
+    # TODO: enable carol
+    return [alice_tap, bob_tap, user_tap]
 
 
 # NOt necessary, the harness fixture handles this

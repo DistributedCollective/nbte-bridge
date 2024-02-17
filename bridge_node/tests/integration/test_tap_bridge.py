@@ -15,8 +15,15 @@ TAP_MINT_AMOUNT = 1_000_000
 TAP_AMOUNT_DIVISOR = 10**18 // TAP_MINT_AMOUNT
 
 
+def sync_universes_against_leader(leader_tap, tap_nodes):
+    for tap_node in tap_nodes:
+        if tap_node is leader_tap:
+            continue
+        tap_node.sync_universe(leader_tap.public_universe_host, issuance_only=True)
+
+
 @pytest.fixture()
-def tap_asset(alice_tap, bob_tap, bitcoin_rpc) -> Asset:
+def tap_asset(alice_tap, tap_nodes, bitcoin_rpc) -> Asset:
     """
     Mint a new asset from bob, finalize the batch, and return it
     :return:
@@ -34,7 +41,7 @@ def tap_asset(alice_tap, bob_tap, bitcoin_rpc) -> Asset:
         finalize=True,
     )
     bitcoin_rpc.mine_blocks()
-    bob_tap.sync_universe('alice-tap', issuance_only=True)
+    sync_universes_against_leader(alice_tap, tap_nodes)
     time.sleep(0.5)
     return asset
 
@@ -90,7 +97,7 @@ def bridgeable_asset(
 def test_tap_to_rsk(
     tap_asset,
     alice_tap,
-    bob_tap,
+    user_tap,
     bridge_api,
     bridgeable_asset,
     bitcoin_rpc,
@@ -98,24 +105,24 @@ def test_tap_to_rsk(
     user_evm_account,
     owner_bridge_contract,
 ):
-    assert bob_tap.get_asset_balance(tap_asset.asset_id) == 0
+    assert user_tap.get_asset_balance(tap_asset.asset_id) == 0
     assert evm_token.functions.balanceOf(user_evm_account.address).call() == 0
     initial_bridge_balance = evm_token.functions.balanceOf(owner_bridge_contract.address).call()
 
     tap_transfer_amount = 1_000
-    bob_initial_address_response = bob_tap.create_address(
+    user_initial_address_response = user_tap.create_address(
         asset_id=tap_asset.asset_id,
         amount=tap_transfer_amount,
     )
-    alice_tap.send_assets(bob_initial_address_response.address)
+    alice_tap.send_assets(user_initial_address_response.address)
     bitcoin_rpc.mine_blocks()
     wait_for_condition(
-        callback=lambda: bob_tap.get_asset_balance(tap_asset.asset_id),
+        callback=lambda: user_tap.get_asset_balance(tap_asset.asset_id),
         condition=lambda balance: balance > 0,
-        description="bob_tap.get_asset_balance(tap_asset.asset_id) > 0",
+        description="user_tap.get_asset_balance(tap_asset.asset_id) > 0",
     )
 
-    assert bob_tap.get_asset_balance(tap_asset.asset_id) == tap_transfer_amount
+    assert user_tap.get_asset_balance(tap_asset.asset_id) == tap_transfer_amount
     user_deposit_address = bridge_api.generate_tap_deposit_address(
         rsk_address=user_evm_account.address,
         tap_asset_id=tap_asset.asset_id,
@@ -123,7 +130,7 @@ def test_tap_to_rsk(
     )
     assert user_deposit_address.startswith("taprt1")
 
-    bob_tap.send_assets(user_deposit_address)
+    user_tap.send_assets(user_deposit_address)
     bitcoin_rpc.mine_blocks()
 
     user_new_balance = wait_for_condition(
@@ -135,13 +142,13 @@ def test_tap_to_rsk(
     assert user_new_balance == tap_transfer_amount * TAP_AMOUNT_DIVISOR
     assert evm_token.functions.balanceOf(owner_bridge_contract.address).call() == (
         initial_bridge_balance - tap_transfer_amount * TAP_AMOUNT_DIVISOR)
-    assert bob_tap.get_asset_balance(tap_asset.asset_id) == 0
+    assert user_tap.get_asset_balance(tap_asset.asset_id) == 0
 
 
 def test_rsk_to_tap(
     tap_asset,
     alice_tap,
-    bob_tap,
+    user_tap,
     bridge_api,
     bridgeable_asset,
     bitcoin_rpc,
@@ -151,7 +158,7 @@ def test_rsk_to_tap(
     user_bridge_contract,
     user_web3,
 ):
-    assert bob_tap.get_asset_balance(tap_asset.asset_id) == 0
+    assert user_tap.get_asset_balance(tap_asset.asset_id) == 0
 
     tap_transfer_amount = 1_000
     rsk_transfer_amount = tap_transfer_amount * TAP_AMOUNT_DIVISOR
@@ -166,7 +173,7 @@ def test_rsk_to_tap(
     )
     assert user_rsk_balance == rsk_transfer_amount
 
-    receiver_address_response = bob_tap.create_address(
+    receiver_address_response = user_tap.create_address(
         asset_id=tap_asset.asset_id,
         amount=tap_transfer_amount,
     )
@@ -190,12 +197,12 @@ def test_rsk_to_tap(
 
     def callback():
         bitcoin_rpc.mine_blocks(2)
-        return bob_tap.get_asset_balance(tap_asset.asset_id)
+        return user_tap.get_asset_balance(tap_asset.asset_id)
 
     user_tap_balance = wait_for_condition(
         callback=callback,
         condition=lambda balance: balance > 0,
-        description="bob_tap.get_asset_balance(tap_asset.asset_id) > 0",
+        description="user_tap.get_asset_balance(tap_asset.asset_id) > 0",
     )
 
     assert user_tap_balance == tap_transfer_amount

@@ -137,13 +137,18 @@ class TapRestError(requests.HTTPError):
 
 
 class TapRestClient:
+    # Public universe host helps with syncing things in tests
+    public_universe_host: str | None
+
     def __init__(
         self,
         *,
         rest_host: str,
         macaroon_path: Union[pathlib.Path, str],
         tls_cert_path: Union[pathlib.Path, str],
+        public_universe_host: str = None,
     ):
+        self.public_universe_host = public_universe_host
         self._rest_host = rest_host
         self._macaroon_path = macaroon_path
         self._tls_cert_path = tls_cert_path
