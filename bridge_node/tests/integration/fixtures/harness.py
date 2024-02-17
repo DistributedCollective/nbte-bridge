@@ -80,14 +80,16 @@ class IntegrationTestHarness:
         logger.info("Mining initial btc block")
         # NOTE: the btc address is random and not really important
         self._run_docker_compose_command(
-            *shlex.split("exec backend1 bitcoin-cli -datadir=/home/bitcoin/.bitcoin -regtest generatetoaddress 1 bcrt1qtxysk2megp39dnpw9va32huk5fesrlvutl0zdpc29asar4hfkrlqs2kzv5")
+            "exec", "backend1",
+            "bitcoin-cli", "-datadir=/home/bitcoin/.bitcoin", "-regtest",
+            "generatetoaddress", "1", "bcrt1qtxysk2megp39dnpw9va32huk5fesrlvutl0zdpc29asar4hfkrlqs2kzv5",
         )
         logger.info("Giving some time for LND nodes to start and connect to bitcoind.")
-        time.sleep(10)  # Quick and dirty sleep again
-        for lnd_container in ['alice', 'bob']:
+        time.sleep(2)
+        for lnd_container in ['alice', 'bob', 'carol', 'user-lnd']:
             logger.info("Depositing funds to %s", lnd_container)
             # Try multiple times because maybe the lnd node is not yet started
-            for tries_left in range(5, 0, -1):
+            for tries_left in range(20, 0, -1):
                 try:
                     addr_response = self._capture_docker_compose_output(
                         "exec", "-u", "lnd", lnd_container, "/opt/lnd/lncli", "-n", "regtest", "newaddress", "p2tr",
@@ -96,7 +98,8 @@ class IntegrationTestHarness:
                 except Exception as e:
                     if tries_left <= 1:
                         raise e
-                    time.sleep(10)
+                    logger.info("LND node %s not yet started, retrying in 2 seconds..., lnd_container")
+                    time.sleep(2)
             else:
                 raise Exception("should not get here")
             addr = json.loads(addr_response)['address']
