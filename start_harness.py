@@ -9,13 +9,18 @@ import sys
 sys.path.extend("bridge_node")
 from tests.integration.fixtures.harness import IntegrationTestHarness
 
+WATCHED_CONTAINERS = [
+    'alice-bridge',
+    'bob-bridge',
+]
+
 logging.basicConfig(level=logging.INFO)
 
 harness = IntegrationTestHarness(verbose=True)
 try:
     harness.start()
-    print("Harness started, viewing logs of the federator nodes")
-    harness._run_docker_compose_command("logs", "-f", "bridge-node-1", "bridge-node-2")
+    print("Harness started, viewing logs of containers: " + ",".join(WATCHED_CONTAINERS))
+    harness._run_docker_compose_command("logs", "-f", *WATCHED_CONTAINERS)
 except KeyboardInterrupt:
     print("Stopping")
 finally:

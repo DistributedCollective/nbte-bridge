@@ -1,25 +1,5 @@
 version: "3.8"
 services:
-#  bitcoin-regtest:
-#    image:
-#      sovryn-bitcoind-regtest:latest
-#
-#    build:
-#      context: ./local_dev/bitcoind-regtest/
-#
-#    environment:
-#     # NOTE: these "secrets" are supposed to be there -- they are not used in the real world. Don't report them.
-#     - NODE1_HDSEED=cTj4tA23bVHAnA42bYGGPfv13G2dfuChxtenJKsZffkCVMvofcfC
-#     - NODE2_HDSEED=cUroJKmyKxRJVaeKzprMZExtPoZqt9HPnfhhJvAqtprWCVsuzUBU
-#     - NODE3_HDSEED=cSsv1YhxQqce8ywLiwhMjKcq9L1J7J2wm66zX7kfB1eLBBBaTt8N
-#     - USER_HDSEED=cUrw2SDAMapEqZ2pQnh5angJHqzGWvPMPdJNJWTDFagHMcdcciu8
-#     # sorted !!
-#     - PUBKEYS=["02f2bfc7a7d86f04d675083c7157d95c5741e85ff69b0c1357059fe1ee52271218","0380d87958cc14e1178f55584ee437b05c155a5a7d9f1951beb927195abaa7a7ed","0397ff0a671bea40a8346d7487810f3a96be95732717e5c568a7c8090a73a6c88b"]
-#     - MULTISIG_ADDRESS=bcrt1qtxysk2megp39dnpw9va32huk5fesrlvutl0zdpc29asar4hfkrlqs2kzv5
-#
-#    ports:
-#      - 127.0.0.1:19443:18443
-
   hardhat:
     image:
       bridge_hardhat:latest
@@ -37,7 +17,7 @@ services:
     ports:
       - 127.0.0.1:18545:8545
 
-  bridge-node-1:
+  alice-bridge:
     image: bridge_node:latest
     build:
       context: bridge_node
@@ -54,55 +34,55 @@ services:
     #   interval: 120s
     #   timeout: 1s
     volumes:
-      - ./volumes/lnd/alice:/var/bridge/lnd
+      - ./volumes/lnd/alice-lnd:/var/bridge/lnd
       - ./volumes/tapd/alice-tap:/var/bridge/tapd
     environment:
       # NOTE: the private keys and other secrets are supposed to be here -- they are not used in the real world, only regtest. Don't report them.
-      - BRIDGE_NODE_ID=node-1
-      - BRIDGE_HOSTNAME=bridge-node-1
-      - BRIDGE_LEADER_NODE_ID=node-1
+      - BRIDGE_NODE_ID=alice-node
+      - BRIDGE_HOSTNAME=alice-bridge
+      - BRIDGE_LEADER_NODE_ID=alice-node
       - BRIDGE_DB_URL=postgresql://bridge1:a5f83ab52f2c6c8d0a31e99c@postgres:5432/bridge1
       - LOG_LEVEL=DEBUG
       - BRIDGE_EVM_PRIVATE_KEY=0x9a9a640da1fc0181e43a9ea00b81878f26e1678e3e246b25bd2835783f2be181
       # ^-- address 0x4091663B0a7a14e35Ff1d6d9d0593cE15cE7710a
       - BRIDGE_EVM_BRIDGE_CONTRACT_ADDRESS=0x5FbDB2315678afecb367f032d93F642f64180aa3
       - BRIDGE_EVM_RPC_URL=http://hardhat:8545
-      - BRIDGE_PEERS=node-2@bridge-node-2:5000
+      - BRIDGE_PEERS=bob-node@bob-bridge:5000
       - BRIDGE_BTC_NETWORK=regtest
-      - BRIDGE_BTC_RPC_URL=http://polaruser:polarpass@backend1:18443
+      - BRIDGE_BTC_RPC_URL=http://polaruser:polarpass@bitcoind-regtest:18443
       # Taproot Assets
       - BRIDGE_TAP_HOST=alice-tap:8089
       - BRIDGE_TAP_MACAROON_PATH=/var/bridge/tapd/data/regtest/admin.macaroon
       - BRIDGE_TAP_TLS_CERT_PATH=/var/bridge/tapd/tls.cert
 
-  bridge-node-2:
+  bob-bridge:
     image: bridge_node:latest
     build:
       context: bridge_node
     restart: always
     depends_on:
       - postgres
-      - bridge-node-1
+      - alice-bridge
       - bob-tap
     ports:
       - 127.0.0.1:8182:8080
     volumes:
-      - ./volumes/lnd/bob:/var/bridge/lnd
+      - ./volumes/lnd/bob-lnd:/var/bridge/lnd
       - ./volumes/tapd/bob-tap:/var/bridge/tapd
     environment:
       # NOTE: the private keys and other secrets are supposed to be here -- they are not used in the real world, only regtest. Don't report them.
-      - BRIDGE_NODE_ID=node-2
-      - BRIDGE_HOSTNAME=bridge-node-2
-      - BRIDGE_LEADER_NODE_ID=node-1
+      - BRIDGE_NODE_ID=bob-node
+      - BRIDGE_HOSTNAME=bob-bridge
+      - BRIDGE_LEADER_NODE_ID=alice-node
       - BRIDGE_DB_URL=postgresql://bridge2:b2a8658e648ddc59b5172dfe@postgres:5432/bridge2
       - LOG_LEVEL=DEBUG
       - BRIDGE_EVM_PRIVATE_KEY=0x034262349de8b7bb1d8fdd7a9b6096aae0906a8f3b58ecc31af58b9f9a30e567
       # ^-- address: 0x09dcD91DF9300a81a4b9C85FDd04345C3De58F48
       - BRIDGE_EVM_BRIDGE_CONTRACT_ADDRESS=0x5FbDB2315678afecb367f032d93F642f64180aa3
       - BRIDGE_EVM_RPC_URL=http://hardhat:8545
-      - BRIDGE_PEERS=node-1@bridge-node-1:5000
+      - BRIDGE_PEERS=alice-node@alice-bridge:5000
       - BRIDGE_BTC_NETWORK=regtest
-      - BRIDGE_BTC_RPC_URL=http://polaruser:polarpass@backend1:18443
+      - BRIDGE_BTC_RPC_URL=http://polaruser:polarpass@bitcoind-regtest:18443
       # Taproot Assets
       - BRIDGE_TAP_HOST=bob-tap:8089
       - BRIDGE_TAP_MACAROON_PATH=/var/bridge/tapd/data/regtest/admin.macaroon
@@ -126,13 +106,13 @@ services:
       interval: 1s
       timeout: 120s
 
-  backend1:
+  bitcoind-regtest:
     environment:
       USERID: ${USERID:-1000}
       GROUPID: ${GROUPID:-1000}
     stop_grace_period: 5m
     image: polarlightning/bitcoind:26.0
-    hostname: backend1
+    hostname: bitcoind-regtest
     command: >-
       bitcoind -server=1 -regtest=1
       -rpcauth=polaruser:5e5e98c21f5c814568f8b55d83b23c1c$$066b03f92df30b11de8e4b1b1cd5b1b4281aa25205bd57df9be82caf97a05526
@@ -142,7 +122,7 @@ services:
       -rpcport=18443 -rest -listen=1 -listenonion=0 -fallbackfee=0.0002
       -blockfilterindex=1 -peerblockfilters=1
     volumes:
-      - ./volumes/bitcoind/backend1:/home/bitcoin/.bitcoin
+      - ./volumes/bitcoind/bitcoind-regtest:/home/bitcoin/.bitcoin
     expose:
       - '18443'
       - '18444'
@@ -153,28 +133,28 @@ services:
       - '19444:18444'
       - '28334:28334'
       - '29335:28335'
-  alice:
+  alice-lnd:
     environment:
       USERID: ${USERID:-1000}
       GROUPID: ${GROUPID:-1000}
     stop_grace_period: 2m
     image: polarlightning/lnd:0.17.3-beta
-    hostname: alice
+    hostname: alice-lnd
     depends_on:
-      - backend1
+      - bitcoind-regtest
     command: >-
-      lnd --noseedbackup --trickledelay=5000 --alias=alice --externalip=alice
-      --tlsextradomain=alice --tlsextradomain=alice
+      lnd --noseedbackup --trickledelay=5000 --alias=alice-lnd --externalip=alice-lnd
+      --tlsextradomain=alice-lnd --tlsextradomain=alice-lnd
       --tlsextradomain=host.docker.internal --listen=0.0.0.0:9735
       --rpclisten=0.0.0.0:10009 --restlisten=0.0.0.0:8080 --bitcoin.active
       --bitcoin.regtest --bitcoin.node=bitcoind
-      --bitcoind.rpchost=backend1 --bitcoind.rpcuser=polaruser
+      --bitcoind.rpchost=bitcoind-regtest --bitcoind.rpcuser=polaruser
       --bitcoind.rpcpass=polarpass
-      --bitcoind.zmqpubrawblock=tcp://backend1:28334
-      --bitcoind.zmqpubrawtx=tcp://backend1:28335
+      --bitcoind.zmqpubrawblock=tcp://bitcoind-regtest:28334
+      --bitcoind.zmqpubrawtx=tcp://bitcoind-regtest:28335
     restart: always
     volumes:
-      - ./volumes/lnd/alice:/home/lnd/.lnd
+      - ./volumes/lnd/alice-lnd:/home/lnd/.lnd
     expose:
       - '8080'
       - '10009'
@@ -183,28 +163,28 @@ services:
       - '8082:8080'
       - '10002:10009'
       - '9736:9735'
-  bob:
+  bob-lnd:
     environment:
       USERID: ${USERID:-1000}
       GROUPID: ${GROUPID:-1000}
     stop_grace_period: 2m
     image: polarlightning/lnd:0.17.3-beta
-    hostname: bob
+    hostname: bob-lnd
     depends_on:
-      - backend1
+      - bitcoind-regtest
     command: >-
-      lnd --noseedbackup --trickledelay=5000 --alias=bob --externalip=bob
-      --tlsextradomain=bob --tlsextradomain=bob
+      lnd --noseedbackup --trickledelay=5000 --alias=bob-lnd --externalip=bob-lnd
+      --tlsextradomain=bob-lnd --tlsextradomain=bob-lnd
       --tlsextradomain=host.docker.internal --listen=0.0.0.0:9735
       --rpclisten=0.0.0.0:10009 --restlisten=0.0.0.0:8080 --bitcoin.active
       --bitcoin.regtest --bitcoin.node=bitcoind
-      --bitcoind.rpchost=backend1 --bitcoind.rpcuser=polaruser
+      --bitcoind.rpchost=bitcoind-regtest --bitcoind.rpcuser=polaruser
       --bitcoind.rpcpass=polarpass
-      --bitcoind.zmqpubrawblock=tcp://backend1:28334
-      --bitcoind.zmqpubrawtx=tcp://backend1:28335
+      --bitcoind.zmqpubrawblock=tcp://bitcoind-regtest:28334
+      --bitcoind.zmqpubrawtx=tcp://bitcoind-regtest:28335
     restart: always
     volumes:
-      - ./volumes/lnd/bob:/home/lnd/.lnd
+      - ./volumes/lnd/bob-lnd:/home/lnd/.lnd
     expose:
       - '8080'
       - '10009'
@@ -213,28 +193,28 @@ services:
       - '8083:8080'
       - '10003:10009'
       - '9737:9735'
-  carol:
+  carol-lnd:
     environment:
       USERID: ${USERID:-1000}
       GROUPID: ${GROUPID:-1000}
     stop_grace_period: 2m
     image: polarlightning/lnd:0.17.3-beta
-    hostname: carol
+    hostname: carol-lnd
     depends_on:
-      - backend1
+      - bitcoind-regtest
     command: >-
-      lnd --noseedbackup --trickledelay=5000 --alias=carol --externalip=carol
-      --tlsextradomain=carol --tlsextradomain=carol
+      lnd --noseedbackup --trickledelay=5000 --alias=carol-lnd --externalip=carol-lnd
+      --tlsextradomain=carol-lnd --tlsextradomain=carol-lnd
       --tlsextradomain=host.docker.internal --listen=0.0.0.0:9735
       --rpclisten=0.0.0.0:10009 --restlisten=0.0.0.0:8080 --bitcoin.active
       --bitcoin.regtest --bitcoin.node=bitcoind
-      --bitcoind.rpchost=backend1 --bitcoind.rpcuser=polaruser
+      --bitcoind.rpchost=bitcoind-regtest --bitcoind.rpcuser=polaruser
       --bitcoind.rpcpass=polarpass
-      --bitcoind.zmqpubrawblock=tcp://backend1:28334
-      --bitcoind.zmqpubrawtx=tcp://backend1:28335
+      --bitcoind.zmqpubrawblock=tcp://bitcoind-regtest:28334
+      --bitcoind.zmqpubrawtx=tcp://bitcoind-regtest:28335
     restart: always
     volumes:
-      - ./volumes/lnd/carol:/home/lnd/.lnd
+      - ./volumes/lnd/carol-lnd:/home/lnd/.lnd
     expose:
       - '8080'
       - '10009'
@@ -251,17 +231,17 @@ services:
     image: polarlightning/lnd:0.17.3-beta
     hostname: user-lnd
     depends_on:
-      - backend1
+      - bitcoind-regtest
     command: >-
       lnd --noseedbackup --trickledelay=5000 --alias=user-lnd --externalip=user-lnd
       --tlsextradomain=user-lnd --tlsextradomain=user-lnd
       --tlsextradomain=host.docker.internal --listen=0.0.0.0:9735
       --rpclisten=0.0.0.0:10009 --restlisten=0.0.0.0:8080 --bitcoin.active
       --bitcoin.regtest --bitcoin.node=bitcoind
-      --bitcoind.rpchost=backend1 --bitcoind.rpcuser=polaruser
+      --bitcoind.rpchost=bitcoind-regtest --bitcoind.rpcuser=polaruser
       --bitcoind.rpcpass=polarpass
-      --bitcoind.zmqpubrawblock=tcp://backend1:28334
-      --bitcoind.zmqpubrawtx=tcp://backend1:28335
+      --bitcoind.zmqpubrawblock=tcp://bitcoind-regtest:28334
+      --bitcoind.zmqpubrawtx=tcp://bitcoind-regtest:28335
     restart: always
     volumes:
       - ./volumes/lnd/user-lnd:/home/lnd/.lnd
@@ -281,17 +261,17 @@ services:
     image: polarlightning/tapd:0.3.2-alpha
     hostname: alice-tap
     depends_on:
-      - alice
+      - alice-lnd
     command: >-
       tapd --network=regtest --debuglevel=debug --tlsextradomain=alice-tap
       --tlsextradomain=alice-tap --rpclisten=0.0.0.0:10029
-      --restlisten=0.0.0.0:8089 --lnd.host=alice:10009
+      --restlisten=0.0.0.0:8089 --lnd.host=alice-lnd:10009
       --lnd.macaroonpath=/home/tap/.lnd/data/chain/bitcoin/regtest/admin.macaroon
       --lnd.tlspath=/home/tap/.lnd/tls.cert --allow-public-uni-proof-courier
       --allow-public-stats --universe.public-access
     restart: always
     volumes:
-      - ./volumes/lnd/alice:/home/tap/.lnd
+      - ./volumes/lnd/alice-lnd:/home/tap/.lnd
       - ./volumes/tapd/alice-tap:/home/tap/.tapd
     expose:
       - '8089'
@@ -307,17 +287,17 @@ services:
     image: polarlightning/tapd:0.3.2-alpha
     hostname: bob-tap
     depends_on:
-      - bob
+      - bob-lnd
     command: >-
       tapd --network=regtest --debuglevel=debug --tlsextradomain=bob-tap
       --tlsextradomain=bob-tap --rpclisten=0.0.0.0:10029
-      --restlisten=0.0.0.0:8089 --lnd.host=bob:10009
+      --restlisten=0.0.0.0:8089 --lnd.host=bob-lnd:10009
       --lnd.macaroonpath=/home/tap/.lnd/data/chain/bitcoin/regtest/admin.macaroon
       --lnd.tlspath=/home/tap/.lnd/tls.cert --allow-public-uni-proof-courier
       --allow-public-stats --universe.public-access
     restart: always
     volumes:
-      - ./volumes/lnd/bob:/home/tap/.lnd
+      - ./volumes/lnd/bob-lnd:/home/tap/.lnd
       - ./volumes/tapd/bob-tap:/home/tap/.tapd
     expose:
       - '8089'
@@ -333,17 +313,17 @@ services:
     image: polarlightning/tapd:0.3.2-alpha
     hostname: carol-tap
     depends_on:
-      - carol
+      - carol-lnd
     command: >-
       tapd --network=regtest --debuglevel=debug --tlsextradomain=carol-tap
       --tlsextradomain=carol-tap --rpclisten=0.0.0.0:10029
-      --restlisten=0.0.0.0:8089 --lnd.host=carol:10009
+      --restlisten=0.0.0.0:8089 --lnd.host=carol-lnd:10009
       --lnd.macaroonpath=/home/tap/.lnd/data/chain/bitcoin/regtest/admin.macaroon
       --lnd.tlspath=/home/tap/.lnd/tls.cert --allow-public-uni-proof-courier
       --allow-public-stats --universe.public-access
     restart: always
     volumes:
-      - ./volumes/lnd/carol:/home/tap/.lnd
+      - ./volumes/lnd/carol-lnd:/home/tap/.lnd
       - ./volumes/tapd/carol-tap:/home/tap/.tapd
     expose:
       - '8089'

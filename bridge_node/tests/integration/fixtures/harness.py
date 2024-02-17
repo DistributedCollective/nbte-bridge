@@ -3,7 +3,6 @@ import logging
 import subprocess
 import time
 import shutil
-import shlex
 
 import pytest
 import json
@@ -20,6 +19,16 @@ HARNESS_VERBOSE = os.environ.get("HARNESS_VERBOSE") == "1"
 class IntegrationTestHarness:
     MAX_START_WAIT_TIME_S = 120
     WAIT_INTERVAL_S = 5
+    BITCOIND_CONTAINER = 'bitcoind-regtest'
+    FEDERATORS = (
+        'alice',
+        'bob',
+    )
+    EXTRA_LND_CONTAINERS = [
+        'carol-lnd',
+        'user-lnd',
+    ]
+    VOLUMES_PATH = PROJECT_BASE_DIR / "volumes"
 
     def __init__(self, *, verbose=False):
         self._api_client = BridgeAPIClient(NODE1_API_BASE_URL)
@@ -80,39 +89,72 @@ class IntegrationTestHarness:
         logger.info("Mining initial btc block")
         # NOTE: the btc address is random and not really important
         self._run_docker_compose_command(
-            "exec", "backend1",
+            "exec",
+            self.BITCOIND_CONTAINER,
             "bitcoin-cli", "-datadir=/home/bitcoin/.bitcoin", "-regtest",
             "generatetoaddress", "1", "bcrt1qtxysk2megp39dnpw9va32huk5fesrlvutl0zdpc29asar4hfkrlqs2kzv5",
+            verbose=False,
         )
         logger.info("Giving some time for LND nodes to start and connect to bitcoind.")
         time.sleep(2)
-        for lnd_container in ['alice', 'bob', 'carol', 'user-lnd']:
+        lnd_containers = [f'{f}-lnd' for f in self.FEDERATORS]
+        lnd_containers.extend(self.EXTRA_LND_CONTAINERS)
+        for lnd_container in lnd_containers:
             logger.info("Depositing funds to %s", lnd_container)
             # Try multiple times because maybe the lnd node is not yet started
             for tries_left in range(20, 0, -1):
                 try:
                     addr_response = self._capture_docker_compose_output(
-                        "exec", "-u", "lnd", lnd_container, "/opt/lnd/lncli", "-n", "regtest", "newaddress", "p2tr",
+                        "exec", "-u", "lnd", lnd_container,
+                        "/opt/lnd/lncli", "-n", "regtest", "newaddress", "p2tr",
                     )
                     break
                 except Exception as e:
                     if tries_left <= 1:
                         raise e
-                    logger.info("LND node %s not yet started, retrying in 2 seconds..., lnd_container")
+                    logger.info(
+                        "LND node %s not yet started, retrying in 2 seconds...",
+                        lnd_container,
+                    )
                     time.sleep(2)
             else:
                 raise Exception("should not get here")
             addr = json.loads(addr_response)['address']
             logger.info("Mining 101 blocks to %s's addr %s", lnd_container, addr)
             self._run_docker_compose_command(
-                *shlex.split(f"exec backend1 bitcoin-cli -datadir=/home/bitcoin/.bitcoin -regtest generatetoaddress 101 {addr}")
+                "exec", self.BITCOIND_CONTAINER,
+                "bitcoin-cli", "-datadir=/home/bitcoin/.bitcoin", "-regtest",
+                "generatetoaddress", "101", addr,
+                verbose=False,
             )
             logger.info("Mined.")
+
+        logger.info("Waiting for macaroons to be available (start of tapd)")
+        for _ in range(20):
+            ok = True
+            for federator_id in self.FEDERATORS:
+                tap_container = f'{federator_id}-tap'
+                macaroon_path = self.VOLUMES_PATH / "tapd" / tap_container / "data" / "regtest" / "admin.macaroon"
+                if not macaroon_path.exists():
+                    logger.info(
+                        "macaroon for %s not available",
+                        tap_container,
+                    )
+                    ok = False
+            if ok:
+                break
+            logger.info("all macaroons not available, retrying in 2 seconds...")
+            time.sleep(2)
+        else:
+            raise TimeoutError("Macaroons not available after waiting")
+
         logger.info("bitcoind/lnd init done")
 
-    def _run_docker_compose_command(self, *args):
+    def _run_docker_compose_command(self, *args, verbose=None):
+        if verbose is None:
+            verbose = self.verbose
         extra_kwargs = {}
-        if not self.verbose:
+        if not verbose:
             extra_kwargs.update(
                 dict(
                     stdout=subprocess.DEVNULL,
