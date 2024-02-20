@@ -6,12 +6,13 @@ It's not necessary to run this manually, as the integration tests start the harn
 """
 import logging
 import sys
+
 sys.path.extend("bridge_node")
-from tests.integration.fixtures.harness import IntegrationTestHarness
+from tests.integration.fixtures.harness import IntegrationTestHarness  # noqa
 
 WATCHED_CONTAINERS = [
-    'alice-bridge',
-    'bob-bridge',
+    "alice-bridge",
+    "bob-bridge",
 ]
 
 logging.basicConfig(level=logging.INFO)
@@ -19,10 +20,11 @@ logging.basicConfig(level=logging.INFO)
 harness = IntegrationTestHarness(verbose=True)
 try:
     harness.start()
-    print("Harness started, viewing logs of containers: " + ",".join(WATCHED_CONTAINERS))
+    print(
+        "Harness started, viewing logs of containers: " + ",".join(WATCHED_CONTAINERS)
+    )
     harness._run_docker_compose_command("logs", "-f", *WATCHED_CONTAINERS)
 except KeyboardInterrupt:
     print("Stopping")
 finally:
     harness.stop()
-

@@ -19,14 +19,14 @@ HARNESS_VERBOSE = os.environ.get("HARNESS_VERBOSE") == "1"
 class IntegrationTestHarness:
     MAX_START_WAIT_TIME_S = 120
     WAIT_INTERVAL_S = 5
-    BITCOIND_CONTAINER = 'bitcoind-regtest'
+    BITCOIND_CONTAINER = "bitcoind-regtest"
     FEDERATORS = (
-        'alice',
-        'bob',
+        "alice",
+        "bob",
         # 'carol',
     )
     EXTRA_LND_CONTAINERS = [
-        'user-lnd',
+        "user-lnd",
     ]
     VOLUMES_PATH = PROJECT_BASE_DIR / "volumes"
 
@@ -56,9 +56,7 @@ class IntegrationTestHarness:
                 break
             time.sleep(self.WAIT_INTERVAL_S)
         else:
-            raise TimeoutError(
-                f"Bridge node did not start in {self.MAX_START_WAIT_TIME_S} seconds"
-            )
+            raise TimeoutError(f"Bridge node did not start in {self.MAX_START_WAIT_TIME_S} seconds")
         logger.info("Integration test harness started.")
 
     def stop(self):
@@ -91,13 +89,17 @@ class IntegrationTestHarness:
         self._run_docker_compose_command(
             "exec",
             self.BITCOIND_CONTAINER,
-            "bitcoin-cli", "-datadir=/home/bitcoin/.bitcoin", "-regtest",
-            "generatetoaddress", "1", "bcrt1qtxysk2megp39dnpw9va32huk5fesrlvutl0zdpc29asar4hfkrlqs2kzv5",
+            "bitcoin-cli",
+            "-datadir=/home/bitcoin/.bitcoin",
+            "-regtest",
+            "generatetoaddress",
+            "1",
+            "bcrt1qtxysk2megp39dnpw9va32huk5fesrlvutl0zdpc29asar4hfkrlqs2kzv5",
             verbose=False,
         )
         logger.info("Giving some time for LND nodes to start and connect to bitcoind.")
         time.sleep(2)
-        lnd_containers = [f'{f}-lnd' for f in self.FEDERATORS]
+        lnd_containers = [f"{f}-lnd" for f in self.FEDERATORS]
         lnd_containers.extend(self.EXTRA_LND_CONTAINERS)
         for lnd_container in lnd_containers:
             logger.info("Depositing funds to %s", lnd_container)
@@ -105,8 +107,15 @@ class IntegrationTestHarness:
             for tries_left in range(20, 0, -1):
                 try:
                     addr_response = self._capture_docker_compose_output(
-                        "exec", "-u", "lnd", lnd_container,
-                        "/opt/lnd/lncli", "-n", "regtest", "newaddress", "p2tr",
+                        "exec",
+                        "-u",
+                        "lnd",
+                        lnd_container,
+                        "/opt/lnd/lncli",
+                        "-n",
+                        "regtest",
+                        "newaddress",
+                        "p2tr",
                     )
                     break
                 except Exception as e:
@@ -119,12 +128,17 @@ class IntegrationTestHarness:
                     time.sleep(2)
             else:
                 raise Exception("should not get here")
-            addr = json.loads(addr_response)['address']
+            addr = json.loads(addr_response)["address"]
             logger.info("Mining 2 blocks to %s's addr %s", lnd_container, addr)
             self._run_docker_compose_command(
-                "exec", self.BITCOIND_CONTAINER,
-                "bitcoin-cli", "-datadir=/home/bitcoin/.bitcoin", "-regtest",
-                "generatetoaddress", "2", addr,
+                "exec",
+                self.BITCOIND_CONTAINER,
+                "bitcoin-cli",
+                "-datadir=/home/bitcoin/.bitcoin",
+                "-regtest",
+                "generatetoaddress",
+                "2",
+                addr,
                 verbose=False,
             )
             logger.info("Mined.")
@@ -133,8 +147,12 @@ class IntegrationTestHarness:
         self._run_docker_compose_command(
             "exec",
             self.BITCOIND_CONTAINER,
-            "bitcoin-cli", "-datadir=/home/bitcoin/.bitcoin", "-regtest",
-            "generatetoaddress", "101", "bcrt1qtxysk2megp39dnpw9va32huk5fesrlvutl0zdpc29asar4hfkrlqs2kzv5",
+            "bitcoin-cli",
+            "-datadir=/home/bitcoin/.bitcoin",
+            "-regtest",
+            "generatetoaddress",
+            "101",
+            "bcrt1qtxysk2megp39dnpw9va32huk5fesrlvutl0zdpc29asar4hfkrlqs2kzv5",
             verbose=False,
         )
 
@@ -142,8 +160,15 @@ class IntegrationTestHarness:
         for _ in range(20):
             ok = True
             for federator_id in self.FEDERATORS:
-                tap_container = f'{federator_id}-tap'
-                macaroon_path = self.VOLUMES_PATH / "tapd" / tap_container / "data" / "regtest" / "admin.macaroon"
+                tap_container = f"{federator_id}-tap"
+                macaroon_path = (
+                    self.VOLUMES_PATH
+                    / "tapd"
+                    / tap_container
+                    / "data"
+                    / "regtest"
+                    / "admin.macaroon"
+                )
                 if not macaroon_path.exists():
                     logger.info(
                         "macaroon for %s not available",

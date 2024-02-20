@@ -19,7 +19,7 @@ logger = logging.getLogger(__name__)
 
 @service(scope="global")
 class TapRskBridge(Bridge):
-    name = 'TAP_RSK_BRIDGE'
+    name = "TAP_RSK_BRIDGE"
 
     network: Network = autowired(auto)
     transaction_manager: TransactionManager = autowired(auto)
@@ -59,4 +59,3 @@ class TapRskBridge(Bridge):
             self.tap_to_rsk.process_current_transfer_batch()
         except Exception:
             logger.exception("Error processing TAP to RSK transfers")
-

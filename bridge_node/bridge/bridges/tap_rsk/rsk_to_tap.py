@@ -59,9 +59,7 @@ class RskToTapService:
                 assert batch.status == status == RskToTapTransferBatchStatus.SENDING_TO_TAP
 
             logger.info("Broadcasting transaction to tap")
-            send_result = self.tap_client.send_assets(
-                *recipients
-            )
+            send_result = self.tap_client.send_assets(*recipients)
             logger.info("Transaction broadcasted to tap: %s", send_result)
 
             with self.transaction_manager.transaction() as tx:
@@ -72,7 +70,9 @@ class RskToTapService:
                 batch.sending_result = send_result
 
         if status == RskToTapTransferBatchStatus.SENDING_TO_TAP:
-            raise RuntimeError(f"Batch {batch_id} left in SENDING_TO_TAP state, cannot safely proceed further")
+            raise RuntimeError(
+                f"Batch {batch_id} left in SENDING_TO_TAP state, cannot safely proceed further"
+            )
 
         # TODO: check mined, store info, etc
         if status == RskToTapTransferBatchStatus.SENT_TO_TAP:
@@ -84,24 +84,33 @@ class RskToTapService:
             logger.info("RSK to TAP batch %s finalized", batch_id)
 
     def _get_or_create_current_batch(self, dbsession: Session) -> RskToTapTransferBatch | None:
-        current_batch = dbsession.query(
-            RskToTapTransferBatch,
-        ).filter(
-            RskToTapTransferBatch.status != RskToTapTransferBatchStatus.FINALIZED,
-        ).order_by(
-            RskToTapTransferBatch.id.asc(),
-        ).first()
+        current_batch = (
+            dbsession.query(
+                RskToTapTransferBatch,
+            )
+            .filter(
+                RskToTapTransferBatch.status != RskToTapTransferBatchStatus.FINALIZED,
+            )
+            .order_by(
+                RskToTapTransferBatch.id.asc(),
+            )
+            .first()
+        )
         if current_batch:
             return current_batch
 
         # Create a new batch
-        transfers = dbsession.query(RskToTapTransfer).filter(
-            RskToTapTransfer.transfer_batch_id.is_(None),
-        ).order_by(
-            RskToTapTransfer.counter
-        ).limit(
-            self.batch_limit,
-        ).all()
+        transfers = (
+            dbsession.query(RskToTapTransfer)
+            .filter(
+                RskToTapTransfer.transfer_batch_id.is_(None),
+            )
+            .order_by(RskToTapTransfer.counter)
+            .limit(
+                self.batch_limit,
+            )
+            .all()
+        )
         if not transfers:
             return None
         current_batch = RskToTapTransferBatch(

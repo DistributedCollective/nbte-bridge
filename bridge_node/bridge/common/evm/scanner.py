@@ -16,6 +16,7 @@ class EvmEventScanner:
     """
     Generic EVM event scanner
     """
+
     def __init__(
         self,
         *,

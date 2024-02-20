@@ -30,6 +30,7 @@ class BridgeableAsset:
         string tapAssetName;
     }
     """
+
     rsk_token: str
     tap_asset_id: str
     tap_amount_divisor: int
@@ -54,7 +55,7 @@ class TapDepositService:
         tap_amount: int = None,
         tap_asset_id: str = None,
         rsk_amount: int = None,
-        rsk_token_address: str = None
+        rsk_token_address: str = None,
     ) -> TapDepositAddress:
         if tap_amount is None and rsk_amount is None:
             raise ValueError("Either tap_amount or rsk_amount must be specified")
@@ -64,7 +65,7 @@ class TapDepositService:
             raise ValueError("Either tap_asset_id or rsk_token_address must be specified")
         if tap_asset_id is not None and rsk_token_address is not None:
             raise ValueError("Only one of tap_asset_id or rsk_token_address must be specified")
-        if tap_asset_id is not None and tap_asset_id.startswith('0x'):
+        if tap_asset_id is not None and tap_asset_id.startswith("0x"):
             tap_asset_id = remove_0x_prefix(tap_asset_id)
 
         if rsk_token_address is not None:
@@ -129,8 +130,7 @@ class TapDepositService:
         # TODO: this should to be improved so that we don't have to scan everything every time
         # maybe use this: https://lightning.engineering/api-docs/api/taproot-assets/taproot-assets/subscribe-receive-asset-event-ntfns/index.html
         previous_deposits = self.dbsession.query(
-            TapToRskTransfer.deposit_btc_tx_id,
-            TapToRskTransfer.deposit_btc_tx_vout
+            TapToRskTransfer.deposit_btc_tx_id, TapToRskTransfer.deposit_btc_tx_vout
         ).all()
         previous_outpoints = set(
             (deposit_btc_tx_id, deposit_btc_tx_vout)
@@ -148,12 +148,12 @@ class TapDepositService:
             logger.info("Checking %s...", tap_address)
             result = self.tap_client.list_receives(
                 address=tap_address,
-                status='ADDR_EVENT_STATUS_COMPLETED',
+                status="ADDR_EVENT_STATUS_COMPLETED",
             )
-            events = result['events']
+            events = result["events"]
             for event in events:
-                outpoint_raw = event['outpoint']
-                btc_tx_id, btc_tx_vout = outpoint_raw.split(':')
+                outpoint_raw = event["outpoint"]
+                btc_tx_id, btc_tx_vout = outpoint_raw.split(":")
                 btc_tx_vout = int(btc_tx_vout)
                 outpoint = (btc_tx_id, btc_tx_vout)
 
@@ -161,10 +161,12 @@ class TapDepositService:
                     logger.info("Already processed %s", outpoint)
                     continue
 
-                if event['addr']['encoded'] != tap_address:
-                    raise ValueError("Address mismatch: {} != {}".format(event['addr']['encoded'], tap_address))
-                status = event['status']
-                if status == 'ADDR_EVENT_STATUS_COMPLETED':
+                if event["addr"]["encoded"] != tap_address:
+                    raise ValueError(
+                        "Address mismatch: {} != {}".format(event["addr"]["encoded"], tap_address)
+                    )
+                status = event["status"]
+                if status == "ADDR_EVENT_STATUS_COMPLETED":
                     logger.info("Found %s: %s", outpoint, status)
                     previous_outpoints.add(outpoint)
                     deposit = TapToRskTransfer(
@@ -176,7 +178,9 @@ class TapDepositService:
                     self.dbsession.flush()
                 else:
                     # Just raise error because list_receives filter should work
-                    raise ValueError("Outpoint {} not yet completed, status: {}".format(outpoint, status))
-                    #logger.info("Outpoint %s not yet completed, status: %s", outpoint, status)
+                    raise ValueError(
+                        "Outpoint {} not yet completed, status: {}".format(outpoint, status)
+                    )
+                    # logger.info("Outpoint %s not yet completed, status: %s", outpoint, status)
 
         logger.info("Done scanning deposits.")

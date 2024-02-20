@@ -30,13 +30,13 @@ def tap_asset(alice_tap, tap_nodes, bitcoin_rpc) -> Asset:
     """
     try:
         alice_tap.finalize_minting_batch()
-    except Exception as e:
+    except Exception:
         pass
     else:
         bitcoin_rpc.mine_blocks()
 
     asset = alice_tap.mint_asset(
-        name='TestAsset',
+        name="TestAsset",
         amount=TAP_MINT_AMOUNT,
         finalize=True,
     )
@@ -51,11 +51,11 @@ def evm_token(
     harness,
     alice_web3,
 ):
-    deploy_response = harness.run_hardhat_json_command('deploy-testtoken')
-    address = deploy_response['address']
+    deploy_response = harness.run_hardhat_json_command("deploy-testtoken")
+    address = deploy_response["address"]
     return alice_web3.eth.contract(
         address,
-        abi=load_abi('TestToken'),
+        abi=load_abi("TestToken"),
     )
 
 
@@ -84,13 +84,15 @@ def bridgeable_asset(
         False,
         "TestAsset",
     ).transact()
-    tx2 = evm_token.functions.mint(owner_bridge_contract.address, TAP_MINT_AMOUNT * TAP_AMOUNT_DIVISOR).transact()
+    tx2 = evm_token.functions.mint(
+        owner_bridge_contract.address, TAP_MINT_AMOUNT * TAP_AMOUNT_DIVISOR
+    ).transact()
     alice_web3.eth.wait_for_transaction_receipt(tx1)
     alice_web3.eth.wait_for_transaction_receipt(tx2)
     bridgeable_asset = owner_bridge_contract.functions.assetsByRskTokenAddress(
         evm_token.address
     ).call()
-    #print(bridgeable_asset)
+    # print(bridgeable_asset)
     return bridgeable_asset
 
 
@@ -141,7 +143,8 @@ def test_tap_to_rsk(
 
     assert user_new_balance == tap_transfer_amount * TAP_AMOUNT_DIVISOR
     assert evm_token.functions.balanceOf(owner_bridge_contract.address).call() == (
-        initial_bridge_balance - tap_transfer_amount * TAP_AMOUNT_DIVISOR)
+        initial_bridge_balance - tap_transfer_amount * TAP_AMOUNT_DIVISOR
+    )
     assert user_tap.get_asset_balance(tap_asset.asset_id) == 0
 
 
@@ -178,22 +181,29 @@ def test_rsk_to_tap(
         amount=tap_transfer_amount,
     )
 
-    tx_hash = user_evm_token.functions.approve(user_bridge_contract.address, rsk_transfer_amount).transact({
-        'gas': 100_000,
-    })
+    tx_hash = user_evm_token.functions.approve(
+        user_bridge_contract.address, rsk_transfer_amount
+    ).transact(
+        {
+            "gas": 100_000,
+        }
+    )
     receipt = user_web3.eth.wait_for_transaction_receipt(tx_hash, poll_latency=2)
     assert receipt.status
 
     tx_hash = user_bridge_contract.functions.transferToTap(
         receiver_address_response.address,
-    ).transact({
-        'gas': 2_000_000,
-    })
+    ).transact(
+        {
+            "gas": 2_000_000,
+        }
+    )
     receipt = user_web3.eth.wait_for_transaction_receipt(tx_hash, poll_latency=2)
     assert receipt.status
     assert evm_token.functions.balanceOf(user_evm_account.address).call() == 0
     assert evm_token.functions.balanceOf(user_bridge_contract.address).call() == (
-        initial_bridge_balance + rsk_transfer_amount)
+        initial_bridge_balance + rsk_transfer_amount
+    )
 
     def callback():
         bitcoin_rpc.mine_blocks(2)

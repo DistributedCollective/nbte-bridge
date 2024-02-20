@@ -8,7 +8,8 @@ from eth_utils import add_0x_prefix
 from eth_account.messages import encode_defunct
 
 from .models import (
-    SerializedTapToRskTransferBatch, TapToRskTransfer,
+    SerializedTapToRskTransferBatch,
+    TapToRskTransfer,
     TapToRskTransferBatch,
     TapToRskTransferBatchStatus,
 )
@@ -20,7 +21,6 @@ from bridge.common.services.transactions import TransactionManager
 from bridge.common.tap.client import TapRestClient
 from bridge.common.evm.utils import recover_message
 from bridge.common.evm.provider import Web3
-
 
 
 logger = logging.getLogger(__name__)
@@ -74,35 +74,43 @@ class TapToRskService:
                 serialized_batch=serialized_batch,
             )
             for response in signature_responses:
-                if response['signer'] not in federators:
-                    logger.warning("Signer %s not in federators", response['signer'])
+                if response["signer"] not in federators:
+                    logger.warning("Signer %s not in federators", response["signer"])
                     continue
-                if len(response['signatures']) != num_transfers:
-                    logger.warning("Invalid number of signatures from %s: %s", response['signer'], response['signatures'])
+                if len(response["signatures"]) != num_transfers:
+                    logger.warning(
+                        "Invalid number of signatures from %s: %s",
+                        response["signer"],
+                        response["signatures"],
+                    )
                     continue
 
                 ok = True
-                for transfer, signature in zip(serialized_batch['transfers'], response['signatures']):
+                for transfer, signature in zip(
+                    serialized_batch["transfers"], response["signatures"]
+                ):
                     message_hash = self.bridge_contract.functions.getTransferFromTapMessageHash(
-                        transfer['deposit_address']['rsk_address'],
-                        transfer['deposit_address']['tap_address'],
-                        add_0x_prefix(transfer['deposit_btc_tx_id']),
-                        transfer['deposit_btc_tx_vout'],
+                        transfer["deposit_address"]["rsk_address"],
+                        transfer["deposit_address"]["tap_address"],
+                        add_0x_prefix(transfer["deposit_btc_tx_id"]),
+                        transfer["deposit_btc_tx_vout"],
                     ).call()
                     signable_message = encode_defunct(primitive=message_hash)
                     recovered = recover_message(
                         signable_message,
                         signature,
                     )
-                    if recovered != response['signer']:
-                        logger.warning("Invalid signature from %s: %s", response['signer'], signature)
+                    if recovered != response["signer"]:
+                        logger.warning(
+                            "Invalid signature from %s: %s", response["signer"], signature
+                        )
                         ok = False
                         break
 
                 if not ok:
                     continue
 
-                signatures_by_signer[response['signer']] = response['signatures']
+                signatures_by_signer[response["signer"]] = response["signatures"]
 
             # self-sign is ok
             with self.transaction_manager.transaction() as tx:
@@ -127,7 +135,9 @@ class TapToRskService:
                         transfer.deposit_btc_tx_vout,
                         signatures,
                     ]
-                    for transfer, signatures in zip(current_batch.transfers, zip(*signatures_by_signer.values()))
+                    for transfer, signatures in zip(
+                        current_batch.transfers, zip(*signatures_by_signer.values())
+                    )
                 ]
 
                 status = current_batch.status = TapToRskTransferBatchStatus.SENDING_TO_RSK
@@ -136,11 +146,11 @@ class TapToRskService:
             logger.info("Handling %s transfers from Tap to EVM", len(accept_transfer_calls))
             tx_hashes = []
             for call_args in accept_transfer_calls:
-                tx_hash = self.bridge_contract.functions.acceptTransferFromTap(
-                    *call_args
-                ).transact({
-                    'gas': 20_000_000,
-                })
+                tx_hash = self.bridge_contract.functions.acceptTransferFromTap(*call_args).transact(
+                    {
+                        "gas": 20_000_000,
+                    }
+                )
                 logger.info("Tx hash %s", tx_hash.hex())
                 tx_hashes.append(tx_hash)
 
@@ -152,7 +162,9 @@ class TapToRskService:
                 dbsession.flush()
 
         if status == TapToRskTransferBatchStatus.SENDING_TO_RSK:
-            raise ValueError("TransferBatch got left in SENDING_TO_RSK state, which cannot be resolved automatically")
+            raise ValueError(
+                "TransferBatch got left in SENDING_TO_RSK state, which cannot be resolved automatically"
+            )
 
         if status == TapToRskTransferBatchStatus.SENT_TO_RSK:
             with self.transaction_manager.transaction() as tx:
@@ -171,24 +183,33 @@ class TapToRskService:
                 dbsession.flush()
 
     def _get_or_create_current_batch(self, dbsession: Session) -> TapToRskTransferBatch | None:
-        current_batch = dbsession.query(
-            TapToRskTransferBatch,
-        ).filter(
-            TapToRskTransferBatch.status != TapToRskTransferBatchStatus.FINALIZED,
-        ).order_by(
-            TapToRskTransferBatch.id.asc(),
-        ).first()
+        current_batch = (
+            dbsession.query(
+                TapToRskTransferBatch,
+            )
+            .filter(
+                TapToRskTransferBatch.status != TapToRskTransferBatchStatus.FINALIZED,
+            )
+            .order_by(
+                TapToRskTransferBatch.id.asc(),
+            )
+            .first()
+        )
         if current_batch:
             return current_batch
 
         # Create a new batch
-        transfers = dbsession.query(TapToRskTransfer).filter(
-            TapToRskTransfer.transfer_batch_id.is_(None),
-        ).order_by(
-            TapToRskTransfer.counter
-        ).limit(
-            self.batch_limit,
-        ).all()
+        transfers = (
+            dbsession.query(TapToRskTransfer)
+            .filter(
+                TapToRskTransfer.transfer_batch_id.is_(None),
+            )
+            .order_by(TapToRskTransfer.counter)
+            .limit(
+                self.batch_limit,
+            )
+            .all()
+        )
         if not transfers:
             return None
         current_batch = TapToRskTransferBatch(
@@ -210,21 +231,25 @@ class TapToRskService:
 
         # TODO: revamp batch signing logic
         # TODO: validate that the message is from the leader
-        if serialized_batch['status'] != TapToRskTransferBatchStatus.CREATED:
+        if serialized_batch["status"] != TapToRskTransferBatchStatus.CREATED:
             raise ValueError("Only created batches can be signed")
 
         my_address: str = self.rsk_account.address
-        if my_address in serialized_batch['signatures']:
+        if my_address in serialized_batch["signatures"]:
             return SignTransferBatchAnswer(
-                signatures=serialized_batch['signatures'][my_address],
+                signatures=serialized_batch["signatures"][my_address],
                 signer=self.rsk_account.address,
             )
 
         with self.transaction_manager.transaction() as tx:
             dbsession = tx.find_service(Session)
-            existing_batch = dbsession.query(TapToRskTransferBatch).filter_by(
-                hash=HexBytes(serialized_batch['hash']),
-            ).first()
+            existing_batch = (
+                dbsession.query(TapToRskTransferBatch)
+                .filter_by(
+                    hash=HexBytes(serialized_batch["hash"]),
+                )
+                .first()
+            )
             if existing_batch:
                 # Don't sign again if we have an existing batch
                 return SignTransferBatchAnswer(
@@ -233,15 +258,15 @@ class TapToRskService:
                 )
 
             transfer_batch = TapToRskTransferBatch(
-                hash=HexBytes(serialized_batch['hash']),
+                hash=HexBytes(serialized_batch["hash"]),
                 status=TapToRskTransferBatchStatus.CREATED,
-                signatures=serialized_batch['signatures'],  # just accept signatures as-is for now
+                signatures=serialized_batch["signatures"],  # just accept signatures as-is for now
             )
             my_signatures = transfer_batch.signatures[my_address] = []
 
-            for transfer in serialized_batch['transfers']:
-                btc_tx_id = transfer['deposit_btc_tx_id']
-                btc_tx_vout = transfer['deposit_btc_tx_vout']
+            for transfer in serialized_batch["transfers"]:
+                btc_tx_id = transfer["deposit_btc_tx_id"]
+                btc_tx_vout = transfer["deposit_btc_tx_vout"]
                 if self.bridge_contract.functions.isProcessed(
                     add_0x_prefix(btc_tx_id),
                     btc_tx_vout,
@@ -257,13 +282,13 @@ class TapToRskService:
                 #     raise ValueError(f"Transfer {transfer} not found in the database")
                 # if existing_transfer.transfer_batch_id:
                 #     raise ValueError(f"Transfer {transfer} already in a batch {existing_transfer.transfer_batch}")
-                #transfer_batch.transfers.append(existing_transfer)
+                # transfer_batch.transfers.append(existing_transfer)
 
                 # TODO: validate proofs!
 
                 message_hash = self.bridge_contract.functions.getTransferFromTapMessageHash(
-                    transfer['deposit_address']['rsk_address'],
-                    transfer['deposit_address']['tap_address'],
+                    transfer["deposit_address"]["rsk_address"],
+                    transfer["deposit_address"]["tap_address"],
                     add_0x_prefix(btc_tx_id),
                     btc_tx_vout,
                 ).call()
@@ -283,4 +308,3 @@ class TapToRskService:
                 signatures=my_signatures,
                 signer=self.rsk_account.address,
             )
-

@@ -1,12 +1,10 @@
-import enum
 from typing import TypedDict
 
 from hexbytes import HexBytes
 from eth_abi.packed import encode_packed
 from eth_utils import keccak, to_hex
-from sqlalchemy import Column, Integer, Text, Enum, ForeignKey, UniqueConstraint, LargeBinary
+from sqlalchemy import Column, Integer, Text, ForeignKey, UniqueConstraint, LargeBinary
 from sqlalchemy.dialects.postgresql import JSONB
-from sqlalchemy.ext.hybrid import hybrid_property
 from sqlalchemy.orm import relationship
 
 from bridge.common.models.meta import Base
@@ -62,13 +60,15 @@ class RskToTapTransferBatch(Base):
     id = Column(Integer, primary_key=True)
     # TODO: hash
     status = Column(
-        'status',
+        "status",
         Integer,
         nullable=False,
         default=RskToTapTransferBatchStatus.CREATED,
     )
 
-    transfers = relationship("RskToTapTransfer", back_populates="transfer_batch", order_by="RskToTapTransfer.counter")
+    transfers = relationship(
+        "RskToTapTransfer", back_populates="transfer_batch", order_by="RskToTapTransfer.counter"
+    )
     # TODO: vpsbt
     sending_result = Column(JSONB, nullable=False, server_default="{}", default=dict)
 
@@ -79,31 +79,32 @@ class TapToRskTransferBatch(Base):
     id = Column(Integer, primary_key=True)
     hash = Column(LargeBinary(length=32), nullable=False, unique=True)
     status = Column(
-        'status',
+        "status",
         Integer,
         nullable=False,
         default=TapToRskTransferBatchStatus.CREATED,
     )
     signatures = Column(JSONB, nullable=False, server_default="{}", default=dict)
 
-    transfers = relationship("TapToRskTransfer", back_populates="transfer_batch", order_by="TapToRskTransfer.counter")
+    transfers = relationship(
+        "TapToRskTransfer", back_populates="transfer_batch", order_by="TapToRskTransfer.counter"
+    )
     executed_tx_hash = Column(Text, nullable=True)
 
     def compute_hash(self) -> bytes:
-        return keccak(encode_packed(
-            ["bytes32", "bytes32[]"],
-            [
-                b"TapToRskTransferBatch:",
-                [t.compute_hash() for t in self.transfers]
-            ]
-        ))
+        return keccak(
+            encode_packed(
+                ["bytes32", "bytes32[]"],
+                [b"TapToRskTransferBatch:", [t.compute_hash() for t in self.transfers]],
+            )
+        )
 
     def serialize(self) -> SerializedTapToRskTransferBatch:
         return {
             "hash": to_hex(self.hash),
             "status": self.status,
             "signatures": self.signatures,
-            "transfers": [t.serialize() for t in self.transfers]
+            "transfers": [t.serialize() for t in self.transfers],
         }
 
     def __repr__(self):
@@ -156,10 +157,7 @@ class RskToTapTransfer(Base):
     rsk_event_log_index = Column(Integer, nullable=False)
 
     transfer_batch_id = Column(
-        Integer,
-        ForeignKey(f"{PREFIX}_rsk_to_tap_transfer_batch.id"),
-        nullable=True,
-        index=True
+        Integer, ForeignKey(f"{PREFIX}_rsk_to_tap_transfer_batch.id"), nullable=True, index=True
     )
     transfer_batch = relationship(RskToTapTransferBatch, back_populates="transfers")
 
@@ -169,8 +167,10 @@ class RskToTapTransfer(Base):
 
     __table_args__ = (
         UniqueConstraint(
-            'rsk_event_tx_hash', 'rsk_event_tx_index', 'rsk_event_log_index',
-            name=f"uq_{PREFIX}_rsk_to_tap_transfer_event"
+            "rsk_event_tx_hash",
+            "rsk_event_tx_index",
+            "rsk_event_log_index",
+            name=f"uq_{PREFIX}_rsk_to_tap_transfer_event",
         ),
     )
 
@@ -202,10 +202,7 @@ class TapToRskTransfer(Base):
     # )
 
     transfer_batch_id = Column(
-        Integer,
-        ForeignKey(f"{PREFIX}_tap_to_rsk_transfer_batch.id"),
-        nullable=True,
-        index=True
+        Integer, ForeignKey(f"{PREFIX}_tap_to_rsk_transfer_batch.id"), nullable=True, index=True
     )
     transfer_batch = relationship(TapToRskTransferBatch, back_populates="transfers")
 
@@ -216,8 +213,9 @@ class TapToRskTransfer(Base):
 
     __table_args__ = (
         UniqueConstraint(
-            'deposit_btc_tx_id', 'deposit_btc_tx_vout',
-            name=f"uq_{PREFIX}_tap_to_rsk_transfer_txid_vout"
+            "deposit_btc_tx_id",
+            "deposit_btc_tx_vout",
+            name=f"uq_{PREFIX}_tap_to_rsk_transfer_txid_vout",
         ),
     )
 
@@ -225,19 +223,30 @@ class TapToRskTransfer(Base):
         return f"TapToRskTransfer({self.counter}, {self.deposit_address.tap_address} -> {self.deposit_address.rsk_address}))"
 
     def compute_hash(self):
-        return keccak(encode_packed(
-            ["bytes32", "address", "bytes32", "string", "bytes32", "bytes32", "bytes32", "uint256"],
-            [
-                b"TapToRskTransfer:",
-                self.deposit_address.rsk_address,
-                b":",
-                self.deposit_address.tap_address,
-                b":",
-                HexBytes(self.deposit_btc_tx_id),
-                b":",
-                self.deposit_btc_tx_vout,
-            ]
-        ))
+        return keccak(
+            encode_packed(
+                [
+                    "bytes32",
+                    "address",
+                    "bytes32",
+                    "string",
+                    "bytes32",
+                    "bytes32",
+                    "bytes32",
+                    "uint256",
+                ],
+                [
+                    b"TapToRskTransfer:",
+                    self.deposit_address.rsk_address,
+                    b":",
+                    self.deposit_address.tap_address,
+                    b":",
+                    HexBytes(self.deposit_btc_tx_id),
+                    b":",
+                    self.deposit_btc_tx_vout,
+                ],
+            )
+        )
 
     def serialize(self) -> SerializedTapToRskTransfer:
         return {

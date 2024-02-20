@@ -1,6 +1,4 @@
 import dataclasses
-import time
-from dataclasses import dataclass
 import pathlib
 from typing import Union, TypedDict, Any
 import urllib.parse
@@ -8,7 +6,7 @@ import urllib.parse
 import requests
 
 
-DEFAULT_ASSET_VERSION = 'ASSET_VERSION_V0'
+DEFAULT_ASSET_VERSION = "ASSET_VERSION_V0"
 
 
 class AssetGenesisDict(TypedDict):
@@ -75,14 +73,14 @@ class Asset:
 
     @property
     def name(self):
-        return self.asset_dict['asset_genesis']['name']
+        return self.asset_dict["asset_genesis"]["name"]
 
     @property
     def asset_id(self):
-        return self.asset_dict['asset_genesis']['asset_id']
+        return self.asset_dict["asset_genesis"]["asset_id"]
 
     def __repr__(self):
-        return f'Asset(name={self.name!r}, asset_id={self.asset_id!r})'
+        return f"Asset(name={self.name!r}, asset_id={self.asset_id!r})"
 
 
 @dataclasses.dataclass()
@@ -131,7 +129,7 @@ class ListReceivesDict(TypedDict):
 class TapRestError(requests.HTTPError):
     def __init__(self, response: requests.Response):
         super().__init__(
-            f'{response.status_code} {response.reason}: {response.text}',
+            f"{response.status_code} {response.reason}: {response.text}",
             response=response,
         )
 
@@ -153,7 +151,7 @@ class TapRestClient:
         self._macaroon_path = macaroon_path
         self._tls_cert_path = tls_cert_path
         self._macaroon = pathlib.Path(macaroon_path).read_bytes().hex()
-        self._base_url = f'https://{rest_host}/v1/taproot-assets/'
+        self._base_url = f"https://{rest_host}/v1/taproot-assets/"
 
     def request(
         self,
@@ -162,14 +160,14 @@ class TapRestClient:
         data: Union[dict, None] = None,
         query: Union[dict, None] = None,
     ):
-        if path.startswith('/'):
+        if path.startswith("/"):
             path = path[1:]
-        url = f'{self._base_url}{path}'
+        url = f"{self._base_url}{path}"
         if query:
-            url += '?' + urllib.parse.urlencode(query)
-        headers = {'Grpc-Metadata-macaroon': self._macaroon}
-        if method == 'POST':
-            headers['Content-Type'] = 'application/json'
+            url += "?" + urllib.parse.urlencode(query)
+        headers = {"Grpc-Metadata-macaroon": self._macaroon}
+        if method == "POST":
+            headers["Content-Type"] = "application/json"
         r = requests.request(
             method,
             url,
@@ -184,136 +182,141 @@ class TapRestClient:
         return r.json()
 
     def get(self, path: str, query: Union[dict, None] = None):
-        return self.request('GET', path, query=query)
+        return self.request("GET", path, query=query)
 
     def post(self, path: str, data: dict = None, *, query: Union[dict, None] = None):
-        return self.request('POST', path, data=data, query=query)
+        return self.request("POST", path, data=data, query=query)
 
     def put(self, path: str, data: dict = None, *, query: Union[dict, None] = None):
-        return self.request('PUT', path, data=data, query=query)
+        return self.request("PUT", path, data=data, query=query)
 
     def delete(self, path: str, *, query: Union[dict, None] = None):
-        return self.request('DELETE', path, query=query)
+        return self.request("DELETE", path, query=query)
 
     # Derived methods, should have their own class probably
     # =====================================================
 
     def get_balances_by_asset_id(self) -> dict[str, int]:
-        response = self.get('/assets/balance', {'asset_id': 1})
-        return {
-            asset_id: int(d['balance'])
-            for asset_id, d in response['asset_balances'].items()
-        }
+        response = self.get("/assets/balance", {"asset_id": 1})
+        return {asset_id: int(d["balance"]) for asset_id, d in response["asset_balances"].items()}
 
     def get_asset_balance(self, asset_id: str) -> int:
         return self.get_balances_by_asset_id().get(asset_id, 0)
 
     def send_assets(self, *tap_addresses: str):
-        return self.post('/send', {
-            'tap_addrs': tap_addresses,
-        })
+        return self.post(
+            "/send",
+            {
+                "tap_addrs": tap_addresses,
+            },
+        )
 
     def mint_asset(
         self,
         *,
-        name: str = 'Foo',
+        name: str = "Foo",
         amount: int = 1000,
         asset_version: str = DEFAULT_ASSET_VERSION,
-        asset_type: str = 'NORMAL',
-        finalize: bool = True
+        asset_type: str = "NORMAL",
+        finalize: bool = True,
     ) -> Asset:
-        mint_response = self.post('/assets', {
-            'asset': {
-                'asset_version': asset_version,
-                'asset_type': asset_type,
-                'name': name,
-                'amount': amount,
-            }
-        })
+        mint_response = self.post(
+            "/assets",
+            {
+                "asset": {
+                    "asset_version": asset_version,
+                    "asset_type": asset_type,
+                    "name": name,
+                    "amount": amount,
+                }
+            },
+        )
         # {'pending_batch': {'batch_key': '022ef230f4c15ff544b9e49ff4695006811d4029e7d31254bedab1af15c18528f2',
         #                    'batch_txid': '', 'state': 'BATCH_STATE_PENDING', 'assets': [
         #         {'asset_version': 'ASSET_VERSION_V0', 'asset_type': 'NORMAL', 'name': 'BobDollar', 'asset_meta': None,
         #          'amount': '1000', 'new_grouped_asset': False, 'group_key': '', 'group_anchor': ''}]}}
         # pending_batch = mint_response['pending_batch']
-        batch_key = mint_response['pending_batch']['batch_key']
+        batch_key = mint_response["pending_batch"]["batch_key"]
         if finalize:
             self.finalize_minting_batch()
         candidates = [
-            a for a in self.list_assets()
-            if a.name == name and a.asset_dict['chain_anchor']['internal_key'] == batch_key
+            a
+            for a in self.list_assets()
+            if a.name == name and a.asset_dict["chain_anchor"]["internal_key"] == batch_key
         ]
         if len(candidates) != 1:
-            raise ValueError(f'Expected 1 candidate, got {len(candidates)}')
+            raise ValueError(f"Expected 1 candidate, got {len(candidates)}")
         return candidates[0]
 
     def finalize_minting_batch(self):
-        finalize_response = self.post('/assets/mint/finalize')
+        finalize_response = self.post("/assets/mint/finalize")
         # {'batch': {'batch_key': '022ef230f4c15ff544b9e49ff4695006811d4029e7d31254bedab1af15c18528f2',
         #            'batch_txid': '7da930defb6386c8475f2044edd1f9f47cb798b234bdb716cf2d6bfd570632ff',
         #            'state': 'BATCH_STATE_BROADCAST', 'assets': [
         #         {'asset_version': 'ASSET_VERSION_V0', 'asset_type': 'NORMAL', 'name': 'BobDollar', 'asset_meta': None,
         #          'amount': '1000', 'new_grouped_asset': False, 'group_key': '', 'group_anchor': ''}]}}
-        return finalize_response['batch']
+        return finalize_response["batch"]
 
     def list_assets(self) -> list[Asset]:
-        return [Asset(d) for d in self.get('/assets')['assets']]
+        return [Asset(d) for d in self.get("/assets")["assets"]]
 
     def next_script_key(self, key_family: int = 212) -> ScriptKeyDict:
-        return self.post('/wallet/script-key/next', {'key_family': key_family})['script_key']
+        return self.post("/wallet/script-key/next", {"key_family": key_family})["script_key"]
 
     def next_internal_key(self, key_family: int = 212) -> KeyDescDict:
-        return self.post('/wallet/internal-key/next', {'key_family': key_family})['internal_key']
+        return self.post("/wallet/internal-key/next", {"key_family": key_family})["internal_key"]
 
     def create_address(
         self,
         *,
         asset_id: str,
         amount: int,
-        script_key: ScriptKeyDict|None = None,
-        internal_key: KeyDescDict|None = None
+        script_key: ScriptKeyDict | None = None,
+        internal_key: KeyDescDict | None = None,
     ) -> CreateAddressResponse:
         if script_key is None:
             script_key = self.next_script_key()
         if internal_key is None:
             internal_key = self.next_internal_key()
-        response = self.post('/addrs', {
-            'asset_id': asset_id,
-            'amt': amount,
-            'script_key': script_key,
-            'internal_key': internal_key,
-            'asset_version': DEFAULT_ASSET_VERSION,
-        })
+        response = self.post(
+            "/addrs",
+            {
+                "asset_id": asset_id,
+                "amt": amount,
+                "script_key": script_key,
+                "internal_key": internal_key,
+                "asset_version": DEFAULT_ASSET_VERSION,
+            },
+        )
         return CreateAddressResponse(
-            address=response['encoded'],
-            asset_id=response['asset_id'],
-            amount=int(response['amount']),
+            address=response["encoded"],
+            asset_id=response["asset_id"],
+            amount=int(response["amount"]),
             script_key=script_key,
             internal_key=internal_key,
-            group_key=response['group_key'],
-            tapscript_sibling=response['tapscript_sibling'],
-            taproot_output_key=response['taproot_output_key'],
-            proof_courier_addr=response['proof_courier_addr'],
-            asset_version=response['asset_version'],
+            group_key=response["group_key"],
+            tapscript_sibling=response["tapscript_sibling"],
+            taproot_output_key=response["taproot_output_key"],
+            proof_courier_addr=response["proof_courier_addr"],
+            asset_version=response["asset_version"],
         )
 
-    def list_receives(
-        self,
-        *,
-        address: str = None,
-        status: str = None
-    ) -> ListReceivesDict:
+    def list_receives(self, *, address: str = None, status: str = None) -> ListReceivesDict:
         body = {}
         if address is not None:
-            body['filter_addr'] = address
+            body["filter_addr"] = address
         if status is not None:
-            body['filter_status'] = status
-        return self.post('/addrs/receives', body)
+            body["filter_status"] = status
+        return self.post("/addrs/receives", body)
 
     def export_proof(self, asset_id: str, script_key_pubkey: str) -> ProofDict:
-        return self.post('/proofs/export', {
-            'asset_id': asset_id,
-            'script_key': script_key_pubkey,
-        })
+        return self.post(
+            "/proofs/export",
+            {
+                "asset_id": asset_id,
+                "script_key": script_key_pubkey,
+            },
+        )
 
     def sync_universe(
         self,
@@ -325,8 +328,8 @@ class TapRestClient:
         # asset_ids: list[str] | None = None,
     ):
         body = {
-            'universe_host': universe_host,
-            'sync_mode': 'SYNC_ISSUANCE_ONLY' if issuance_only else 'SYNC_FULL'
+            "universe_host": universe_host,
+            "sync_mode": "SYNC_ISSUANCE_ONLY" if issuance_only else "SYNC_FULL",
         }
         # TODO: figure out how to get sync_targets working
         # if asset_ids is not None:
@@ -337,18 +340,17 @@ class TapRestClient:
         #         }}
         #         for asset_id in asset_ids
         #     ]
-        return self.post('/universe/sync', body)
+        return self.post("/universe/sync", body)
 
     def list_asset_utxos(self, asset_id):
-        utxos_response = self.get('/assets/utxos')
-        utxos_by_outpoint = utxos_response['managed_utxos']
+        utxos_response = self.get("/assets/utxos")
+        utxos_by_outpoint = utxos_response["managed_utxos"]
         asset_utxos = {}
         for key, value in utxos_by_outpoint.items():
-            assert len(value['assets']) == 1
-            asset = value['assets'][0]
-            genesis = asset['asset_genesis']
-            if genesis['asset_id'] != asset_id:
+            assert len(value["assets"]) == 1
+            asset = value["assets"][0]
+            genesis = asset["asset_genesis"]
+            if genesis["asset_id"] != asset_id:
                 continue
             asset_utxos[key] = value
         return asset_utxos
-

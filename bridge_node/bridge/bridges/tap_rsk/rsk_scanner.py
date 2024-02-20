@@ -45,11 +45,11 @@ class RskEventScanner:
         scanner.scan_new_events()
 
     def _scan_events_callback(self, events: list[EventData]):
-        logger.info('Event callback: %s', events)
+        logger.info("Event callback: %s", events)
         for event in events:
-            if event['event'] == 'TransferToTap':
+            if event["event"] == "TransferToTap":
                 instance = RskToTapTransfer(
-                    counter=event["args"]['counter'],
+                    counter=event["args"]["counter"],
                     sender_rsk_address=event["args"]["from"],
                     recipient_tap_address=event["args"]["tapAddress"],
                     rsk_event_tx_hash=event["transactionHash"].hex(),
@@ -60,5 +60,5 @@ class RskEventScanner:
                 self.dbsession.add(instance)
                 self.dbsession.flush()
             else:
-                logger.warning('Unknown event: %s', event)
+                logger.warning("Unknown event: %s", event)
         self.dbsession.flush()

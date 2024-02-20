@@ -54,39 +54,39 @@ class ApiViews:
     def generate_tap_deposit_address(self):
         data = self.request.json_body
 
-        rsk_address = data.get('rsk_address')
+        rsk_address = data.get("rsk_address")
         if not rsk_address:
-            raise ApiException('Must specify rsk_address')
+            raise ApiException("Must specify rsk_address")
 
         if not is_hex_address(rsk_address):
-            raise ApiException('rsk_address must be a hex address')
+            raise ApiException("rsk_address must be a hex address")
 
-        rsk_token_address = data.get('rsk_token_address')
+        rsk_token_address = data.get("rsk_token_address")
         if rsk_token_address is not None and not is_hex_address(rsk_token_address):
-            raise ApiException('rskTokenAddress must be a hex address')
+            raise ApiException("rskTokenAddress must be a hex address")
 
-        tap_asset_id = data.get('tap_asset_id')
+        tap_asset_id = data.get("tap_asset_id")
         if tap_asset_id is not None and not is_hex(tap_asset_id):
-            raise ApiException('tap_asset_id must be a hex string')
+            raise ApiException("tap_asset_id must be a hex string")
 
         if not (tap_asset_id or rsk_token_address):
-            raise ApiException('Must specify either tap_assed_id or rsk_token_address')
+            raise ApiException("Must specify either tap_assed_id or rsk_token_address")
         if tap_asset_id and rsk_token_address:
-            raise ApiException('Must specify only one of tap_assed_id or rsk_token_address')
+            raise ApiException("Must specify only one of tap_assed_id or rsk_token_address")
 
-        tap_amount = data.get('tap_amount')
-        rsk_amount = data.get('rsk_amount')
+        tap_amount = data.get("tap_amount")
+        rsk_amount = data.get("rsk_amount")
         if rsk_amount is not None and tap_amount is not None:
-            raise ApiException('Only one of tap_amount or rsk_amount must be specified')
+            raise ApiException("Only one of tap_amount or rsk_amount must be specified")
         if not (rsk_amount or tap_amount):
-            raise ApiException('Either tap_amount or rsk_amount must be specified')
+            raise ApiException("Either tap_amount or rsk_amount must be specified")
         try:
             if rsk_amount is not None:
                 rsk_amount = int(rsk_amount)
             if tap_amount is not None:
                 tap_amount = int(tap_amount)
         except ValueError:
-            raise ApiException('Amounts must be (convertible to) integers')
+            raise ApiException("Amounts must be (convertible to) integers")
 
         address = self.tap_deposit_service.generate_deposit_address(
             tap_asset_id=tap_asset_id,
@@ -95,9 +95,7 @@ class ApiViews:
             rsk_token_address=rsk_token_address,
             rsk_amount=rsk_amount,
         )
-        return {
-            'deposit_address': address.tap_address
-        }
+        return {"deposit_address": address.tap_address}
 
     @view_config(context=ApiException)
     def api_exception_view(self, exc: ApiException):

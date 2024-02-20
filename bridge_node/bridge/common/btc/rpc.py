@@ -138,8 +138,8 @@ class BitcoinRPC:
         # Regtest only: mine blocks
         if to_address is None:
             # Use a random address if none is provided (not important)
-            to_address = 'bcrt1qtxysk2megp39dnpw9va32huk5fesrlvutl0zdpc29asar4hfkrlqs2kzv5'
-        ret = self.call('generatetoaddress', num, to_address)
+            to_address = "bcrt1qtxysk2megp39dnpw9va32huk5fesrlvutl0zdpc29asar4hfkrlqs2kzv5"
+        ret = self.call("generatetoaddress", num, to_address)
         if sleep:
             # Sleep here by default, otherwise the tap nodes will not have time to process the block(s)
             time.sleep(sleep)

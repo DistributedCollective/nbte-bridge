@@ -4,7 +4,6 @@ import sys
 import pathlib
 
 import pytest
-from sqlalchemy.orm import Session
 
 BASE_DIR = os.path.join(os.path.dirname(__file__), "..")
 THIS_DIR = pathlib.Path(__file__).parent
