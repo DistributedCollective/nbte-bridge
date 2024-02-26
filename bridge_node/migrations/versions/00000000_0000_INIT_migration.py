@@ -1,4 +1,4 @@
-"""initialize the SovrynRollupBridge database, adding the example model
+"""initialize the SovrynNBTEBridge database, adding the example model
 
 Revision ID: INIT
 Revises:
