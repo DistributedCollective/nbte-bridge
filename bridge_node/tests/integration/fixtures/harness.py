@@ -69,16 +69,11 @@ class IntegrationTestHarness:
         return self._api_client.is_healthy()
 
     def _clean(self):
-        # DB data directory needs to be cleaned before this can be started
-        # TODO: maybe it should not have a persistent volume in the dev compose after all!
-        db_data_dir = PROJECT_BASE_DIR / "db_data"
-        if db_data_dir.exists():
-            logger.info("Cleaning db_data directory %s", db_data_dir.absolute())
-            shutil.rmtree(db_data_dir)
-        volumes_dir = PROJECT_BASE_DIR / "volumes"
-        if volumes_dir.exists():
-            logger.info("Cleaning volumes directory %s", volumes_dir.absolute())
-            shutil.rmtree(volumes_dir)
+        # Volumes must be cleaned to always start with fresh state
+        # TODO: maybe postgres should not have a persistent volume in the dev compose after all!
+        if self.VOLUMES_PATH.exists():
+            logger.info("Cleaning volumes directory %s", self.VOLUMES_PATH.absolute())
+            shutil.rmtree(self.VOLUMES_PATH)
 
     def _bitcoind_lnd_init(self):
         logger.info("bitcoind/lnd init")

@@ -6,7 +6,7 @@ services:
 
     build:
       context: ./bridge_contracts/
-      dockerfile: ../local_dev/hardhat/Dockerfile
+      dockerfile: ../docker/hardhat/Dockerfile
 
     environment:
      - NODE1_ADDRESS=0x4091663B0a7a14e35Ff1d6d9d0593cE15cE7710a
@@ -96,7 +96,7 @@ services:
       context: ./docker/postgres
     restart: always
     volumes:
-      - ./db_data:/var/lib/postgresql/data
+      - ./volumes/postgres:/var/lib/postgresql/data
       - ./docker/postgres/initsql:/docker-entrypoint-initdb.d
     environment:
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
