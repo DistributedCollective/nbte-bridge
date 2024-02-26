@@ -12,6 +12,7 @@ RUN apk add git
 WORKDIR /app
 
 COPY contracts/ ./contracts
+COPY config/ ./config
 #COPY test/ ./test  # Why would we want this?
 COPY package.json hardhat.config.ts tsconfig.json package-lock.json ./
 
