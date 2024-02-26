@@ -55,3 +55,20 @@ class BridgeAPIClient:
         )
         response.raise_for_status()
         return response.json()["deposit_address"]
+
+    def get_transfers(
+        self,
+        address: str,
+        transfer_type: str,
+    ):
+        part = "tap" if transfer_type == "tap_to_rsk" else "rsk"
+
+        response = requests.post(
+            self._base_url + "/api/v1/" + part + "/transfers/",
+            json={
+                "address": address,
+            },
+        )
+
+        response.raise_for_status()
+        return response.json()["transfers"]

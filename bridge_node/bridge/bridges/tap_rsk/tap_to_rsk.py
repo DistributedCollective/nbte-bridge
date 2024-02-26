@@ -9,6 +9,7 @@ from eth_account.messages import encode_defunct
 
 from .models import (
     SerializedTapToRskTransferBatch,
+    TapDepositAddress,
     TapToRskTransfer,
     TapToRskTransferBatch,
     TapToRskTransferBatchStatus,
@@ -308,3 +309,26 @@ class TapToRskService:
                 signatures=my_signatures,
                 signer=self.rsk_account.address,
             )
+
+    def get_transfers_by_address(self, address: str):
+        with self.transaction_manager.transaction() as tx:
+            dbsession = tx.find_service(Session)
+
+            logger.info("Getting transfer status for address %s", address)
+
+            transfers = (
+                dbsession.query(
+                    TapDepositAddress.tap_address,
+                    TapToRskTransfer.db_id,
+                    TapToRskTransferBatch.status,
+                )
+                .select_from(TapDepositAddress)
+                .join(TapToRskTransfer)
+                .outerjoin(TapToRskTransferBatch)
+                .filter(TapDepositAddress.tap_address == address)
+                .all()
+            )
+
+            logger.info("Got transfers: %s", transfers)
+
+            return transfers

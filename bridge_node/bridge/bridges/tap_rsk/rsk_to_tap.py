@@ -120,3 +120,25 @@ class RskToTapService:
         dbsession.add(current_batch)
         dbsession.flush()
         return current_batch
+
+    def get_transfers_by_address(self, address: str):
+        with self.transaction_manager.transaction() as tx:
+            dbsession = tx.find_service(Session)
+
+            logger.info("Getting transfer status for address %s", address)
+
+            transfers = (
+                dbsession.query(
+                    RskToTapTransfer.sender_rsk_address,
+                    RskToTapTransfer.db_id,
+                    RskToTapTransferBatch.status,
+                )
+                .select_from(RskToTapTransfer)
+                .join(RskToTapTransferBatch)
+                .filter(RskToTapTransfer.sender_rsk_address == address)
+                .all()
+            )
+
+            logger.info("Got transfers: %s", transfers)
+
+            return transfers

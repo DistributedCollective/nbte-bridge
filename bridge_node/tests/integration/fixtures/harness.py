@@ -17,7 +17,7 @@ HARNESS_VERBOSE = os.environ.get("HARNESS_VERBOSE") == "1"
 
 
 class IntegrationTestHarness:
-    MAX_START_WAIT_TIME_S = 120
+    MAX_START_WAIT_TIME_S = 220
     WAIT_INTERVAL_S = 5
     BITCOIND_CONTAINER = "bitcoind-regtest"
     FEDERATORS = (
