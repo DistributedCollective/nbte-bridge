@@ -53,13 +53,3 @@ migrate:
 .PHONY: build-python
 build-python:
 	cd bridge_node && poetry install && poetry build
-
-.PHONY: build-regtest-bitcoin
-build-regtest-bitcoin:
-	@(cd docker/bitcoind-regtest \
-	  && docker build . -t containerregistry.sovryn.app/sovryn-bitcoind-base:latest -f Dockerfile.bitcoind-base)
-
-.PHONY: build-regtest-bitcoin-parallel
-build-regtest-bitcoin-parallel:
-	@(cd docker/bitcoind-regtest \
-	  && docker build . --build-arg BITCOIND_PARALLEL=-j8 -t containerregistry.sovryn.app/sovryn-bitcoind-base:latest -f Dockerfile.bitcoind-base)
