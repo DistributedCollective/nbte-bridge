@@ -6,7 +6,9 @@ services:
       context: ./docker/postgres
     restart: always
     volumes:
-      - ./volumes/postgres:/var/lib/postgresql/data
+      # Using named volume for db data to allow automatic removal with docker compose down -v
+      # This does not work for bind mounts (i.e. volumes that are not managed by docker like initsql)
+      - postgres:/var/lib/postgresql/data
       - ./docker/postgres/initsql:/docker-entrypoint-initdb.d
     environment:
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
@@ -368,3 +370,6 @@ services:
     ports:
       - '8292:8089'
       - '12032:10029'
+
+volumes:
+  postgres:
