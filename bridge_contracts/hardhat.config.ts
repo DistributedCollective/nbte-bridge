@@ -76,16 +76,20 @@ task("deploy-regtest")
 // ============
 
 task("deploy-testtoken")
-    .setAction(async ({}, hre) => {
+    .addParam("supply", "Initial supply of the token", "0")
+    .setAction(async (taskArgs, hre) => {
         const ethers = hre.ethers;
-
+        const tokenSupply = ethers.parseUnits(taskArgs.supply, 18);
+        console.log('tokenSupply:', tokenSupply.toString());
         const testToken = await ethers.deployContract(
             "TestToken",
-            ["TestToken", "TT", 18],
+            ["TestToken", "TT", tokenSupply],
             {}
         );
         await testToken.waitForDeployment();
         console.log(JSON.stringify({"address": testToken.target}));
+        const tokenBalance = await testToken.totalSupply();
+        console.log('tokenBalance:', tokenBalance.toString());
     })
 
 
