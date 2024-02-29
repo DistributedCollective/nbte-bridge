@@ -2,7 +2,6 @@ import os
 import logging
 import subprocess
 import time
-import shutil
 
 import pytest
 import json
@@ -62,18 +61,17 @@ class IntegrationTestHarness:
     def stop(self):
         logger.info("Stopping integration test harness")
         logger.info("Stopping docker compose")
-        self._run_docker_compose_command("down")
+        self._run_docker_compose_command("down", "-v")
         logger.info("Stopped.")
 
     def is_started(self):
         return self._api_client.is_healthy()
 
     def _clean(self):
-        # Volumes must be cleaned to always start with fresh state
-        # TODO: maybe postgres should not have a persistent volume in the dev compose after all!
-        if self.VOLUMES_PATH.exists():
-            logger.info("Cleaning volumes directory %s", self.VOLUMES_PATH.absolute())
-            shutil.rmtree(self.VOLUMES_PATH)
+        pass
+        # Currently *named* volumes are removed automatically by docker compose down -v
+        # bind mounts still need cleaning in case there is something we want to clean.
+        # Another option is to get rid of all the bind mounts and use named volumes only.
 
     def _bitcoind_lnd_init(self):
         logger.info("bitcoind/lnd init")
@@ -192,7 +190,7 @@ class IntegrationTestHarness:
             )
 
         subprocess.run(
-            ("docker-compose", "-f", "docker-compose.dev.yaml") + args,
+            ("docker", "compose", "-f", "docker-compose.dev.yaml") + args,
             cwd=PROJECT_BASE_DIR,
             check=True,
             **extra_kwargs,
@@ -200,7 +198,7 @@ class IntegrationTestHarness:
 
     def _capture_docker_compose_output(self, *args):
         return subprocess.check_output(
-            ("docker-compose", "-f", "docker-compose.dev.yaml") + args,
+            ("docker", "compose", "-f", "docker-compose.dev.yaml") + args,
             cwd=PROJECT_BASE_DIR,
         )
 

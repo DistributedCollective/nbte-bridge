@@ -15,7 +15,7 @@ install-poetry:
 
 .PHONY: serve
 serve:
-	docker-compose -f docker-compose.dev.yaml up -d --build
+	docker compose -f docker-compose.dev.yaml up -d --build
 
 .PHONY: lint
 lint:
