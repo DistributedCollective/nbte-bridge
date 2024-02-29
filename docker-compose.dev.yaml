@@ -35,6 +35,16 @@ services:
       -txindex=1 -dnsseed=0 -upnp=0 -rpcbind=0.0.0.0 -rpcallowip=0.0.0.0/0
       -rpcport=18443 -rest -listen=1 -listenonion=0 -fallbackfee=0.0002
       -blockfilterindex=1 -peerblockfilters=1
+    healthcheck:
+      test: [
+        "CMD",
+        "bitcoin-cli",
+        "-chain=regtest",
+        "-rpcuser=polaruser",
+        "-rpcpassword=polarpass",
+        "getblockchaininfo"
+      ]
+      interval: 2s
     volumes:
       - ./volumes/bitcoind/bitcoind:/home/bitcoin/.bitcoin
     expose:
