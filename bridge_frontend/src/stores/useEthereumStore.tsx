@@ -66,15 +66,17 @@ const ethereumStore = create<EthereumState>((set) => ({
           const tokenABI = [
             "function balanceOf(address) view returns (uint)",
             "function symbol() view returns (string)",
-            "function name() view returns (string)"
+            "function name() view returns (string)",
+            "function decimals() view returns (uint)"
           ]
           const tokenContract = new ethers.Contract(address, tokenABI, webProvider);
           const balance = await tokenContract.balanceOf(accounts[0]);
           const symbol = await tokenContract.symbol();
           const name = await tokenContract.name();
+          const decimals = await tokenContract.decimals();
           tokenBalances.push({
             symbol: symbol,
-            balance: ethers.formatEther(balance),
+            balance: ethers.formatUnits(balance, decimals),
             name: name,
             tokenContractAddress: address
           });
