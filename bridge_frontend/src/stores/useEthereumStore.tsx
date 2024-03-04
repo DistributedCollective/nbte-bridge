@@ -1,6 +1,6 @@
 import {create, createStore} from "zustand";
 import {ethers} from "ethers";
-import axios from "axios";
+import runeBridgeABI from "../abi/RuneBridge.json";
 
 interface TokenBalance {
   symbol: string;
@@ -44,8 +44,6 @@ const ethereumStore = create<EthereumState>((set) => ({
   isLoadingMetaMask: true,
   connectMetamask: async () => {
     const {ethereum} = window;
-    // const contractAddress = process.env.PUBLIC_CONTRACT_ADDRESS;
-    // const contractABI = Contract.abi;
     if (ethereum) {
       try {
         const accounts = await ethereum.request({method: 'eth_requestAccounts'});
@@ -58,18 +56,21 @@ const ethereumStore = create<EthereumState>((set) => ({
           method: 'eth_getBalance',
           params: [accounts[0], 'latest']
         });
-        console.log("signer: ", webSigner);
 
-        const tokenAddresses = ["0x5FbDB2315678afecb367f032d93F642f64180aa3", "0xe7f1725E7734CE288F8367e1Bb143E90bb3F0512", "0x9fE46736679d2D9a65F0992F2272dE9f3c7fa6e0"]
+        const tokenABI = [
+          "function balanceOf(address) view returns (uint)",
+          "function symbol() view returns (string)",
+          "function name() view returns (string)",
+          "function decimals() view returns (uint)"
+        ]
         const tokenBalances: Array<TokenBalance> = [];
-        for (const address of tokenAddresses) {
-          const tokenABI = [
-            "function balanceOf(address) view returns (uint)",
-            "function symbol() view returns (string)",
-            "function name() view returns (string)",
-            "function decimals() view returns (uint)"
-          ]
-          const tokenContract = new ethers.Contract(address, tokenABI, webProvider);
+
+        const runeBridgeAddress = process.env.REACT_APP_RUNE_BRIDGE_CONTRACT_ADDRESS!;
+        const runeBridgeContract = new ethers.Contract(runeBridgeAddress, runeBridgeABI, webProvider);
+        const listTokens = await runeBridgeContract.listTokens();
+
+        for (const tokenAddress of listTokens) {
+          const tokenContract = new ethers.Contract(tokenAddress, tokenABI, webProvider);
           const balance = await tokenContract.balanceOf(accounts[0]);
           const symbol = await tokenContract.symbol();
           const name = await tokenContract.name();
@@ -78,7 +79,7 @@ const ethereumStore = create<EthereumState>((set) => ({
             symbol: symbol,
             balance: ethers.formatUnits(balance, decimals),
             name: name,
-            tokenContractAddress: address
+            tokenContractAddress: tokenAddress
           });
         }
         set((

@@ -82,6 +82,21 @@ export const TransferForm = () => {
 
 export const RuneTransferForm = () => {
   const {tokenBalances} = useStore(ethereumStore);
+  const [depositAddress, setDepositAddress] = React.useState<string>('');
+  const generateDepositAddress = async () => {
+    const url = "/api/v1/runes/deposit-addresses/"
+    const data = {"evm_address": "0x1111111111111111111111111111111111111111"}
+    const response = await fetch(url, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "Access-Control-Allow-Origin": "*",
+      },
+      body: JSON.stringify(data),
+    });
+    const {deposit_address: depositAddress} = await response.json();
+    setDepositAddress(depositAddress);
+  }
   return (
     <Container>
       <Form>
@@ -109,11 +124,11 @@ export const RuneTransferForm = () => {
         <Form.Group as={Row} className="mb-3">
           <Form.Label column sm={1}>Deposit Address</Form.Label>
           <Col sm={11}>
-            <Form.Control type="text" readOnly disabled value="..."/>
+            <Form.Control type="text" readOnly disabled value={depositAddress}/>
           </Col>
         </Form.Group>
         <Form.Group className="mb-3">
-          <Button variant="info">Generate deposit address</Button>
+          <Button variant="info" onClick={generateDepositAddress}>Generate deposit address</Button>
         </Form.Group>
         <Form.Group as={Row} className="mb-3">
           <Col sm={12}>
