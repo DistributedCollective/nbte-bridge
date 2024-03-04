@@ -65,6 +65,8 @@ class FauxRuneService:
         return self.bitcoin_rpc.call("getnewaddress", label)
 
     def scan_rune_deposits(self) -> list[RuneToEvmTransfer]:
+        self._ensure_bitcoin_wallet()
+
         if not self.last_bitcoin_block:
             resp = self.bitcoin_rpc.call("listsinceblock")
         else:
