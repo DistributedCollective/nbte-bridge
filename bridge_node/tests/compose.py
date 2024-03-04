@@ -3,6 +3,7 @@ import logging
 import pathlib
 import subprocess
 import time
+from typing import Any
 
 logger = logging.getLogger(__name__)
 
@@ -33,6 +34,11 @@ def run_compose_command(
         cwd=PROJECT_BASE_DIR,
         **extra_kwargs,
     )
+
+
+class ComposeExecException(RuntimeError):
+    def __init__(self, stderr):
+        super().__init__(stderr)
 
 
 class ComposeService:
@@ -91,12 +97,12 @@ class ComposeService:
         else:
             raise TimeoutError(f"Service {self.service} did not start in {MAX_WAIT_TIME_S} seconds")
 
-    def exec(self, *args: str):
+    def exec(self, *args: Any):
         exec_args = ["exec"]
         if self.user:
             exec_args.extend(["-u", self.user])
         exec_args.append(self.service)
-        exec_args.extend(args)
+        exec_args.extend(str(a) for a in args)
         try:
             return run_compose_command(
                 *exec_args,
@@ -104,4 +110,4 @@ class ComposeService:
             )
         except subprocess.CalledProcessError as e:
             logger.error("Error executing command %s: %s (%s)", exec_args, e, e.stderr)
-            raise
+            raise ComposeExecException(e.stderr) from e

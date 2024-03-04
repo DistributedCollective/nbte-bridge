@@ -6,6 +6,7 @@ from anemic.ioc import Container, auto, autowired, service
 from bridge.common.p2p.messaging import MessageEnvelope
 from bridge.common.p2p.network import Network
 from .bridges.tap_rsk.bridge import TapRskBridge
+from .bridges.runes.bridge import RuneBridge
 from .common.interfaces.bridge import Bridge
 
 logger = logging.getLogger(__name__)
@@ -16,6 +17,7 @@ class MainBridge(Bridge):
     name = "MAIN_BRIDGE"
     network: Network = autowired(auto)
     tap_rsk_bridge: TapRskBridge = autowired(auto)
+    rune_bridge: RuneBridge = autowired(auto)
 
     def __init__(self, container: Container):
         self.container = container
@@ -23,7 +25,7 @@ class MainBridge(Bridge):
 
     @property
     def bridges(self) -> list[Bridge]:
-        return [self.tap_rsk_bridge]
+        return [self.tap_rsk_bridge, self.rune_bridge]
 
     def init(self):
         for bridge in self.bridges:

@@ -26,6 +26,7 @@ def create_app(
 
     with Configurator() as config:
         config.scan("bridge.api")
+        config.scan("bridge.bridges.runes")
         config.include("bridge.api.views", route_prefix="/api/v1")
         config.add_route("index", "")
         config.add_request_method(

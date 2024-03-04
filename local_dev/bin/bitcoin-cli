@@ -1,0 +1,8 @@
+#!/bin/bash
+set -e
+
+THIS_DIR=$(dirname "$0")
+cd $THIS_DIR/../..
+
+docker compose -f docker-compose.dev.yaml exec -u bitcoin bitcoind \
+  bitcoin-cli -chain=regtest -rpcuser=polaruser -rpcpassword=polarpass "$@"

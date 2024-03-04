@@ -2,6 +2,7 @@ import { HardhatUserConfig } from "hardhat/config";
 import {task, types} from "hardhat/config";
 import "@nomicfoundation/hardhat-toolbox";
 import './config/tap/hardhat.config.tap';
+import './config/runes/hardhat.config.runes';
 
 const config: HardhatUserConfig = {
     solidity: {
@@ -29,6 +30,9 @@ task("deploy-regtest")
 
         console.log("Deploying tap bridge");
         await hre.run("tap-deploy-regtest");
+
+        console.log("Deploying rune bridge");
+        await hre.run("runes-deploy-regtest");
     });
 
 

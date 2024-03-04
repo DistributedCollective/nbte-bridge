@@ -1,0 +1,14 @@
+#!/bin/bash
+set -e
+
+THIS_DIR=$(dirname "$0")
+cd $THIS_DIR/../..
+
+docker compose exec -u ord alice-ord \
+  ord \
+  --chain regtest \
+  --rpc-url bitcoind:18443 \
+  --bitcoin-rpc-user polaruser \
+  --bitcoin-rpc-pass polarpass \
+  --data-dir /home/ord/data \
+  "$@"
