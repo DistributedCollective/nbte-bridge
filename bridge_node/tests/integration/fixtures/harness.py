@@ -2,6 +2,7 @@ import os
 import logging
 import subprocess
 import time
+import shutil
 
 import pytest
 import json
@@ -68,10 +69,14 @@ class IntegrationTestHarness:
         return self._api_client.is_healthy()
 
     def _clean(self):
-        pass
         # Currently *named* volumes are removed automatically by docker compose down -v
         # bind mounts still need cleaning in case there is something we want to clean.
         # Another option is to get rid of all the bind mounts and use named volumes only.
+        # TODO: maybe mount everything as named volumes
+        if self.VOLUMES_PATH.exists():
+            for volume_dir in list(self.VOLUMES_PATH.iterdir()):
+                logger.info("Cleaning volume directory %s", volume_dir.absolute())
+                shutil.rmtree(volume_dir)
 
     def _bitcoind_lnd_init(self):
         logger.info("bitcoind/lnd init")
