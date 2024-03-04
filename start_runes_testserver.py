@@ -133,13 +133,13 @@ def print_info():
     print("To read balances of the user")
     print(
         """
-    local_dev/bin/user-ord wallet balance
+    local_dev/bin/user-ord wallet --name user-ord-test balance
     """
     )
     print("To send runes to the address:")
     print(
         f"""
-    local_dev/bin/user-ord wallet send --fee-rate 1 bcrt1qtxysk2megp39dnpw9va32huk5fesrlvutl0zdpc29asar4hfkrlqs2kzv5 "123 {RUNE_NAME}"
+    local_dev/bin/user-ord wallet --name user-ord-test send --fee-rate 1 bcrt1qtxysk2megp39dnpw9va32huk5fesrlvutl0zdpc29asar4hfkrlqs2kzv5 "123 {RUNE_NAME}"
     """
     )
 
