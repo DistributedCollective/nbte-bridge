@@ -117,6 +117,7 @@ def test_tap_to_rsk(
         amount=tap_transfer_amount,
     )
     alice_tap.send_assets(user_initial_address_response.address)
+
     bitcoin_rpc.mine_blocks()
     wait_for_condition(
         callback=lambda: user_tap.get_asset_balance(tap_asset.asset_id),
@@ -146,6 +147,19 @@ def test_tap_to_rsk(
         initial_bridge_balance - tap_transfer_amount * TAP_AMOUNT_DIVISOR
     )
     assert user_tap.get_asset_balance(tap_asset.asset_id) == 0
+
+    wait_for_condition(
+        callback=lambda: bridge_api.get_transfers(user_deposit_address, "tap_to_rsk"),
+        condition=lambda transfers: transfers[0]["status"] == "finalized",
+        description="transfer status == finalized",
+    )
+
+    transfers = bridge_api.get_transfers(user_deposit_address, "tap_to_rsk")
+
+    assert len(transfers) == 1
+    assert transfers[0]["status"] == "finalized"
+    assert transfers[0]["address"] == user_deposit_address
+    assert transfers[0]["id"] == 1
 
 
 def test_rsk_to_tap(
@@ -216,3 +230,16 @@ def test_rsk_to_tap(
     )
 
     assert user_tap_balance == tap_transfer_amount
+
+    wait_for_condition(
+        callback=lambda: bridge_api.get_transfers(user_evm_account.address, "rsk_to_tap"),
+        condition=lambda transfers: transfers[0]["status"] == "finalized",
+        description="transfer status == finalized",
+    )
+
+    transfers = bridge_api.get_transfers(user_evm_account.address, "rsk_to_tap")
+
+    assert len(transfers) == 1
+    assert transfers[0]["status"] == "finalized"
+    assert transfers[0]["address"] == user_evm_account.address
+    assert transfers[0]["id"] == 1

@@ -9,7 +9,7 @@ import subprocess
 import time
 
 DOCKER_BASE_COMMAND = shlex.split(
-    "docker-compose -f docker-compose-base.yml -f docker-compose-regtest.yml"
+    "docker compose -f docker-compose-base.yml -f docker-compose-regtest.yml"
 )
 ROOT_DIR = pathlib.Path(__file__).parent.parent.parent
 ALL_SERVICES = {"node1", "node2", "node3"}

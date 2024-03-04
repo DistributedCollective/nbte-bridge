@@ -17,9 +17,9 @@ HARNESS_VERBOSE = os.environ.get("HARNESS_VERBOSE") == "1"
 
 
 class IntegrationTestHarness:
-    MAX_START_WAIT_TIME_S = 120
+    MAX_START_WAIT_TIME_S = 220
     WAIT_INTERVAL_S = 5
-    BITCOIND_CONTAINER = "bitcoind-regtest"
+    BITCOIND_CONTAINER = "bitcoind"
     FEDERATORS = (
         "alice",
         "bob",
@@ -62,23 +62,21 @@ class IntegrationTestHarness:
     def stop(self):
         logger.info("Stopping integration test harness")
         logger.info("Stopping docker compose")
-        self._run_docker_compose_command("down")
+        self._run_docker_compose_command("down", "-v")
         logger.info("Stopped.")
 
     def is_started(self):
         return self._api_client.is_healthy()
 
     def _clean(self):
-        # DB data directory needs to be cleaned before this can be started
-        # TODO: maybe it should not have a persistent volume in the dev compose after all!
-        db_data_dir = PROJECT_BASE_DIR / "db_data"
-        if db_data_dir.exists():
-            logger.info("Cleaning db_data directory %s", db_data_dir.absolute())
-            shutil.rmtree(db_data_dir)
-        volumes_dir = PROJECT_BASE_DIR / "volumes"
-        if volumes_dir.exists():
-            logger.info("Cleaning volumes directory %s", volumes_dir.absolute())
-            shutil.rmtree(volumes_dir)
+        # Currently *named* volumes are removed automatically by docker compose down -v
+        # bind mounts still need cleaning in case there is something we want to clean.
+        # Another option is to get rid of all the bind mounts and use named volumes only.
+        # TODO: maybe mount everything as named volumes
+        if self.VOLUMES_PATH.exists():
+            for volume_dir in list(self.VOLUMES_PATH.iterdir()):
+                logger.info("Cleaning volume directory %s", volume_dir.absolute())
+                shutil.rmtree(volume_dir)
 
     def _bitcoind_lnd_init(self):
         logger.info("bitcoind/lnd init")
@@ -197,7 +195,7 @@ class IntegrationTestHarness:
             )
 
         subprocess.run(
-            ("docker-compose", "-f", "docker-compose.dev.yaml") + args,
+            ("docker", "compose", "-f", "docker-compose.dev.yaml") + args,
             cwd=PROJECT_BASE_DIR,
             check=True,
             **extra_kwargs,
@@ -205,7 +203,7 @@ class IntegrationTestHarness:
 
     def _capture_docker_compose_output(self, *args):
         return subprocess.check_output(
-            ("docker-compose", "-f", "docker-compose.dev.yaml") + args,
+            ("docker", "compose", "-f", "docker-compose.dev.yaml") + args,
             cwd=PROJECT_BASE_DIR,
         )
 

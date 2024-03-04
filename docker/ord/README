@@ -1,0 +1,6 @@
+Dockerized ord, but built using sources (as we estimate the need
+for using non-released versions)
+
+See also:
+- https://github.com/ordinals/ord/blob/master/Dockerfile
+- https://github.com/vorotech/docker-ord/blob/main/Dockerfile

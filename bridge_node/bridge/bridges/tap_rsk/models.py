@@ -1,3 +1,4 @@
+from enum import IntEnum
 from typing import TypedDict
 
 from hexbytes import HexBytes
@@ -14,7 +15,7 @@ from bridge.common.models.meta import Base
 PREFIX = "taprsk"
 
 
-class RskToTapTransferBatchStatus:
+class RskToTapTransferBatchStatus(IntEnum):
     CREATED = 1
     # VPSBT_CREATED = 2
     # VPSBT_FINALIZED = 3
@@ -24,8 +25,15 @@ class RskToTapTransferBatchStatus:
     # PROOFS_PUBLISHED = 7
     FINALIZED = 8
 
+    @staticmethod
+    def status_to_str(status: int) -> str:
+        try:
+            return RskToTapTransferBatchStatus(status).name.lower()
+        except ValueError:
+            return "seen"
 
-class TapToRskTransferBatchStatus:
+
+class TapToRskTransferBatchStatus(IntEnum):
     CREATED = 1
     SIGNATURES_COLLECTED = 2
     SENDING_TO_RSK = 3
@@ -33,6 +41,13 @@ class TapToRskTransferBatchStatus:
     MINED = 5
     # UNIVERSE_SYNCED = 6
     FINALIZED = 7
+
+    @staticmethod
+    def status_to_str(status: int) -> str:
+        try:
+            return TapToRskTransferBatchStatus(status).name.lower()
+        except ValueError:
+            return "seen"
 
 
 class SerializedDepositAddress(TypedDict):

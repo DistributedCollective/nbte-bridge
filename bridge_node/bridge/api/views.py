@@ -1,11 +1,16 @@
 import logging
 
 from anemic.ioc import auto, autowired
+from bridge.bridges.tap_rsk.models import RskToTapTransferBatchStatus, TapToRskTransferBatchStatus
+from bridge.bridges.tap_rsk.rsk_to_tap import RskToTapService
+from bridge.bridges.tap_rsk.tap_to_rsk import TapToRskService
+from pyramid.request import Request
 from pyramid.config import Configurator
 from pyramid.view import view_config, view_defaults
 
 from eth_utils import is_hex, is_hex_address
 from bridge.common.evm.provider import Web3
+from .exceptions import ApiException
 from ..common.evm.account import Account
 from ..bridges.tap_rsk.rsk import BridgeContract
 from ..bridges.tap_rsk.tap_deposits import TapDepositService
@@ -14,16 +19,18 @@ from ..bridges.tap_rsk.tap_deposits import TapDepositService
 logger = logging.getLogger(__name__)
 
 
-class ApiException(Exception):
-    status_code = 400
+# TODO: factor out tap-bridge specific views
 
 
 @view_defaults(renderer="json")
 class ApiViews:
+    request: Request
     web3: Web3 = autowired(auto)
     evm_account: Account = autowired(auto)
     bridge_contract: BridgeContract = autowired(auto)
     tap_deposit_service: TapDepositService = autowired(auto)
+    tap_to_rsk_service: TapToRskService = autowired(auto)
+    rsk_to_tap_service: RskToTapService = autowired(auto)
 
     def __init__(self, request):
         self.request = request
@@ -48,6 +55,42 @@ class ApiViews:
         return {
             "is_healthy": healthy,
             "reason": reason,
+        }
+
+    @view_config(route_name="tap_to_rsk_transfers", request_method="POST")
+    def tap_to_rsk_transfers(self):
+        data = self.request.json_body
+        address = data.get("address")
+
+        transfers = self.tap_to_rsk_service.get_transfers_by_address(address)
+
+        return {
+            "transfers": [
+                {
+                    "id": transfer.db_id,
+                    "address": transfer.tap_address,
+                    "status": TapToRskTransferBatchStatus.status_to_str(transfer.status),
+                }
+                for transfer in transfers
+            ]
+        }
+
+    @view_config(route_name="rsk_to_tap_transfers", request_method="POST")
+    def rsk_to_tap_transfers(self):
+        data = self.request.json_body
+        address = data.get("address")
+
+        transfers = self.rsk_to_tap_service.get_transfers_by_address(address)
+
+        return {
+            "transfers": [
+                {
+                    "id": transfer.db_id,
+                    "address": transfer.sender_rsk_address,
+                    "status": RskToTapTransferBatchStatus.status_to_str(transfer.status),
+                }
+                for transfer in transfers
+            ]
         }
 
     @view_config(route_name="generate_tap_deposit_address", request_method="POST")
@@ -105,8 +148,10 @@ class ApiViews:
         }
 
     @view_config(context=Exception)
-    def uncaught_exception_view(self, exc: Exception):
+    def uncaught_exception_view(self, exc: Exception = None):
         self.request.response.status_code = 500
+        if exc is None:
+            exc = self.request.exception
         logger.exception("Error in API view", exc_info=exc)
         return {
             "error": "An unknown error occured",
@@ -120,6 +165,15 @@ def index(request):
     }
 
 
+# TODO: do nested config better and separate tapbridge specific views
+
+
 def includeme(config: Configurator):
     config.add_route("stats", "/stats/")
     config.add_route("generate_tap_deposit_address", "/tap/deposit-addresses/")
+    config.add_route("tap_to_rsk_transfers", "/tap/transfers/")
+    config.add_route("rsk_to_tap_transfers", "/rsk/transfers/")
+
+    from ..bridges.runes import views as rune_bridge_views
+
+    config.include(rune_bridge_views, route_prefix="/runes")
