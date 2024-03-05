@@ -27,3 +27,24 @@ task(`${PREFIX}deploy-regtest`)
             await tx.wait();
         }
     });
+
+
+task(`${PREFIX}-check-token-balances`)
+    .addParam('bridge', 'Rune Bridge Address')
+    .addParam('user', 'User address')
+    .setAction(async ({bridge, user}, hre) => {
+        const ethers = hre.ethers;
+        const bridgeContract = await ethers.getContractAt("RuneBridge", bridge);
+        const tokenAddresses = await bridgeContract.listTokens();
+        console.log("Balances of user %s", user);
+        for (const tokenAddress of tokenAddresses) {
+            const token = await ethers.getContractAt("RuneSideToken", tokenAddress);
+            const symbol = await token.symbol();
+            const name = await token.name();
+            const decimals = await token.decimals();
+
+            const balanceWei = await token.balanceOf(user);
+            const balance = ethers.formatUnits(balanceWei, decimals);
+            console.log(`${balance} ${symbol} (${name})`);
+        }
+    });
