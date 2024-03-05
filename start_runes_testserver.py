@@ -1,8 +1,11 @@
 """
 Quick and dirty testserver for UI dev
 """
+import threading
 import logging
 import sys
+import time
+
 from bridge.common.btc.rpc import BitcoinRPC
 
 sys.path.extend("bridge_node")
@@ -19,6 +22,7 @@ logger = logging.getLogger(__name__)
 RUNE_BRIDGE_ADDRESS = "0xDc64a140Aa3E981100a9becA4E685f962f0cF6C9"
 RUNE_NAME = "MYRUNEISGOODER"
 BTC_SLEEP_TIME = 5
+BTC_BLOCK_INTERVAL = 15
 
 
 def create_user_ord():
@@ -107,12 +111,43 @@ def create_user_ord_wallet(user_ord, bitcoin_rpc, alice_ord_wallet):
     return wallet
 
 
-def init_runes():
-    bitcoin_rpc = BitcoinRPC("http://polaruser:polarpass@localhost:18443")
+def init_runes(bitcoin_rpc: BitcoinRPC):
     alice_ord = create_alice_ord()
     user_ord = create_user_ord()
     alice_ord_wallet = create_alice_ord_wallet(alice_ord, bitcoin_rpc)
     create_user_ord_wallet(user_ord, bitcoin_rpc, alice_ord_wallet)
+
+
+bitcoin_mining = False
+
+
+def start_bitcoin_mining(bitcoin_rpc: BitcoinRPC):
+    global bitcoin_mining
+    logger.info("Starting bitcoin mining")
+    assert not bitcoin_mining
+
+    bitcoin_mining = True
+
+    def mine_bitcoin_blocks():
+        while bitcoin_mining:
+            bitcoin_rpc.mine_blocks(1, sleep=0.2)
+            start = time.time()
+            while time.time() - start < BTC_BLOCK_INTERVAL and bitcoin_mining:
+                time.sleep(1)
+
+    mining_thread = threading.Thread(target=mine_bitcoin_blocks)
+    mining_thread.start()
+    return mining_thread
+
+
+def stop_bitcoin_mining(bitcoin_mining_thread: threading.Thread):
+    global bitcoin_mining
+    if not bitcoin_mining:
+        return
+    logger.info("Stopping bitcoin mining")
+    bitcoin_mining = False
+    if bitcoin_mining_thread:
+        bitcoin_mining_thread.join()
 
 
 def print_info():
@@ -124,7 +159,9 @@ def print_info():
     print(f"RuneBridge contract                  {RUNE_BRIDGE_ADDRESS}")
     print(f"Test rune name:                      {RUNE_NAME}")
     print("")
-    print("To generate a deposit address:")
+    print(
+        "To generate a deposit address: (replace 0x1111111111111111111111111111111111111111 with user's EVM address)"
+    )
     print(
         """
     curl -X POST -H 'Content-Type: application/json' -d '{"evm_address": "0x1111111111111111111111111111111111111111"}' http://localhost:8181/api/v1/runes/deposit-addresses/
@@ -136,7 +173,9 @@ def print_info():
     local_dev/bin/user-ord wallet --name user-ord-test balance
     """
     )
-    print("To send runes to the address:")
+    print(
+        "To send runes to the address (replace bcrt1qtxysk2megp39dnpw9va32huk5fesrlvutl0zdpc29asar4hfkrlqs2kzv5 with generated deposit address):"
+    )
     print(
         f"""
     local_dev/bin/user-ord wallet --name user-ord-test send --fee-rate 1 bcrt1qtxysk2megp39dnpw9va32huk5fesrlvutl0zdpc29asar4hfkrlqs2kzv5 "123 {RUNE_NAME}"
@@ -146,11 +185,15 @@ def print_info():
 
 def main():
     harness = IntegrationTestHarness(verbose=True)
+    bitcoin_mining_thread = None
     try:
         harness.start()
 
         print("Harness started, initing runes")
-        init_runes()
+
+        bitcoin_rpc = BitcoinRPC("http://polaruser:polarpass@localhost:18443")
+        init_runes(bitcoin_rpc)
+        bitcoin_mining_thread = start_bitcoin_mining(bitcoin_rpc)
 
         print_info()
 
@@ -160,6 +203,7 @@ def main():
     except KeyboardInterrupt:
         print("Stopping")
     finally:
+        stop_bitcoin_mining(bitcoin_mining_thread)
         harness.stop()
 
 
