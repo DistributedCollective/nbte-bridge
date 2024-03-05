@@ -29,7 +29,7 @@ task(`${PREFIX}deploy-regtest`)
     });
 
 
-task(`${PREFIX}-check-token-balances`)
+task(`${PREFIX}check-token-balances`)
     .addParam('bridge', 'Rune Bridge Address')
     .addParam('user', 'User address')
     .setAction(async ({bridge, user}, hre) => {
@@ -45,6 +45,10 @@ task(`${PREFIX}-check-token-balances`)
 
             const balanceWei = await token.balanceOf(user);
             const balance = ethers.formatUnits(balanceWei, decimals);
-            console.log(`${balance} ${symbol} (${name})`);
+
+            const totalSupplyWei = await token.totalSupply();
+            const totalSupply = ethers.formatUnits(totalSupplyWei, decimals);
+
+            console.log(`${name}: ${balance} ${symbol} (Total supply: ${totalSupply} ${symbol})`);
         }
     });
