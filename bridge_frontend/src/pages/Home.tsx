@@ -81,11 +81,11 @@ export const TransferForm = () => {
 }
 
 export const RuneTransferForm = () => {
-  const {tokenBalances} = useStore(ethereumStore);
+  const {tokenBalances, account} = useStore(ethereumStore);
   const [depositAddress, setDepositAddress] = React.useState<string>('');
   const generateDepositAddress = async () => {
     const url = "/api/v1/runes/deposit-addresses/"
-    const data = {"evm_address": "0x1111111111111111111111111111111111111111"}
+    const data = {"evm_address": account}
     const response = await fetch(url, {
       method: "POST",
       headers: {
