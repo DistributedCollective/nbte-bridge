@@ -2,7 +2,7 @@ import {create, createStore} from "zustand";
 import {ethers} from "ethers";
 import runeBridgeABI from "../abi/RuneBridge.json";
 
-interface TokenBalance {
+export interface TokenBalance {
   symbol: string;
   balance: string;
   name: string;
@@ -20,6 +20,8 @@ interface EthereumState {
   isMetaMaskInstalled: boolean;
   isLoadingMetaMask: boolean;
   connectMetamask: () => void;
+  refreshTokenBalances: () => void;
+  runeBridgeContract: ethers.Contract | null;
   setProvider: (provider: ethers.BrowserProvider) => void;
   setSigner: (signer: ethers.Signer) => void;
   setAccount: (account: string) => void;
@@ -30,7 +32,7 @@ interface EthereumState {
   setIsLoadingMetaMask: (isLoadingMetaMask: boolean) => void;
 }
 
-const ethereumStore = create<EthereumState>((set) => ({
+const ethereumStore = create<EthereumState>((set, get) => ({
   provider: null,
   signer: null,
   account: null,
@@ -38,6 +40,7 @@ const ethereumStore = create<EthereumState>((set) => ({
   tokenBalances: [],
   chainId: null,
   contract: null,
+  runeBridgeContract: null,
   newBlockSubscriptionId: [],
   subscriptionId: null,
   isMetaMaskInstalled: false,
@@ -91,11 +94,37 @@ const ethereumStore = create<EthereumState>((set) => ({
           chainId: parsedChainId,
           balance: ethers.formatEther(balance),
           tokenBalances: tokenBalances,
+          runeBridgeContract: runeBridgeContract,
         }));
       } catch (e) {
         console.error(e)
       }
     }
+  },
+  refreshTokenBalances: async () => {
+    const {provider, runeBridgeContract, account} = get();
+    const tokenABI = [
+      "function balanceOf(address) view returns (uint)",
+      "function symbol() view returns (string)",
+      "function name() view returns (string)",
+      "function decimals() view returns (uint)"
+    ]
+    const tokenBalances: Array<TokenBalance> = [];
+    const listTokens = await runeBridgeContract?.listTokens();
+    for (const tokenAddress of listTokens) {
+      const tokenContract = new ethers.Contract(tokenAddress, tokenABI, provider);
+      const balance = await tokenContract.balanceOf(account);
+      const symbol = await tokenContract.symbol();
+      const name = await tokenContract.name();
+      const decimals = await tokenContract.decimals();
+      tokenBalances.push({
+        symbol: symbol,
+        balance: ethers.formatUnits(balance, decimals),
+        name: name,
+        tokenContractAddress: tokenAddress
+      });
+    }
+    set(() => ({tokenBalances}));
   },
   setChainId: (chainId: string) => set(() => ({chainId})),
   setProvider: (provider: ethers.BrowserProvider) => set(() => ({provider})),

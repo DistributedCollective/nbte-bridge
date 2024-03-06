@@ -13,7 +13,7 @@ const TopNav = () => {
     <Navbar expand="lg" className="bg-body-tertiary">
       <Container>
         <Navbar.Brand>
-          <h2>Rune Brigde DApp</h2>
+          <h2>Rune Bridge</h2>
         </Navbar.Brand>
         <Navbar.Collapse className="justify-content-end">
           {
