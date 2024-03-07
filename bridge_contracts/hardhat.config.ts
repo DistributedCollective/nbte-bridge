@@ -42,12 +42,13 @@ task("deploy-regtest")
 // ============
 
 task("deploy-testtoken")
-    .setAction(async ({}, hre) => {
+    .addParam("supply", "Initial supply of the token", "0")
+    .setAction(async (taskArgs, hre) => {
         const ethers = hre.ethers;
-
+        const tokenSupply = ethers.parseUnits(taskArgs.supply, 18);
         const testToken = await ethers.deployContract(
             "TestToken",
-            ["TestToken", "TT", 18],
+            ["TestToken", "TT", tokenSupply],
             {}
         );
         await testToken.waitForDeployment();
