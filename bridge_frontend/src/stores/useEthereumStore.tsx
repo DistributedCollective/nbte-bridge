@@ -22,14 +22,6 @@ interface EthereumState {
   connectMetamask: () => void;
   refreshTokenBalances: () => void;
   runeBridgeContract: ethers.Contract | null;
-  setProvider: (provider: ethers.BrowserProvider) => void;
-  setSigner: (signer: ethers.Signer) => void;
-  setAccount: (account: string) => void;
-  setBalance: (balance: string) => void;
-  setChainId: (chainId: string) => void;
-  setContract: (contract: ethers.Contract) => void;
-  setIsMetaMaskInstalled: (isMetaMaskInstalled: boolean) => void;
-  setIsLoadingMetaMask: (isLoadingMetaMask: boolean) => void;
 }
 
 const ethereumStore = create<EthereumState>((set, get) => ({
@@ -126,14 +118,6 @@ const ethereumStore = create<EthereumState>((set, get) => ({
     }
     set(() => ({tokenBalances}));
   },
-  setChainId: (chainId: string) => set(() => ({chainId})),
-  setProvider: (provider: ethers.BrowserProvider) => set(() => ({provider})),
-  setSigner: (signer: ethers.Signer) => set(() => ({signer})),
-  setAccount: (account: string) => set(() => ({account})),
-  setBalance: (balance: string) => set(() => ({balance})),
-  setContract: (contract: ethers.Contract) => set(() => ({contract})),
-  setIsMetaMaskInstalled: (isMetaMaskInstalled: boolean) => set(() => ({isMetaMaskInstalled})),
-  setIsLoadingMetaMask: (isLoadingMetaMask: boolean) => set(() => ({isLoadingMetaMask})),
 }));
 
 export default ethereumStore
