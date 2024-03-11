@@ -1,0 +1,64 @@
+{
+    "target": {
+      "postgres": {
+        "cache-from": [
+          "type=gha,scope=interjektio/sovryn-nbte-bridge/postgres"
+        ],
+        "cache-to": [
+          "type=gha,mode=max,scope=interjektio/sovryn-nbte-bridge/postgres"
+        ],
+        "output": [
+          "type=docker"
+        ]
+      },
+      "hardhat": {
+        "cache-from": [
+          "type=gha,scope=interjektio/sovryn-nbte-bridge/hardhat"
+        ],
+        "cache-to": [
+          "type=gha,mode=max,scope=interjektio/sovryn-nbte-bridge/hardhat"
+        ],
+        "output": [
+          "type=docker"
+        ]
+      },
+      "alice-bridge": {
+        "cache-from": [
+          "type=gha,scope=interjektio/sovryn-nbte-bridge/bridge_node"
+        ],
+        "cache-to": [
+          "type=gha,mode=max,scope=interjektio/sovryn-nbte-bridge/bridge_node"
+        ],
+        "output": [
+          "type=docker"
+        ]
+      },
+      "bob-bridge": {
+        "cache-from": [
+          "type=gha,scope=interjektio/sovryn-nbte-bridge/bridge_node"
+        ],
+        "output": [
+          "type=docker"
+        ]
+      },
+      "alice-ord": {
+        "cache-from": [
+          "type=gha,scope=interjektio/sovryn-nbte-bridge/ord"
+        ],
+        "cache-to": [
+          "type=gha,mode=max,scope=interjektio/sovryn-nbte-bridge/ord"
+        ],
+        "output": [
+          "type=docker"
+        ]
+      },
+      "user-ord": {
+        "cache-from": [
+          "type=gha,scope=interjektio/sovryn-nbte-bridge/ord"
+        ],
+        "output": [
+          "type=docker"
+        ]
+      }
+    }
+  }

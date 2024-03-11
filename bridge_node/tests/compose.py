@@ -36,6 +36,26 @@ def run_compose_command(
     )
 
 
+def run_docker_command(
+    *args,
+    check: bool = True,
+    capture: bool = False,
+    quiet: bool = not COMPOSE_VERBOSE,
+    **extra_kwargs,
+) -> subprocess.CompletedProcess:
+    extra_kwargs["check"] = check
+    if capture:
+        extra_kwargs["capture_output"] = True
+    elif quiet:
+        extra_kwargs["stdout"] = subprocess.DEVNULL
+        extra_kwargs["stderr"] = subprocess.DEVNULL
+    return subprocess.run(
+        ["docker"] + list(args),
+        cwd=PROJECT_BASE_DIR,
+        **extra_kwargs,
+    )
+
+
 class ComposeExecException(RuntimeError):
     def __init__(self, stderr):
         super().__init__(stderr)
@@ -77,7 +97,7 @@ class ComposeService:
         run_compose_command("down", "-v", self.service)
         logger.info("Stopped service %s", self.service)
 
-    def is_started(self):
+    def is_started(self, check_health=False):
         ret = run_compose_command(
             "ps",
             "-q",
@@ -85,7 +105,27 @@ class ComposeService:
             check=False,
             capture=True,
         )
-        return ret.returncode == 0 and bool(ret.stdout)
+
+        if ret.returncode != 0 or not ret.stdout.strip():
+            return False
+
+        if not check_health:
+            return True
+
+        status = (
+            run_docker_command(
+                "inspect",
+                ret.stdout.strip(),
+                "--format",
+                "{{if index .State.Health }}{{.State.Health.Status}}{{end}}",
+                check=False,
+                capture=True,
+            )
+            .stdout.decode("utf-8")
+            .strip()
+        )
+
+        return status in ["healthy", ""]
 
     def wait(self):
         start_time = time.time()
