@@ -44,6 +44,7 @@ export const TransferForm = () => {
         <Tabs
           id="controlled-tab-example"
           activeKey={tabKey}
+          unmountOnExit
           onSelect={(k) => k && setTabKey(k)}
           className="mb-3"
         >
@@ -156,13 +157,15 @@ export const RSKTransferForm = () => {
   const [selectedToken, setSelectedToken] = React.useState<TokenBalance>();
   const [amountToSend, setAmountToSend] = React.useState<string>('');
   const [receiver, setReceiver] = React.useState<string>('');
-  const [validated, setValidated] = React.useState(false);
   const transferBTCSubmitHandler = async () => {
-    const response = await transferToBTC(selectedToken?.tokenContractAddress, amountToSend, receiver, runeBridgeContract, signer);
+    await transferToBTC(selectedToken?.tokenContractAddress, amountToSend, receiver, runeBridgeContract, signer);
   }
+  React.useEffect(() => {
+    setSelectedToken(tokenBalances.find((tokenBalance: any) => tokenBalance.name === selectedToken?.name))
+  }, [selectedToken?.name, tokenBalances])
   return (
     <Container>
-      <Form onSubmit={transferBTCSubmitHandler} >
+      <Form onSubmit={transferBTCSubmitHandler}>
         <Form.Group as={Row} className="mb-3" controlId="formTokenSelect">
           <Form.Label column sm={1}>Rune</Form.Label>
           <Col sm={11}>
