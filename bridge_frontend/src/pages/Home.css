@@ -1,0 +1,51 @@
+input {
+    background-color: transparent !important;
+    color: rgba(230, 230, 232) !important;
+}
+
+select {
+    background-color: transparent !important;
+    color: rgba(230, 230, 232) !important;
+}
+
+.dark-button {
+    background-color: rgba(30, 33, 40) !important;
+    border-color: rgba(72, 77, 89) !important;
+    color: rgba(245, 245, 245) !important;
+    font-size: 0.875rem !important;
+    font-weight: 500;
+    height: 2rem;
+    line-height: 1rem !important;
+    padding: 0.5rem 1.25rem !important;
+    text-decoration-line: none !important;
+    border-radius: 0.25rem !important;
+    border-width: 1px !important;
+    cursor: pointer;
+    font-family: Roboto, sans-serif;
+    transition: background-color 0.3s, color 0.3s, border 0.3s, opacity 0.3s !important;
+}
+
+.dark-button:hover {
+    background-color: rgb(255, 153, 0) !important;
+    border-color: rgba(82, 87, 99) !important;
+    color: rgba(245, 245, 245) !important;
+}
+
+.nav-item button {
+    color: rgba(245, 245, 245) !important;
+    text-decoration: none !important;
+}
+
+.nav-link.active {
+    background-color: rgb(255, 153, 0) !important;
+    color: rgba(245, 245, 245) !important;
+    text-decoration: none !important;
+}
+
+.table {
+    background-color: rgba(30, 33, 40) !important;
+    color: rgba(230, 230, 232) !important;
+    font-family: Roboto, sans-serif;
+    font-size: .75rem !important;
+    font-weight: 500;
+}

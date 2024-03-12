@@ -1,0 +1,39 @@
+.login-button {
+    background-color: rgba(30, 33, 40) !important;
+    border-color: rgba(72, 77, 89) !important;
+    color: rgba(245, 245, 245) !important;
+    font-size: 0.875rem !important;
+    font-weight: 500;
+    height: 2rem;
+    line-height: 1rem !important;
+    padding: 0.5rem 1.25rem !important;
+    text-decoration-line: none !important;
+    border-radius: 0.25rem !important;
+    border-width: 1px !important;
+    cursor: pointer;
+    font-family: Roboto, sans-serif;
+    transition: background-color 0.3s, color 0.3s, border 0.3s, opacity 0.3s !important;
+}
+
+.login-button:hover {
+    background-color: rgb(99, 103, 108) !important;
+    border-color: rgba(82, 87, 99) !important;
+    color: rgba(245, 245, 245) !important;
+}
+
+.top-nav {
+    background-color: transparent !important;
+    color: rgba(230, 230, 232) !important;
+    font-family: Roboto, sans-serif;
+}
+
+.top-nav .navbar-text {
+    background-color: transparent !important;
+    color: rgba(230, 230, 232) !important;
+    font-family: Roboto, sans-serif;
+}
+.top-nav .navbar-brand {
+    background-color: transparent !important;
+    color: rgba(230, 230, 232) !important;
+    font-family: Roboto, sans-serif;
+}
