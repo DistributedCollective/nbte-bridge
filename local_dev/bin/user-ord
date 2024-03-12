@@ -7,8 +7,8 @@ cd $THIS_DIR/../..
 docker compose -f docker-compose.dev.yaml exec -u ord user-ord \
   ord \
   --chain regtest \
-  --rpc-url bitcoind:18443 \
-  --bitcoin-rpc-user polaruser \
-  --bitcoin-rpc-pass polarpass \
+  --bitcoin-rpc-url bitcoind:18443 \
+  --bitcoin-rpc-username polaruser \
+  --bitcoin-rpc-password polarpass \
   --data-dir /home/ord/data \
   "$@"

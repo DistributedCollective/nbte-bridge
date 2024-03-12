@@ -1,8 +1,7 @@
 # Forked from https://github.com/ordinals/ord/blob/master/Dockerfile
 FROM rust:1.75.0-bookworm as builder
 
-#ARG ORD_GIT_CHECKOUT="0.15.0"
-ARG ORD_GIT_CHECKOUT="af180af7f24332fd0e0899e294f7f4544aba4edc"
+ARG ORD_GIT_CHECKOUT="0.16.0"
 ARG ORD_GIT_URL="https://github.com/ordinals/ord"
 
 WORKDIR /usr/src/ord

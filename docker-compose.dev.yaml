@@ -393,15 +393,16 @@ services:
 
     command: >-
       ord
-      --bitcoin-rpc-user polaruser
-      --bitcoin-rpc-pass polarpass
-      --rpc-url bitcoind:18443
+      --bitcoin-rpc-username polaruser
+      --bitcoin-rpc-password polarpass
+      --bitcoin-rpc-url bitcoind:18443
       --chain regtest
       --index-runes
       --data-dir /home/ord/data
       server
       --http
       --http-port 80
+      --polling-interval 1s
 
     depends_on:
       bitcoind:
@@ -425,15 +426,16 @@ services:
 
     command: >-
       ord
-      --bitcoin-rpc-user polaruser
-      --bitcoin-rpc-pass polarpass
-      --rpc-url bitcoind:18443
+      --bitcoin-rpc-username polaruser
+      --bitcoin-rpc-password polarpass
+      --bitcoin-rpc-url bitcoind:18443
       --chain regtest
       --index-runes
       --data-dir /home/ord/data
       server
       --http
       --http-port 80
+      --polling-interval 1s
 
     depends_on:
       bitcoind:

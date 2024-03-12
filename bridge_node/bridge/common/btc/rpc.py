@@ -134,7 +134,7 @@ class BitcoinRPC:
             )
         return response_json["result"]
 
-    def mine_blocks(self, num: int = 1, to_address: str = None, *, sleep: float = 0.5) -> list[str]:
+    def mine_blocks(self, num: int = 1, to_address: str = None, *, sleep: float = 1.1) -> list[str]:
         # Regtest only: mine blocks
         if to_address is None:
             # Use a random address if none is provided (not important)
