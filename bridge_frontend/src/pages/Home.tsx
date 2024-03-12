@@ -130,23 +130,26 @@ export const RuneTransferForm = () => {
             </Form.Select>
           </Col>
         </Form.Group>
-        <Form.Group as={Row} className="mb-3">
-          <Form.Label column sm={1}>Deposit Address</Form.Label>
-          <Col sm={11}>
-            <Form.Control
-              type="text"
-              readOnly
-              disabled
-              defaultValue={depositAddress}
-            />
-          </Col>
-        </Form.Group>
         <Form.Group className="mb-3">
           <Button
             onClick={generateDepositAddress}
             className='dark-button'
           >Generate deposit address</Button>
         </Form.Group>
+
+        {depositAddress && (
+          <Form.Group as={Row} className="mb-3">
+            <Form.Label column sm={1}>Deposit Address</Form.Label>
+            <Col sm={11}>
+              <Form.Control
+                type="text"
+                readOnly
+                disabled
+                defaultValue={depositAddress}
+              />
+            </Col>
+          </Form.Group>
+        )}
       </Form>
     </Container>
   )
