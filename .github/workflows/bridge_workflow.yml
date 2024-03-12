@@ -4,9 +4,11 @@ on:
   push:
     branches:
       - main
+      - runes
   pull_request:
     branches:
       - main
+      - runes
 
 jobs:
   build:
@@ -15,24 +17,33 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - run: pipx install poetry==1.7.1
+
       - uses: actions/setup-python@v4
         with:
           python-version: "3.10"
           cache: "poetry"
+
       - run: make build-python
 
-  tests:
-    name: "Run tests"
+  unit-tests:
+    name: "Run unit tests"
     needs:
       - build
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
       - run: pipx install poetry==1.7.1
+
       - uses: actions/setup-python@v4
         with:
           python-version: "3.10"
           cache: "poetry"
+
+      - name: 'Create env file'
+        run: |
+          touch .env
+          echo POSTGRES_PASSWORD=${{ secrets.POSTGRES_PASSWORD }} >> .env
+
       - run: make install
       - run: make unit-test
 
@@ -44,9 +55,49 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - run: pipx install poetry==1.7.1
+
       - uses: actions/setup-python@v4
         with:
           python-version: "3.10"
           cache: "poetry"
+
       - run: make install
       - run: make lint
+
+  integration-tests:
+    name: "Run integration tests"
+    needs:
+      - build
+      - static-analysis
+      - unit-tests
+    runs-on: ubuntu-latest
+    permissions: write-all
+    steps:
+      - uses: actions/checkout@v4
+      - run: pipx install poetry==1.7.1
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Prebuild docker images
+        uses: docker/bake-action@master
+        with:
+          push: false
+          load: true
+          files: |-
+            docker-compose.dev.yaml
+            github-buildx-cache.json
+
+      - uses: actions/setup-python@v4
+        with:
+          python-version: "3.10"
+          cache: "poetry"
+
+      - name: "Create env file"
+        run: |
+          echo POSTGRES_PASSWORD=${{ secrets.POSTGRES_PASSWORD }} >> .env
+          echo USERID=$(id --user) >> .env
+          echo GROUPID=$(id --group) >> .env
+
+      - run: make install
+      - run: make integration-test

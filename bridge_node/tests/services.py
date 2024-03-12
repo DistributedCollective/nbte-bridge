@@ -1,20 +1,32 @@
+import dotenv
+
 from decimal import Decimal
 import json
+
 from . import compose
 
 assert compose.ENV_FILE.exists(), f"Missing {compose.ENV_FILE}"
+
+config = dotenv.dotenv_values(compose.ENV_FILE)
+POSTGRES_PASSWORD = config["POSTGRES_PASSWORD"]
 
 
 class PostgresService(compose.ComposeService):
     def __init__(self, request):
         super().__init__("postgres", request=request)
+        self.local_connection_string = f"postgresql://postgres:{POSTGRES_PASSWORD}@localhost:5432/"
 
-    def cli(self, *args):
-        # TODO:
-        pass
+    def cli(self, *args, connection_string=None):
+        return self.exec(
+            "psql",
+            "-d",
+            connection_string or self.local_connection_string,
+            "-c",
+            " ".join(args),
+        )
 
     def is_started(self):
-        return super().is_started()
+        return super().is_started(check_health=True)
 
 
 class OrdService(compose.ComposeService):
