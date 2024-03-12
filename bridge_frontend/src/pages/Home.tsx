@@ -8,7 +8,7 @@ import Col from 'react-bootstrap/Col';
 import Button from 'react-bootstrap/Button';
 import {Form, Stack, Tab, Table, Tabs} from "react-bootstrap";
 import {transferToBTC} from "../utils/contracts";
-
+import './Home.css'
 
 const Home = () => {
   const {provider, account, tokenBalances} = ethereumStore(
@@ -29,15 +29,18 @@ export const TransferForm = () => {
   const {balance, tokenBalances, refreshTokenBalances} = useStore(ethereumStore);
   const [tabKey, setTabKey] = React.useState<string>('rune');
   React.useEffect(() => {
-    // for 30seconds refresh token balances
     const interval = setInterval(() => {
       refreshTokenBalances();
-    }, 30000);
+    }, 5000);
     return () => clearInterval(interval);
   }, []);
   return (
-    <Stack gap={3}>
-      <Row style={{border: 'solid #1dc686', borderRadius: "10px"}}>
+    <Stack gap={3} style={{paddingTop: '20px'}}>
+      <Row style={{
+        border: '0 solid #2c2c2c',
+        borderRadius: "10px",
+        backgroundColor: '#16171c',
+      }}>
         <Tabs
           id="controlled-tab-example"
           activeKey={tabKey}
@@ -54,14 +57,11 @@ export const TransferForm = () => {
       </Row>
 
       <Row>
-        <Col md="12">
-          <h3>Balances:</h3>
-        </Col>
         <Col>
-          <Table>
+          <Table variant="dark">
             <thead style={{textAlign: 'left'}}>
             <tr>
-              <th>Token</th>
+              <th>Asset</th>
               <th>Balance</th>
             </tr>
             </thead>
@@ -141,7 +141,10 @@ export const RuneTransferForm = () => {
           </Col>
         </Form.Group>
         <Form.Group className="mb-3">
-          <Button variant="info" onClick={generateDepositAddress}>Generate deposit address</Button>
+          <Button
+            onClick={generateDepositAddress}
+            className='dark-button'
+          >Generate deposit address</Button>
         </Form.Group>
       </Form>
     </Container>
@@ -153,19 +156,23 @@ export const RSKTransferForm = () => {
   const [selectedToken, setSelectedToken] = React.useState<TokenBalance>();
   const [amountToSend, setAmountToSend] = React.useState<string>('');
   const [receiver, setReceiver] = React.useState<string>('');
-  const transferBTCHandler = async () => {
+  const [validated, setValidated] = React.useState(false);
+  const transferBTCSubmitHandler = async () => {
     const response = await transferToBTC(selectedToken?.tokenContractAddress, amountToSend, receiver, runeBridgeContract, signer);
   }
   return (
     <Container>
-      <Form>
+      <Form onSubmit={transferBTCSubmitHandler} >
         <Form.Group as={Row} className="mb-3" controlId="formTokenSelect">
           <Form.Label column sm={1}>Rune</Form.Label>
           <Col sm={11}>
             <Form.Select
+              style={{
+                backgroundColor: 'transparent',
+                color: 'rgba(230,230,232)',
+              }}
               aria-label="Token"
               onChange={(e) => {
-                console.log('e: ', e.target.value);
                 const selectedToken = tokenBalances.find((tokenBalance: any) => tokenBalance.name === e.target.value);
                 setSelectedToken(selectedToken);
               }}
@@ -185,7 +192,8 @@ export const RSKTransferForm = () => {
         <Form.Group as={Row} className="mb-3">
           <Form.Label column sm={1}>Balance (RSK)</Form.Label>
           <Col sm={11}>
-            <Form.Control type="text" readOnly disabled defaultValue={selectedToken?.balance}/>
+            <Form.Control
+              type="text" readOnly disabled defaultValue={selectedToken?.balance}/>
           </Col>
         </Form.Group>
         <Form.Group as={Row} className="mb-3">
@@ -201,11 +209,12 @@ export const RSKTransferForm = () => {
         <Form.Group as={Row} className="mb-3">
           <Form.Label column sm={1}>Receiver (BTC)</Form.Label>
           <Col sm={11}>
-            <Form.Control type="text" placeholder="..." value={receiver} onChange={(e) => setReceiver(e.target.value)}/>
+            <Form.Control
+              type="text" placeholder="..." value={receiver} onChange={(e) => setReceiver(e.target.value)}/>
           </Col>
         </Form.Group>
         <Form.Group className="mb-3">
-          <Button variant="info" onClick={transferBTCHandler}>Transfer</Button>
+          <Button className="dark-button" onClick={transferBTCSubmitHandler}>Transfer</Button>
         </Form.Group>
       </Form>
     </Container>
