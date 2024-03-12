@@ -1,16 +1,23 @@
 # Implement everything rune bridge related here until we have a proper implementation
 # TODO: obviously get rid of this module
 from web3 import Web3
+from web3.types import EventData
 import logging
 from dataclasses import dataclass
 from decimal import Decimal
 
-import requests
 from eth_utils import to_checksum_address, add_0x_prefix
 from anemic.ioc import Container, auto, autowired, service
 from bridge.common.btc.rpc import BitcoinRPC
 from .evm import load_rune_bridge_abi
+from sqlalchemy.orm.session import Session
 
+from ...common.evm.utils import from_wei
+from ...common.ord.client import OrdApiClient
+from ...common.ord.simple_wallet import SimpleOrdWallet
+from ...common.evm.scanner import EvmEventScanner
+from ...common.services.key_value_store import KeyValueStore
+from ...common.services.transactions import TransactionManager
 
 logger = logging.getLogger(__name__)
 
@@ -25,9 +32,18 @@ class RuneToEvmTransfer:
     rune_name: str
 
 
+@dataclass
+class TokenToBtcTransfer:
+    receiver_address: str
+    amount_wei: int
+    token_address: str
+    rune_name: str
+
+
 @service(scope="global")
 class FauxRuneService:
     web3: Web3 = autowired(auto)
+    transaction_manager: TransactionManager = autowired(auto)
 
     bitcoin_rpc_root: BitcoinRPC
     bitcoin_rpc: BitcoinRPC
@@ -45,6 +61,13 @@ class FauxRuneService:
         self.rune_bridge_contract = self.web3.eth.contract(
             address=to_checksum_address("0xDc64a140Aa3E981100a9becA4E685f962f0cF6C9"),
             abi=load_rune_bridge_abi("RuneBridge"),
+        )
+        self.ord_client = OrdApiClient(
+            base_url=self.ord_api_url,
+        )
+        self.ord_wallet = SimpleOrdWallet(
+            bitcoin_rpc=self.bitcoin_rpc,
+            ord_client=self.ord_client,
         )
         # self._evm_addresses_by_deposit_address = {}
 
@@ -85,7 +108,7 @@ class FauxRuneService:
             vout = tx["vout"]
             outpoint = f"{txid}:{vout}"
 
-            utxos_by_rune = self.ord_api_call("/runes/balances")
+            utxos_by_rune = self.ord_client.get("/runes/balances")
             for rune_name, utxos in utxos_by_rune.items():
                 if outpoint in utxos:
                     amount_raw = utxos[outpoint]
@@ -135,10 +158,46 @@ class FauxRuneService:
         assert receipt["status"]
         logger.info("Rune-to-EVM transfer %s confirmed", tx_hash.hex())
 
-    def ord_api_call(self, path):
-        return requests.get(
-            f"{self.ord_api_url}{path}",
-            headers={
-                "Accept": "application/json",
-            },
-        ).json()
+    def scan_token_deposits(self) -> list[TokenToBtcTransfer]:
+        events: list[TokenToBtcTransfer] = []
+
+        def callback(batch: list[EventData]):
+            for event in batch:
+                if event["event"] == "RuneTransferToBtc":
+                    events.append(
+                        TokenToBtcTransfer(
+                            receiver_address=event["args"]["receiverBtcAddress"],
+                            rune_name=event["args"]["rune"],
+                            token_address=event["args"]["token"],
+                            amount_wei=event["args"]["amountWei"],
+                        )
+                    )
+                else:
+                    logger.warning("Unknown event: %s", event)
+
+        with self.transaction_manager.transaction() as tx:
+            dbsession = tx.find_service(Session)
+            key_value_store = tx.find_service(KeyValueStore)
+            scanner = EvmEventScanner(
+                web3=self.web3,
+                events=[
+                    self.rune_bridge_contract.events.RuneTransferToBtc,
+                ],
+                callback=callback,
+                dbsession=dbsession,
+                block_safety_margin=0,
+                key_value_store=key_value_store,
+                key_value_store_namespace="runebridge",
+                default_start_block=1,
+            )
+            scanner.scan_new_events()
+        return events
+
+    def send_token_to_btc(self, deposit: TokenToBtcTransfer):
+        logger.info("Sending to BTC: %s", deposit)
+        self._ensure_bitcoin_wallet()
+        self.ord_wallet.send_runes(
+            rune_name=deposit.rune_name,
+            amount=from_wei(deposit.amount_wei),
+            receiver_address=deposit.receiver_address,
+        )

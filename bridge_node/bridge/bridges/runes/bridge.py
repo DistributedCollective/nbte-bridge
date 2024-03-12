@@ -36,3 +36,8 @@ class RuneBridge(Bridge):
         rune_deposits = self.faux_service.scan_rune_deposits()
         for deposit in rune_deposits:
             self.faux_service.send_rune_to_evm(deposit)
+
+        token_deposits = self.faux_service.scan_token_deposits()
+        print("TOKEN DEPOSITS:", token_deposits)
+        for deposit in token_deposits:
+            self.faux_service.send_token_to_btc(deposit)

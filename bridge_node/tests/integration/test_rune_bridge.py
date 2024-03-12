@@ -1,8 +1,10 @@
 import logging
+import time
 
 import pytest
 from web3.contract import Contract
 
+from bridge.common.btc.rpc import BitcoinRPC
 from bridge.common.evm.utils import load_abi
 from bridge.bridges.runes.evm import load_rune_bridge_abi
 from .. import services
@@ -13,7 +15,7 @@ logger = logging.getLogger(__name__)
 
 RUNE_BRIDGE_ADDRESS = "0xDc64a140Aa3E981100a9becA4E685f962f0cF6C9"
 RUNE_NAME = "MYRUNEISGOODER"
-BTC_SLEEP_TIME = 5
+BTC_SLEEP_TIME = 1
 
 
 @pytest.fixture()
@@ -105,6 +107,20 @@ def alice_ord_wallet(alice_ord, bitcoin_rpc):
     return wallet
 
 
+@pytest.fixture(autouse=True)
+def bridge_wallet(bitcoin_rpc):
+    wallet_name = "alice-ord"
+    wallets = bitcoin_rpc.call("listwallets")
+    if wallet_name not in wallets:
+        logger.info("Creating alice-ord wallet")
+        bitcoin_rpc.call("createwallet", wallet_name)
+        time.sleep(BTC_SLEEP_TIME)
+
+    bitcoin_rpc = BitcoinRPC(url="http://polaruser:polarpass@localhost:18443/wallet/alice-ord")
+    address = bitcoin_rpc.call("getnewaddress")
+    bitcoin_rpc.mine_blocks(101, address, sleep=BTC_SLEEP_TIME)
+
+
 @pytest.fixture()
 def user_ord_wallet(user_ord, bitcoin_rpc, alice_ord_wallet):
     wallet = services.OrdWallet(
@@ -173,13 +189,15 @@ def test_rune_bridge(
     assert from_wei(user_evm_token_balance) == 1000
     assert from_wei(user_evm_token.functions.totalSupply().call() - initial_total_supply) == 1000
 
-    # TODO test evm to runes
-    return
     user_btc_address = user_ord_wallet.generate_address()
     user_rune_bridge_contract.functions.transferToBtc(
         user_evm_token.address,
         to_wei(1000),
         user_btc_address,
+    ).transact(
+        {
+            "gas": 10_000_000,
+        }
     )
 
     def callback():

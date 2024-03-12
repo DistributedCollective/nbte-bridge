@@ -92,14 +92,16 @@ class BitcoinRPC:
                 "Content-Type": "application/json",
             },
         )
-        try:
-            response.raise_for_status()
-        except requests.HTTPError as e:
-            raise JSONRPCError(
-                message=str(e),
-                response=response,
-                jsonrpc_data=jsonrpc_data,
-            ) from e
+
+        # Don't raise here, we want sane error messages
+        # try:
+        #     response.raise_for_status()
+        # except requests.HTTPError as e:
+        #     raise JSONRPCError(
+        #         message=str(e),
+        #         response=response,
+        #         jsonrpc_data=jsonrpc_data,
+        #     ) from e
 
         try:
             response_json = json.loads(
@@ -113,7 +115,7 @@ class BitcoinRPC:
                 jsonrpc_data=jsonrpc_data,
             ) from e
         error = response_json.get("error")
-        if error is not None:
+        if error is not None or not response.ok:
             if isinstance(error, dict):
                 raise JSONRPCError(
                     message=error["message"],
