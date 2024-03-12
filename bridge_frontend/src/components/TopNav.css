@@ -37,3 +37,9 @@
     color: rgba(230, 230, 232) !important;
     font-family: Roboto, sans-serif;
 }
+
+.top-nav-brand {
+    display: flex;
+    flex-direction: row;
+    gap: 20px;
+}

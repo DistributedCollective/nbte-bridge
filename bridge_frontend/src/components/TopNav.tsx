@@ -2,9 +2,10 @@ import React from 'react';
 import useEthereumStore from "../stores/useEthereumStore";
 import {useStore} from "zustand";
 import ethereumStore from "../stores/useEthereumStore";
-import {Navbar} from "react-bootstrap";
+import {Image, Navbar} from "react-bootstrap";
 import Container from "react-bootstrap/Container";
 import Button from "react-bootstrap/Button";
+import sovrynLogo from "../assets/logo/sovryn-logo.svg";
 import './TopNav.css';
 
 const TopNav = () => {
@@ -13,7 +14,14 @@ const TopNav = () => {
     <Navbar expand="lg" className="top-nav">
       <Container>
         <Navbar.Brand>
-          <h2>Rune Bridge</h2>
+          <div className="top-nav-brand">
+            <h2>
+              <Image src={sovrynLogo} className="logo" alt="Sovryn Bridge"/>
+            </h2>
+            <h2>
+              Rune Bridge
+            </h2>
+          </div>
         </Navbar.Brand>
         <Navbar.Collapse
           className="justify-content-end"
