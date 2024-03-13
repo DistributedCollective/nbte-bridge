@@ -1,5 +1,7 @@
 # Implement everything rune bridge related here until we have a proper implementation
 # TODO: obviously get rid of this module
+import os
+
 from web3 import Web3
 from web3.types import EventData
 import logging
@@ -48,15 +50,23 @@ class FauxRuneService:
     bitcoin_rpc_root: BitcoinRPC
     bitcoin_rpc: BitcoinRPC
     ord_api_url = "http://alice-ord"
+    bitcoind_host = "bitcoind:18443"
 
     last_bitcoin_block: str | None = None
     # _evm_addresses_by_deposit_address: dict[str, str]
 
     def __init__(self, container: Container):
+        # ULTIMATE HACK :D
+        # TODO: get rid of this, as well as the whole module
+        if "PYTEST_CURRENT_TEST" in os.environ:
+            logger.info("TEST RUN DETECTED! Connecting to ord and bitcoin from outside of docker")
+            self.ord_api_url = "http://localhost:3080"
+            self.bitcoind_host = "localhost:18443"
+
         self.container = container
-        self.bitcoin_rpc_root = BitcoinRPC(url="http://polaruser:polarpass@bitcoind:18443")
+        self.bitcoin_rpc_root = BitcoinRPC(url=f"http://polaruser:polarpass@{self.bitcoind_host}")
         self.bitcoin_rpc = BitcoinRPC(
-            url="http://polaruser:polarpass@bitcoind:18443/wallet/alice-ord"
+            url=f"http://polaruser:polarpass@{self.bitcoind_host}/wallet/alice-ord"
         )
         self.rune_bridge_contract = self.web3.eth.contract(
             address=to_checksum_address("0xDc64a140Aa3E981100a9becA4E685f962f0cF6C9"),

@@ -2,9 +2,9 @@ from bridge.common.p2p.network import Network
 
 
 class MockNetwork(Network):
-    def __init__(self, *, node_id, **kwargs):
+    def __init__(self, *, node_id, leader: bool = False):
         self.node_id = node_id
-        self._is_leader = False
+        self._is_leader = leader
         self.listeners = []
         self._answer_callbacks = {}
         self._peers = {}

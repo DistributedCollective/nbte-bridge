@@ -13,6 +13,7 @@ COMPOSE_COMMAND = ["docker", "compose"]
 COMPOSE_FILE = PROJECT_BASE_DIR / "docker-compose.dev.yaml"
 ENV_FILE = PROJECT_BASE_DIR / ".env"
 MAX_WAIT_TIME_S = 120
+VOLUMES_DIR = PROJECT_BASE_DIR / "volumes"
 
 
 def run_compose_command(

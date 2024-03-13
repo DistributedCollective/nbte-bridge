@@ -23,8 +23,6 @@ THIS_DIR = pathlib.Path(__file__).parent
 INTEGRATION_TEST_DIR = THIS_DIR / "integration"
 
 ALICE_EVM_PRIVATE_KEY = "0x9a9a640da1fc0181e43a9ea00b81878f26e1678e3e246b25bd2835783f2be181"
-WEB3_RPC_URL = "http://localhost:18545"
-BITCOIN_RPC_URL = "http://polaruser:polarpass@localhost:18443"
 
 DEV_DB_NAME = "nbte_tmp_test"
 
@@ -78,17 +76,17 @@ def user_evm_account(web3):
 
 @pytest.fixture(scope="module")
 def web3(hardhat) -> Web3:
-    return create_web3(WEB3_RPC_URL)
+    return create_web3(hardhat.rpc_url)
 
 
 @pytest.fixture(scope="module")
 def alice_web3(hardhat, alice_evm_account) -> Web3:
-    return create_web3(WEB3_RPC_URL, account=alice_evm_account)
+    return create_web3(hardhat.rpc_url, account=alice_evm_account)
 
 
 @pytest.fixture(scope="module")
 def user_web3(hardhat, user_evm_account) -> Web3:
-    return create_web3(WEB3_RPC_URL, account=user_evm_account)
+    return create_web3(hardhat.rpc_url, account=user_evm_account)
 
 
 @pytest.fixture(scope="module")
@@ -103,7 +101,7 @@ def alice_ord(request):
 
 @pytest.fixture(scope="module")
 def bitcoin_rpc(bitcoind):
-    return BitcoinRPC(BITCOIN_RPC_URL)
+    return BitcoinRPC(bitcoind.rpc_url)
 
 
 @pytest.fixture(scope="session")
@@ -130,9 +128,9 @@ def setup_db(logger):
         raise e from None
 
 
-@pytest.fixture
+@pytest.fixture(scope="module")
 def mock_network():
-    leader = MockNetwork(node_id="alice")
+    leader = MockNetwork(node_id="alice", leader=True)
     follower1 = MockNetwork(node_id="bob")
     follower2 = MockNetwork(node_id="carol")
 
@@ -148,7 +146,7 @@ def dbengine(postgres):
     postgres.cli(f"DROP DATABASE IF EXISTS {DEV_DB_NAME};")
     postgres.cli(f"CREATE DATABASE {DEV_DB_NAME};")
 
-    engine = create_engine(f"postgresql://postgres:foo@localhost:65432/{DEV_DB_NAME}", echo=False)
+    engine = create_engine(postgres.dsn_outside_docker, echo=False)
     Base.metadata.create_all(engine)
     return engine
 
