@@ -44,13 +44,18 @@ const TopNav = () => {
 
 export default TopNav;
 
-export const MetamaskConnectButton = () => {
+export interface MetamaskConnecButtonProps {
+  text?: string;
+  size?: 'lg' | 'sm' | undefined;
+}
+export const MetamaskConnectButton = (props: MetamaskConnecButtonProps) => {
   const {connectMetamask} = useStore(ethereumStore);
   return (
     <Button
       className="login-button"
+      size={props.size ?? 'lg'}
       onClick={connectMetamask}>
-      Connect Metamask
+      {props.text ?? 'Connect wallet'}
     </Button>
   );
 }
