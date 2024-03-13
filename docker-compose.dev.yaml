@@ -75,6 +75,13 @@ services:
     ports:
       - 127.0.0.1:18545:8545
 
+    healthcheck:
+      test: ["CMD", "npx", "hardhat", "--network", "localhost", "verify-started"]
+      interval: 4s
+      timeout: 30s
+      retries: 10
+      start_period: 2s
+
   alice-bridge:
     image: bridge_node:latest
     build:

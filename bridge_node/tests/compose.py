@@ -97,7 +97,7 @@ class ComposeService:
         run_compose_command("down", "-v", self.service)
         logger.info("Stopped service %s", self.service)
 
-    def is_started(self, check_health=False):
+    def is_started(self):
         ret = run_compose_command(
             "ps",
             "-q",
@@ -108,9 +108,6 @@ class ComposeService:
 
         if ret.returncode != 0 or not ret.stdout.strip():
             return False
-
-        if not check_health:
-            return True
 
         status = (
             run_docker_command(

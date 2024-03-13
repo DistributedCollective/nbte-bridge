@@ -25,9 +25,6 @@ class PostgresService(compose.ComposeService):
             " ".join(args),
         )
 
-    def is_started(self):
-        return super().is_started(check_health=True)
-
 
 class OrdService(compose.ComposeService):
     def __init__(self, service, request=None):
@@ -100,3 +97,16 @@ class OrdWallet:
 
     def generate_address(self):
         return self.cli("receive")["address"]
+
+
+class HardhatService(compose.ComposeService):
+    def __init__(self, request):
+        super().__init__("hardhat", request=request)
+
+    def run_json_command(self, *args):
+        return json.loads(self.exec("npx", "hardhat", "--network", "localhost", *args).stdout)
+
+
+class BitcoindService(compose.ComposeService):
+    def __init__(self, request):
+        super().__init__("bitcoind", request=request)

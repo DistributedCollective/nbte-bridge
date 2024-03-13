@@ -6,6 +6,7 @@ import Pyro5
 
 from bridge.common.p2p.network import Network, PyroNetwork, PyroMessageEnvelope
 from bridge.common.p2p.auth.bridge_ssl import PyroSecureContext
+from tests.mock_network import MockNetwork
 
 
 @pytest.fixture
@@ -196,3 +197,21 @@ def test_custom_handshake_is_used_when_using_a_custom_context(mocker):
         network.daemon.validateHandshake.__qualname__
         == SecureContextStub.validate_handshake.__qualname__
     )
+
+
+def test_mock_network():
+    network_alice = MockNetwork(node_id="alice")
+    network_bob = MockNetwork(node_id="bob")
+    network_carol = MockNetwork(node_id="carol")
+
+    network_alice.add_peers([network_bob, network_carol])
+    network_bob.add_peers([network_alice, network_carol])
+    network_carol.add_peers([network_alice, network_bob])
+
+    networks = [network_alice, network_bob, network_carol]
+
+    for network in networks:
+        network.answer_with("test", lambda: "test answer")
+
+    for network in networks:
+        assert network.ask("test") == ["test answer", "test answer"]

@@ -113,6 +113,18 @@ task("wait-for-startup", "Wait for network startup")
         throw new Error("Could not connect to network");
     })
 
+task("verify-started", "Check if started")
+    .setAction(async ({}, hre) => {
+        try {
+            await hre.network.provider.send('eth_chainId', []);
+            console.log(`Connected to network ${hre.network.name}!`)
+            return;
+        } catch (e) {
+            console.log(`Could not connect to network ${hre.network.name}`);
+            throw e;
+        }
+    })
+
 task('set-mining-interval', "Set mining interval")
     .addPositionalParam('ms', 'Mining interval as milliseconds (0 for automine)', undefined, types.int)
     .setAction(async ({ ms }, hre) => {
