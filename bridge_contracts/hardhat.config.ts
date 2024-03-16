@@ -1,6 +1,7 @@
 import { HardhatUserConfig } from "hardhat/config";
 import {task, types} from "hardhat/config";
 import "@nomicfoundation/hardhat-toolbox";
+import { jsonAction } from './config/base';
 import './config/tap/hardhat.config.tap';
 import './config/runes/hardhat.config.runes';
 
@@ -43,7 +44,7 @@ task("deploy-regtest")
 
 task("deploy-testtoken")
     .addParam("supply", "Initial supply of the token", "0")
-    .setAction(async (taskArgs, hre) => {
+    .setAction(jsonAction(async (taskArgs, hre) => {
         const ethers = hre.ethers;
         const tokenSupply = ethers.parseUnits(taskArgs.supply, 18);
         const testToken = await ethers.deployContract(
@@ -52,8 +53,10 @@ task("deploy-testtoken")
             {}
         );
         await testToken.waitForDeployment();
-        console.log(JSON.stringify({"address": testToken.target}));
-    })
+        return {
+            "address": testToken.target
+        };
+    }))
 
 
 task("accounts", "Prints the list of accounts", async (args, hre) => {
