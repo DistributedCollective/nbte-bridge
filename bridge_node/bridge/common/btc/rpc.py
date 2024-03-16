@@ -1,3 +1,4 @@
+import decimal
 import json
 import time
 from decimal import Decimal
@@ -6,8 +7,6 @@ import urllib.parse
 import requests
 
 from anemic.ioc import Container, service
-import bitcointx
-import bitcointx.rpc
 
 from bridge.config import Config
 
@@ -82,7 +81,7 @@ class BitcoinRPC:
         }
         postdata = json.dumps(
             jsonrpc_data,
-            cls=bitcointx.rpc.DecimalJSONEncoder,
+            cls=DecimalJSONEncoder,
         )
         response = requests.post(
             self._url,
@@ -146,6 +145,20 @@ class BitcoinRPC:
             # Sleep here by default, otherwise the tap nodes will not have time to process the block(s)
             time.sleep(sleep)
         return ret
+
+
+class DecimalJSONEncoder(json.JSONEncoder):
+    # Forked from bitcointx/rpc.py... seems like f'{somedecimal:.08f}' no longer works for python3.11?
+    def default(self, o: typing.Any) -> typing.Any:
+        if isinstance(o, decimal.Decimal):
+            r = float(o)
+            if f"{r:.08f}" != f"{o:.8f}":
+                raise TypeError(
+                    f"value {o!r} lost precision beyond acceptable range "
+                    f"when converted to float: {r:.08f} != {o:.8f}"
+                )
+            return r
+        return super().default(o)
 
 
 @service(interface_override=BitcoinRPC, scope="global")
