@@ -1,6 +1,5 @@
 # Implement everything rune bridge related here until we have a proper implementation
 # TODO: obviously get rid of this module
-import os
 
 from web3 import Web3
 from web3.types import EventData
@@ -49,27 +48,29 @@ class FauxRuneService:
 
     bitcoin_rpc_root: BitcoinRPC
     bitcoin_rpc: BitcoinRPC
+
     ord_api_url = "http://alice-ord"
     bitcoind_host = "bitcoind:18443"
+    rune_bridge_contract_address = to_checksum_address("0xDc64a140Aa3E981100a9becA4E685f962f0cF6C9")
+    bitcoin_wallet = "alice-ord"
 
     last_bitcoin_block: str | None = None
     # _evm_addresses_by_deposit_address: dict[str, str]
 
-    def __init__(self, container: Container):
-        # ULTIMATE HACK :D
-        # TODO: get rid of this, as well as the whole module
-        if "PYTEST_CURRENT_TEST" in os.environ:
-            logger.info("TEST RUN DETECTED! Connecting to ord and bitcoin from outside of docker")
-            self.ord_api_url = "http://localhost:3080"
-            self.bitcoind_host = "localhost:18443"
+    def __init__(self, container: Container, *, setting_overrides: dict[str, str] = None):
+        if setting_overrides:
+            # Hack for testing
+            for k, v in setting_overrides.items():
+                logger.info("Overriding setting %r with value %r", k, v)
+                setattr(self, k, v)
 
         self.container = container
         self.bitcoin_rpc_root = BitcoinRPC(url=f"http://polaruser:polarpass@{self.bitcoind_host}")
         self.bitcoin_rpc = BitcoinRPC(
-            url=f"http://polaruser:polarpass@{self.bitcoind_host}/wallet/alice-ord"
+            url=f"http://polaruser:polarpass@{self.bitcoind_host}/wallet/{self.bitcoin_wallet}"
         )
         self.rune_bridge_contract = self.web3.eth.contract(
-            address=to_checksum_address("0xDc64a140Aa3E981100a9becA4E685f962f0cF6C9"),
+            address=self.rune_bridge_contract_address,
             abi=load_rune_bridge_abi("RuneBridge"),
         )
         self.ord_client = OrdApiClient(
@@ -79,12 +80,11 @@ class FauxRuneService:
             bitcoin_rpc=self.bitcoin_rpc,
             ord_client=self.ord_client,
         )
-        # self._evm_addresses_by_deposit_address = {}
 
     def _ensure_bitcoin_wallet(self):
         wallets = self.bitcoin_rpc_root.call("listwallets")
         if "alice-ord" not in wallets:
-            self.bitcoin_rpc_root.call("createwallet", "alice-ord")
+            self.bitcoin_rpc_root.call("createwallet", self.bitcoin_wallet)
 
     def generate_deposit_address(self, evm_address: str) -> str:
         self._ensure_bitcoin_wallet()

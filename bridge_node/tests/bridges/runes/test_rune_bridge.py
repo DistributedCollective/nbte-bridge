@@ -173,12 +173,15 @@ def global_container(
 
     def rune_service_factory(container):
         # TODO: just hack this now so we'll get forwards
-        ret = FauxRuneService(container)
-        ret.rune_bridge_contract = alice_web3.eth.contract(
-            address=rune_bridge_contract.address,
-            abi=rune_bridge_contract.abi,
+        return FauxRuneService(
+            container,
+            setting_overrides={
+                "ord_api_url": "http://localhost:3080",
+                "bitcoind_host": "localhost:18443",
+                "rune_bridge_contract_address": rune_bridge_contract.address,
+                "bitcoin_wallet": "alice-ord",
+            },
         )
-        return ret
 
     global_registry.register(
         interface=FauxRuneService,
