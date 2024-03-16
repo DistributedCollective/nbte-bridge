@@ -64,7 +64,6 @@ services:
 
     build:
       context: ./bridge_contracts/
-      dockerfile: ../docker/hardhat/Dockerfile
 
     environment:
      - NODE1_ADDRESS=0x4091663B0a7a14e35Ff1d6d9d0593cE15cE7710a
