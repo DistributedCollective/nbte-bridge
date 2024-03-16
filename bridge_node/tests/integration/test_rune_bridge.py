@@ -54,18 +54,14 @@ def user_evm_token(
 
 @pytest.fixture()
 def user_ord():
-    service = services.OrdService(
-        service="user-ord",
-    )
+    service = services.OrdService(service="user-ord", ord_api_url="http://localhost:3080")
     assert service.is_started()
     return service
 
 
 @pytest.fixture()
 def alice_ord():
-    service = services.OrdService(
-        service="alice-ord",
-    )
+    service = services.OrdService(service="alice-ord", ord_api_url="http://localhost:3080")
     assert service.is_started()
     return service
 
@@ -164,7 +160,7 @@ def test_rune_bridge(
     bitcoin_rpc,
     user_rune_bridge_contract,
 ):
-    assert user_ord_wallet.get_rune_balance(RUNE_NAME, divisibility=18) == 1000
+    assert user_ord_wallet.get_rune_balance(RUNE_NAME) == 1000
     assert user_evm_token.functions.balanceOf(user_evm_account.address).call() == 0  # sanity check
     initial_total_supply = user_evm_token.functions.totalSupply().call()
 
@@ -189,7 +185,7 @@ def test_rune_bridge(
     assert from_wei(user_evm_token_balance) == 1000
     assert from_wei(user_evm_token.functions.totalSupply().call() - initial_total_supply) == 1000
 
-    user_btc_address = user_ord_wallet.generate_address()
+    user_btc_address = user_ord_wallet.get_new_address()
     user_rune_bridge_contract.functions.transferToBtc(
         user_evm_token.address,
         to_wei(1000),
@@ -202,7 +198,7 @@ def test_rune_bridge(
 
     def callback():
         bitcoin_rpc.mine_blocks(1, sleep=BTC_SLEEP_TIME)
-        return user_ord_wallet.get_rune_balance(RUNE_NAME, divisibility=18)
+        return user_ord_wallet.get_rune_balance(RUNE_NAME)
 
     user_rune_balance = wait_for_condition(
         callback=callback,

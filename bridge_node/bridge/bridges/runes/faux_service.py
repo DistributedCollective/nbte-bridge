@@ -83,7 +83,7 @@ class FauxRuneService:
 
     def _ensure_bitcoin_wallet(self):
         wallets = self.bitcoin_rpc_root.call("listwallets")
-        if "alice-ord" not in wallets:
+        if self.bitcoin_wallet not in wallets:
             self.bitcoin_rpc_root.call("createwallet", self.bitcoin_wallet)
 
     def generate_deposit_address(self, evm_address: str) -> str:

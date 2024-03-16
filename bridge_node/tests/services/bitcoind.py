@@ -1,12 +1,18 @@
+from __future__ import annotations
 import logging
-import secrets
+import string
+import time
 from decimal import Decimal
-from typing import Protocol
+import random
+from typing import Optional, Protocol
 
 from bridge.common.btc.rpc import BitcoinRPC, JSONRPCError
 from .. import compose
 
 logger = logging.getLogger(__name__)
+
+
+MIN_RANDOMPART_LENGTH = 8
 
 
 class FundableWallet(Protocol):
@@ -21,9 +27,9 @@ class BitcoindService(compose.ComposeService):
     rpc_url: str
     rpc: BitcoinRPC
     # Root wallet is used to fund other wallets in a sane fashion
-    root_wallet: "BitcoinWallet"
+    root_wallet: BitcoinWallet
 
-    def __init__(self, request):
+    def __init__(self, request=None):
         super().__init__("bitcoind", user="bitcoin", request=request)
         self.rpc_url = "http://polaruser:polarpass@localhost:18443"
         self.rpc = BitcoinRPC(self.rpc_url)
@@ -45,13 +51,71 @@ class BitcoindService(compose.ComposeService):
             *args,
         ).stdout
 
-    def mine(self, blocks=1, address=None):
-        return self.root_wallet.mine(blocks, address)
+    def mine(self, blocks=1, address=None, *, sleep: float = 1.1):
+        ret = self.root_wallet.mine(blocks, address)
+        time.sleep(sleep)
+        return ret
+
+    def create_test_wallet(self, prefix: str, *, fund: bool = False) -> BitcoinWallet:
+        """
+        Creates a randomly-named wallet, suitable for testing
+        """
+        while True:
+            randompart = "".join(
+                random.choices(string.ascii_lowercase + string.digits, k=MIN_RANDOMPART_LENGTH)
+            )
+            wallet_name = f"{prefix}-{randompart}"
+            wallet, created = self.load_or_create_wallet(wallet_name)
+            if created:
+                break
+            logger.info("Duplicate wallet name: %s. Trying again.")
+        if fund:
+            self.fund_wallets(wallet)
+        return wallet
+
+    def fund_wallets(
+        self,
+        *wallets: FundableWallet,
+        wanted_balance_btc: Decimal = Decimal(1),
+    ):
+        """
+        Fund wallets, but instead of mining to them, use the root wallet to send btc to them
+
+        This should offer non-trivial test speedups especially if containers are kept after each test
+        """
+
+        blockcount = self.rpc.call("getblockcount")
+        if blockcount <= 100:
+            logger.info("Mining initial blocks to see some coins")
+            self.root_wallet.mine(101)
+        required_amounts = [
+            max(wanted_balance_btc - wallet.get_balance_btc(), Decimal(0)) for wallet in wallets
+        ]
+        if not any(required_amounts):
+            logger.info("All wallets properly funded")
+            return
+        total_required_amount = sum(required_amounts)
+
+        # Ensure root wallet is funded
+        while self.root_wallet.get_balance_btc() < total_required_amount:
+            logger.info("Mining to the root wallet to have enough balance for funding")
+            self.root_wallet.mine(10)
+
+        for wallet, required_amount in zip(wallets, required_amounts):
+            if not required_amount:
+                logger.info("Skipping funding of wallet %s, already funded", wallet.name)
+                continue
+
+            address = wallet.get_receiving_address()
+            self.root_wallet.send(amount_btc=required_amount, receiver=address)
+            logger.info("Funded wallet %s with %s BTC", wallet.name, required_amount)
+
+        self.mine(1)
 
     def get_wallet_rpc_url(self, wallet_name):
         return f"{self.rpc_url}/wallet/{wallet_name}"
 
-    def load_or_create_wallet(self, wallet_name) -> tuple["BitcoinWallet", bool]:
+    def load_or_create_wallet(self, wallet_name) -> tuple[BitcoinWallet, bool]:
         wallet = self.load_wallet(wallet_name)
         if wallet:
             return wallet, False
@@ -63,7 +127,7 @@ class BitcoindService(compose.ComposeService):
         )
         return wallet, True
 
-    def load_wallet(self, wallet_name) -> "BitcoinWallet" | None:
+    def load_wallet(self, wallet_name) -> Optional[BitcoinWallet]:
         wallets = self.rpc.call("listwallets")
         if wallet_name in wallets:
             logger.info("Using already loaded wallet %s", wallet_name)
@@ -75,46 +139,6 @@ class BitcoindService(compose.ComposeService):
                 return None
 
         return BitcoinWallet(name=wallet_name, rpc=BitcoinRPC(self.get_wallet_rpc_url(wallet_name)))
-
-    def create_random_wallet(self, prefix: str, *, fund: bool = True) -> "BitcoinWallet":
-        while True:
-            wallet_name = f"{prefix}-{secrets.token_hex(6)}"
-            wallet, created = self.load_or_create_wallet(wallet_name)
-            if created:
-                break
-            logger.info("Duplicate wallet name: %s. Trying again.")
-        if fund:
-            self.fund_wallets(wallet)
-        return wallet
-
-    def fund_wallets(
-        self,
-        *wallets: "FundableWallet",
-        wanted_balance_btc: Decimal = Decimal(1),
-    ):
-        blockcount = self.rpc.call("getblockcount")
-        if blockcount <= 100:
-            self.root_wallet.mine(101)
-        required_amounts = [
-            min(wanted_balance_btc - wallet.get_balance_btc(), Decimal(0)) for wallet in wallets
-        ]
-        if not any(required_amounts):
-            return
-        total_required_amount = sum(required_amounts)
-
-        # Ensure root wallet is funded
-        while self.root_wallet.get_balance_btc() < total_required_amount:
-            self.root_wallet.mine(10)
-
-        for wallet, required_amount in zip(wallets, required_amounts):
-            if not required_amount:
-                logger.info("Skipping funding of wallet %s, already funded", wallet.name)
-                continue
-
-            address = wallet.get_receiving_address()
-            self.root_wallet.send(amount_btc=required_amount, receiver=address)
-            logger.info("Funded wallet %s with %s BTC", wallet.name, required_amount)
-        self.mine(1)
 
 
 class BitcoinWallet:

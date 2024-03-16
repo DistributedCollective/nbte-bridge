@@ -42,7 +42,6 @@ contract RuneBridge is Ownable, ReentrancyGuard {
         _runeSideToken = new RuneSideToken("MYRUNEISGOODER", "R");
     }
 
-
     // Public API
     // ----------
 
@@ -125,5 +124,21 @@ contract RuneBridge is Ownable, ReentrancyGuard {
             btcTxId,
             btcTxVout
         );
+    }
+
+    // Owner API
+    // ---------
+
+    // TODO: another temporary thing
+    function registerRune(
+        string memory rune,
+        string memory symbol
+    )
+    external
+    onlyOwner
+    {
+        _rune = rune;
+        _runeHash = keccak256(abi.encodePacked(rune));
+        _runeSideToken = new RuneSideToken(rune, symbol);
     }
 }
