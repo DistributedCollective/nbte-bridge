@@ -100,8 +100,8 @@ def alice_ord(request):
 
 
 @pytest.fixture(scope="module")
-def bitcoin_rpc(bitcoind):
-    return BitcoinRPC(bitcoind.rpc_url)
+def bitcoin_rpc(bitcoind) -> BitcoinRPC:
+    return bitcoind.rpc
 
 
 @pytest.fixture(scope="session")

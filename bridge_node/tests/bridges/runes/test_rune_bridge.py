@@ -72,7 +72,7 @@ def user_evm_token(
 
 
 @pytest.fixture(scope="module")
-def alice_ord_wallet(alice_ord, bitcoin_rpc):
+def alice_ord_wallet(alice_ord, bitcoind):
     logger.info("Creating alice-ord-test wallet")
     wallet = services.OrdWallet(
         ord=alice_ord,
@@ -83,7 +83,7 @@ def alice_ord_wallet(alice_ord, bitcoin_rpc):
     logger.info("Funding alice-ord-test wallet")
     address = wallet.cli("receive")["address"]
     logger.info("alice-ord-test address: %s", address)
-    bitcoin_rpc.mine_blocks(101, address, sleep=BTC_SLEEP_TIME)
+    bitcoind.rpc.mine_blocks(101, address, sleep=BTC_SLEEP_TIME)
 
     wallet.cli(
         "etch",
@@ -98,23 +98,23 @@ def alice_ord_wallet(alice_ord, bitcoin_rpc):
         "--symbol",
         "R",
     )
-    bitcoin_rpc.mine_blocks(1, sleep=BTC_SLEEP_TIME)
+    bitcoind.rpc.mine_blocks(1, sleep=BTC_SLEEP_TIME)
 
     return wallet
 
 
 @pytest.fixture(autouse=True, scope="module")
-def bridge_wallet(bitcoin_rpc, bitcoind):
+def bridge_wallet(bitcoind):
     logger.info("Creating and funding bridge wallet")
     wallet_name = "alice-ord"
     bitcoind.cli("createwallet", wallet_name)
-    bitcoin_rpc = BitcoinRPC(url=bitcoind.get_wallet_rpc_url(wallet_name))
-    address = bitcoin_rpc.call("getnewaddress")
-    bitcoin_rpc.mine_blocks(101, address, sleep=BTC_SLEEP_TIME)
+    bridge_bitcoin_rpc = BitcoinRPC(url=bitcoind.get_wallet_rpc_url(wallet_name))
+    address = bridge_bitcoin_rpc.call("getnewaddress")
+    bitcoind.rpc.mine_blocks(101, address, sleep=BTC_SLEEP_TIME)
 
 
 @pytest.fixture(scope="module")
-def user_ord_wallet(user_ord, bitcoin_rpc, alice_ord_wallet):
+def user_ord_wallet(user_ord, bitcoind, alice_ord_wallet):
     logger.info("Creating user-ord-test wallet")
     wallet = services.OrdWallet(
         ord=user_ord,
@@ -124,7 +124,7 @@ def user_ord_wallet(user_ord, bitcoin_rpc, alice_ord_wallet):
 
     logger.info("Funding user-ord-test wallet")
     address = wallet.cli("receive")["address"]
-    bitcoin_rpc.mine_blocks(101, address, sleep=BTC_SLEEP_TIME)
+    bitcoind.rpc.mine_blocks(101, address, sleep=BTC_SLEEP_TIME)
 
     address = wallet.cli("receive")["address"]
     logger.info("user-ord-test address: %s", address)
@@ -135,7 +135,7 @@ def user_ord_wallet(user_ord, bitcoin_rpc, alice_ord_wallet):
         address,
         f"1000 {RUNE_NAME}",
     )
-    bitcoin_rpc.mine_blocks(1, sleep=BTC_SLEEP_TIME)
+    bitcoind.rpc.mine_blocks(1, sleep=BTC_SLEEP_TIME)
 
     return wallet
 
@@ -209,7 +209,7 @@ def test_rune_bridge(
     user_rune_bridge_contract,
     rune_bridge,
     rune_bridge_service,
-    bitcoin_rpc,
+    hardhat,
 ):
     assert user_ord_wallet.get_rune_balance(RUNE_NAME, divisibility=18) == 1000
     assert user_evm_token.functions.balanceOf(user_evm_account.address).call() == 0  # sanity check
@@ -225,13 +225,13 @@ def test_rune_bridge(
         amount=1000,
         rune=RUNE_NAME,
     )
-    bitcoin_rpc.mine_blocks(2, sleep=BTC_SLEEP_TIME)
+    bitcoind.rpc.mine_blocks(2, sleep=BTC_SLEEP_TIME)
 
-    time.sleep(10)
+    hardhat.mine()
 
     rune_bridge.run_iteration()
 
-    time.sleep(20)
+    hardhat.mine()
 
     user_evm_token_balance = user_evm_token.functions.balanceOf(user_evm_account.address).call()
 
@@ -242,7 +242,9 @@ def test_rune_bridge(
     )
 
     user_btc_address = user_ord_wallet.generate_address()
-    user_rune_bridge_contract.functions.transferToBtc(
+
+    print("TRANSFERRING TOKENS")
+    tx_hash = user_rune_bridge_contract.functions.transferToBtc(
         user_evm_token.address,
         Web3.to_wei(1000, "ether"),
         user_btc_address,
@@ -252,10 +254,12 @@ def test_rune_bridge(
         }
     )
 
-    time.sleep(20)
+    hardhat.mine()
+    receipt = hardhat.web3.eth.wait_for_transaction_receipt(tx_hash)
+    assert receipt.status
 
     rune_bridge.run_iteration()
-    bitcoin_rpc.mine_blocks(2, sleep=BTC_SLEEP_TIME)
+    bitcoind.rpc.mine_blocks(2, sleep=BTC_SLEEP_TIME)
 
     user_rune_balance = user_ord_wallet.get_rune_balance(RUNE_NAME, divisibility=18)
     assert user_rune_balance == 1000

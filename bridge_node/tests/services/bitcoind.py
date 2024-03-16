@@ -1,14 +1,18 @@
 import json
 
+from bridge.common.btc.rpc import BitcoinRPC
+
 from .. import compose
 
 
 class BitcoindService(compose.ComposeService):
     rpc_url: str
+    rpc: BitcoinRPC
 
     def __init__(self, request):
         super().__init__("bitcoind", user="bitcoin", request=request)
         self.rpc_url = "http://polaruser:polarpass@localhost:18443"
+        self.rpc = BitcoinRPC(self.rpc_url)
 
     def cli(self, *args):
         # Most commands are parseable to json, but some aren't. Example: getnewaddress
