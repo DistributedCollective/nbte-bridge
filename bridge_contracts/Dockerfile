@@ -40,20 +40,8 @@ RUN node --version
 COPY --from=bridge-hardhat-builder /app /app
 WORKDIR /app
 
+COPY ./docker-entrypoint.sh .
 
 EXPOSE 7777
 
-# Add federators and fund accounts
-# TODO: not sure if funding here is the best bet or if it should be done for each test individually
-RUN echo -e '#!/bin/sh\n\
-    (npx hardhat --network localhost wait-for-startup\n\
-    npx hardhat --network localhost deploy-regtest \n\
-    npx hardhat --network localhost free-money $USER_ADDRESS 10.0\n\
-    npx hardhat --network localhost free-money $NODE1_ADDRESS 10.0\n\
-    npx hardhat --network localhost free-money $NODE2_ADDRESS 10.0\n\
-    npx hardhat --network localhost free-money $NODE3_ADDRESS 10.0\n\
-    npx hardhat --network localhost set-mining-interval 10000)&\n\
-    npx hardhat node --hostname 0.0.0.0\n\
-    ' > start.sh && chmod +x start.sh
-
-CMD [ "./start.sh" ]
+CMD [ "./docker-entrypoint.sh" ]
