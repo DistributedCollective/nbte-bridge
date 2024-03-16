@@ -14,7 +14,11 @@ class HardhatService(compose.ComposeService):
     web3: Web3
 
     def __init__(self, request):
-        super().__init__("hardhat", request=request)
+        super().__init__(
+            "hardhat",
+            build=True,  # we need to rebuild as the contracts are compiled inside the image
+            request=request,
+        )
         self.rpc_url = "http://localhost:18545"
         self.web3 = create_web3(self.rpc_url)
 
