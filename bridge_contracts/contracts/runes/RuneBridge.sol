@@ -9,7 +9,6 @@ import "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import "./RuneSideToken.sol";
 
 
-
 contract RuneBridge is Ownable, ReentrancyGuard {
     event RuneTransferToBtc(
         uint256 indexed counter,
