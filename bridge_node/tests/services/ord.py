@@ -32,23 +32,15 @@ class OrdWallet:
         ord: OrdService,
         *,
         name: str = "ord",
-        mnemonic: str = None,
-        passphrase: str = None,
     ):
         self.ord = ord
         self.name = name
-        self.mnemonic = mnemonic
-        self.passphrase = passphrase
 
     def cli(self, *args):
         return self.ord.cli("wallet", "--name", self.name, *args)
 
     def create(self):
         ret = self.cli("create")
-        if self.mnemonic is None:
-            self.mnemonic = ret["mnemonic"]
-        if self.passphrase is None:
-            self.passphrase = ret["passphrase"]
         return ret
 
     def get_rune_balance(self, rune: str, divisibility: int):
