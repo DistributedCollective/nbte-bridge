@@ -1,5 +1,4 @@
 import logging
-import time
 
 from sqlalchemy.orm import sessionmaker, Session
 
@@ -42,21 +41,26 @@ def evm_token(
 
 
 @pytest.fixture(scope="module")
+def rune_bridge_contract(
+    user_web3,
+    hardhat,
+) -> Contract:
+    ret = hardhat.run_json_command("runes-deploy-regtest")
+    contract_address = ret["addresses"]["RuneBridge"]
+    return user_web3.eth.contract(
+        address=contract_address,
+        abi=load_rune_bridge_abi("RuneBridge"),
+    )
+
+
+@pytest.fixture(scope="module")
 def user_rune_bridge_contract(
+    rune_bridge_contract,
     user_web3,
 ) -> Contract:
-    for _ in range(20):
-        code = user_web3.eth.get_code(RUNE_BRIDGE_ADDRESS)
-        if code and code != "0x":
-            break
-        logger.info("Rune bridge not yet deployed")
-        time.sleep(2)
-    else:
-        raise TimeoutError("Rune bridge not deployed after waiting")
-
     return user_web3.eth.contract(
-        address=RUNE_BRIDGE_ADDRESS,
-        abi=load_rune_bridge_abi("RuneBridge"),
+        address=rune_bridge_contract.address,
+        abi=rune_bridge_contract.abi,
     )
 
 
@@ -141,7 +145,13 @@ def user_ord_wallet(user_ord, bitcoind, alice_ord_wallet):
 
 
 @pytest.fixture(scope="module")
-def global_container(mock_network, alice_evm_account, alice_web3, dbengine):
+def global_container(
+    mock_network,
+    alice_evm_account,
+    alice_web3,
+    dbengine,
+    rune_bridge_contract,
+):
     registries = FactoryRegistrySet()
     global_registry = registries.create_registry("global")
     transaction_registry = registries.create_registry("transaction")
@@ -153,7 +163,7 @@ def global_container(mock_network, alice_evm_account, alice_web3, dbengine):
 
     global_registry.register_singleton(
         interface=Account,
-        singleton=alice_evm_account,
+        singleton=alice_web3,
     )
 
     global_registry.register_singleton(
@@ -161,9 +171,18 @@ def global_container(mock_network, alice_evm_account, alice_web3, dbengine):
         singleton=alice_web3,
     )
 
+    def rune_service_factory(container):
+        # TODO: just hack this now so we'll get forwards
+        ret = FauxRuneService(container)
+        ret.rune_bridge_contract = alice_web3.eth.contract(
+            address=rune_bridge_contract.address,
+            abi=rune_bridge_contract.abi,
+        )
+        return ret
+
     global_registry.register(
         interface=FauxRuneService,
-        factory=FauxRuneService,
+        factory=rune_service_factory,
     )
 
     global_registry.register(

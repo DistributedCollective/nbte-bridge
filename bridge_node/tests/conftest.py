@@ -1,15 +1,11 @@
 import os
-import subprocess
-import sys
 import pathlib
 
 from eth_account import Account
 from eth_utils import to_hex
 from sqlalchemy import create_engine
-from sqlalchemy.orm import Session
 from web3 import Web3
 
-from bridge.common.btc.rpc import BitcoinRPC
 from bridge.common.evm.utils import create_web3
 from bridge.common.models.meta import Base
 
@@ -76,7 +72,7 @@ def user_evm_account(web3):
 
 @pytest.fixture(scope="module")
 def web3(hardhat) -> Web3:
-    return create_web3(hardhat.rpc_url)
+    return hardhat.web3
 
 
 @pytest.fixture(scope="module")
@@ -97,35 +93,6 @@ def user_ord(request):
 @pytest.fixture(scope="module")
 def alice_ord(request):
     return services.OrdService(service="alice-ord", request=request)
-
-
-@pytest.fixture(scope="module")
-def bitcoin_rpc(bitcoind) -> BitcoinRPC:
-    return bitcoind.rpc
-
-
-@pytest.fixture(scope="session")
-def logger():
-    import logging
-
-    logging.basicConfig(level=logging.DEBUG)
-    return logging.getLogger("tester")
-
-
-@pytest.fixture(scope="session")
-def setup_db(logger):
-    try:
-        subprocess.run(
-            [sys.executable, "-malembic", "-nlocal_testing_against_docker", "upgrade", "head"],
-            check=True,
-            cwd=BASE_DIR,
-        )
-    except subprocess.CalledProcessError as e:
-        logger.exception(
-            "Failed to run alembic upgrade head."
-            "Suggest cleaning (or creating) the test database. "
-        )
-        raise e from None
 
 
 @pytest.fixture(scope="module")
@@ -151,8 +118,9 @@ def dbengine(postgres):
     return engine
 
 
-@pytest.fixture(scope="module")
-def dbsession(engine):
-    session = Session(bind=engine)
-    yield session
-    session.rollback()
+# TODO: we can have something like this but not necessarily yet
+# @pytest.fixture(scope="module")
+# def dbsession(engine):
+#     session = Session(bind=engine)
+#     yield session
+#     session.rollback()

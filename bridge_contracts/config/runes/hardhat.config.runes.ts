@@ -1,10 +1,11 @@
 import {task} from "hardhat/config";
 import "@nomicfoundation/hardhat-toolbox";
+import {jsonAction} from '../base';
 
 const PREFIX = 'runes-'
 
 task(`${PREFIX}deploy-regtest`)
-    .setAction(async ({}, hre) => {
+    .setAction(jsonAction(async ({}, hre) => {
         const ethers = hre.ethers;
 
         const bridge = await ethers.deployContract(
@@ -26,16 +27,23 @@ task(`${PREFIX}deploy-regtest`)
             console.log('tx hash:', tx.hash, 'waiting for tx...');
             await tx.wait();
         }
-    });
+
+        return {
+            addresses: {
+                RuneBridge: bridge.target
+            }
+        }
+    }));
 
 
 task(`${PREFIX}check-token-balances`)
     .addParam('bridge', 'Rune Bridge Address')
     .addParam('user', 'User address')
-    .setAction(async ({bridge, user}, hre) => {
+    .setAction(jsonAction(async ({bridge, user}, hre) => {
         const ethers = hre.ethers;
         const bridgeContract = await ethers.getContractAt("RuneBridge", bridge);
         const tokenAddresses = await bridgeContract.listTokens();
+        const userBalancesByToken: Record<string, bigint> = {};
         console.log("Balances of user %s", user);
         for (const tokenAddress of tokenAddresses) {
             const token = await ethers.getContractAt("RuneSideToken", tokenAddress);
@@ -50,5 +58,7 @@ task(`${PREFIX}check-token-balances`)
             const totalSupply = ethers.formatUnits(totalSupplyWei, decimals);
 
             console.log(`${name}: ${balance} ${symbol} (Total supply: ${totalSupply} ${symbol})`);
+            userBalancesByToken[tokenAddress] = balanceWei;
         }
-    });
+        return userBalancesByToken;
+    }));
