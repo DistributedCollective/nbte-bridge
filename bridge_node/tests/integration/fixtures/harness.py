@@ -8,12 +8,27 @@ import pytest
 import json
 
 from bridge.api_client import BridgeAPIClient
-from ..constants import NODE1_API_BASE_URL, PROJECT_BASE_DIR
+from ..constants import NODE1_API_BASE_URL
+from ...compose import ENV_FILE as COMPOSE_ENV_FILE, COMPOSE_FILE, PROJECT_BASE_DIR
 
 logger = logging.getLogger(__name__)
 
 NO_START_HARNESS = os.environ.get("NO_START_HARNESS") == "1"
 HARNESS_VERBOSE = os.environ.get("HARNESS_VERBOSE") == "1"
+INTEGRATION_TEST_ENV_FILE = PROJECT_BASE_DIR / "env.integrationtest"
+assert INTEGRATION_TEST_ENV_FILE.exists(), f"Missing {INTEGRATION_TEST_ENV_FILE}"
+
+
+DOCKER_COMPOSE_BASE_ARGS = (
+    "docker",
+    "compose",
+    "-f",
+    str(COMPOSE_FILE),
+    "--env-file",
+    str(COMPOSE_ENV_FILE),
+    "--env-file",
+    str(INTEGRATION_TEST_ENV_FILE),
+)
 
 
 class IntegrationTestHarness:
@@ -195,7 +210,7 @@ class IntegrationTestHarness:
             )
 
         subprocess.run(
-            ("docker", "compose", "-f", "docker-compose.dev.yaml") + args,
+            DOCKER_COMPOSE_BASE_ARGS + args,
             cwd=PROJECT_BASE_DIR,
             check=True,
             **extra_kwargs,
@@ -203,7 +218,7 @@ class IntegrationTestHarness:
 
     def _capture_docker_compose_output(self, *args):
         return subprocess.check_output(
-            ("docker", "compose", "-f", "docker-compose.dev.yaml") + args,
+            DOCKER_COMPOSE_BASE_ARGS + args,
             cwd=PROJECT_BASE_DIR,
         )
 
