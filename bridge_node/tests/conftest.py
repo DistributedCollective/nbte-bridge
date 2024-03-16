@@ -16,6 +16,14 @@ ALICE_EVM_PRIVATE_KEY = "0x9a9a640da1fc0181e43a9ea00b81878f26e1678e3e246b25bd283
 DEV_DB_NAME = "nbte_tmp_test"
 
 
+def pytest_addoption(parser):
+    parser.addoption(
+        "--keep-containers",
+        action="store_true",
+        help="Keep docker compose containers running between tests",
+    )
+
+
 def pytest_collection_modifyitems(config, items):
     for item in items:
         item_path = pathlib.Path(item.fspath)
