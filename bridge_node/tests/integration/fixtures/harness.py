@@ -8,12 +8,27 @@ import pytest
 import json
 
 from bridge.api_client import BridgeAPIClient
-from ..constants import NODE1_API_BASE_URL, PROJECT_BASE_DIR
+from ..constants import NODE1_API_BASE_URL
+from ...compose import ENV_FILE as COMPOSE_ENV_FILE, COMPOSE_FILE, PROJECT_BASE_DIR
 
 logger = logging.getLogger(__name__)
 
 NO_START_HARNESS = os.environ.get("NO_START_HARNESS") == "1"
 HARNESS_VERBOSE = os.environ.get("HARNESS_VERBOSE") == "1"
+INTEGRATION_TEST_ENV_FILE = PROJECT_BASE_DIR / "env.integrationtest"
+assert INTEGRATION_TEST_ENV_FILE.exists(), f"Missing {INTEGRATION_TEST_ENV_FILE}"
+
+
+DOCKER_COMPOSE_BASE_ARGS = (
+    "docker",
+    "compose",
+    "-f",
+    str(COMPOSE_FILE),
+    "--env-file",
+    str(COMPOSE_ENV_FILE),
+    "--env-file",
+    str(INTEGRATION_TEST_ENV_FILE),
+)
 
 
 class IntegrationTestHarness:
@@ -67,6 +82,12 @@ class IntegrationTestHarness:
 
     def is_started(self):
         return self._api_client.is_healthy()
+
+    def is_any_service_started(self):
+        # docker compose ps --format json returns newline-separated json objects for each service.
+        # if not services are started, it returns an empty string
+        ps_output = self._capture_docker_compose_output("ps", "--format", "json")
+        return bool(ps_output.strip())
 
     def _clean(self):
         # Currently *named* volumes are removed automatically by docker compose down -v
@@ -195,7 +216,7 @@ class IntegrationTestHarness:
             )
 
         subprocess.run(
-            ("docker", "compose", "-f", "docker-compose.dev.yaml") + args,
+            DOCKER_COMPOSE_BASE_ARGS + args,
             cwd=PROJECT_BASE_DIR,
             check=True,
             **extra_kwargs,
@@ -203,7 +224,7 @@ class IntegrationTestHarness:
 
     def _capture_docker_compose_output(self, *args):
         return subprocess.check_output(
-            ("docker", "compose", "-f", "docker-compose.dev.yaml") + args,
+            DOCKER_COMPOSE_BASE_ARGS + args,
             cwd=PROJECT_BASE_DIR,
         )
 
@@ -221,6 +242,25 @@ def harness(request) -> IntegrationTestHarness:
     if NO_START_HARNESS:
         logger.info("Skipping harness autostart because NO_START_HARNESS=1")
     else:
-        request.addfinalizer(harness.stop)
+        keep_containers = request.config.getoption("--keep-containers")
+        if keep_containers and harness.is_any_service_started():
+            logger.info(
+                "Pytest is running with --keep-containers and some docker-compose services have already started. "
+                "Shutting down everything before stating the integration test harness."
+            )
+            harness.stop()
+
+        # The harness should in theory not mess up --keep-containers, but I'm not 100% sure.
+        # Lets at least stop hardhat interval mining
+        def finalizer():
+            if keep_containers:
+                logger.info(
+                    "Not stopping harness because --keep-containers is on, but enabling automining again"
+                )
+                harness.run_hardhat_json_command("set-mining-interval", "0")
+            else:
+                harness.stop()
+
+        request.addfinalizer(finalizer)
         harness.start()
     return harness

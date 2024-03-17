@@ -1,15 +1,27 @@
 import os
-import subprocess
-import sys
 import pathlib
 
 import pytest
+from sqlalchemy import create_engine
 
+from bridge.common.models.meta import Base
 from . import services
 
 BASE_DIR = os.path.join(os.path.dirname(__file__), "..")
 THIS_DIR = pathlib.Path(__file__).parent
 INTEGRATION_TEST_DIR = THIS_DIR / "integration"
+
+ALICE_EVM_PRIVATE_KEY = "0x9a9a640da1fc0181e43a9ea00b81878f26e1678e3e246b25bd2835783f2be181"
+
+DEV_DB_NAME = "nbte_tmp_test"
+
+
+def pytest_addoption(parser):
+    parser.addoption(
+        "--keep-containers",
+        action="store_true",
+        help="Keep docker compose containers running between tests",
+    )
 
 
 def pytest_collection_modifyitems(config, items):
@@ -25,31 +37,47 @@ def postgres(request):
     return services.PostgresService(request)
 
 
-@pytest.fixture(scope="session")
-def logger():
-    import logging
-
-    logging.basicConfig(level=logging.DEBUG)
-    return logging.getLogger("tester")
+@pytest.fixture(scope="module")
+def hardhat(request):
+    return services.HardhatService(request)
 
 
-@pytest.fixture(scope="session")
-def setup_db(logger):
-    try:
-        subprocess.run(
-            [sys.executable, "-malembic", "-nlocal_testing_against_docker", "upgrade", "head"],
-            check=True,
-            cwd=BASE_DIR,
-        )
-    except subprocess.CalledProcessError as e:
-        logger.exception(
-            "Failed to run alembic upgrade head."
-            "Suggest cleaning (or creating) the test database. "
-        )
-        raise e from None
+@pytest.fixture(scope="module")
+def bitcoind(request):
+    return services.BitcoindService(request)
 
 
-# @pytest.fixture
-# def dbsession() -> Session:
-#     # TODO
-#     pass
+@pytest.fixture(scope="module")
+def user_ord(request):
+    return services.OrdService(
+        service="user-ord",
+        ord_api_url="http://localhost:3080",
+        request=request,
+    )
+
+
+@pytest.fixture(scope="module")
+def alice_ord(request):
+    return services.OrdService(
+        service="alice-ord",
+        ord_api_url="http://localhost:3080",
+        request=request,
+    )
+
+
+@pytest.fixture(scope="module")
+def dbengine(postgres):
+    postgres.cli(f"DROP DATABASE IF EXISTS {DEV_DB_NAME};")
+    postgres.cli(f"CREATE DATABASE {DEV_DB_NAME};")
+
+    engine = create_engine(postgres.dsn_outside_docker, echo=False)
+    Base.metadata.create_all(engine)
+    return engine
+
+
+# TODO: we can have something like this but not necessarily yet
+# @pytest.fixture(scope="module")
+# def dbsession(engine):
+#     session = Session(bind=engine)
+#     yield session
+#     session.rollback()

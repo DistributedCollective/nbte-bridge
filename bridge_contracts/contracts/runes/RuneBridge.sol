@@ -9,7 +9,6 @@ import "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import "./RuneSideToken.sol";
 
 
-
 contract RuneBridge is Ownable, ReentrancyGuard {
     event RuneTransferToBtc(
         uint256 indexed counter,
@@ -42,7 +41,6 @@ contract RuneBridge is Ownable, ReentrancyGuard {
     ) {
         _runeSideToken = new RuneSideToken("MYRUNEISGOODER", "R");
     }
-
 
     // Public API
     // ----------
@@ -126,5 +124,21 @@ contract RuneBridge is Ownable, ReentrancyGuard {
             btcTxId,
             btcTxVout
         );
+    }
+
+    // Owner API
+    // ---------
+
+    // TODO: another temporary thing
+    function registerRune(
+        string memory rune,
+        string memory symbol
+    )
+    external
+    onlyOwner
+    {
+        _rune = rune;
+        _runeHash = keccak256(abi.encodePacked(rune));
+        _runeSideToken = new RuneSideToken(rune, symbol);
     }
 }

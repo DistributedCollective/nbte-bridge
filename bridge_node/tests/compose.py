@@ -13,6 +13,9 @@ COMPOSE_COMMAND = ["docker", "compose"]
 COMPOSE_FILE = PROJECT_BASE_DIR / "docker-compose.dev.yaml"
 ENV_FILE = PROJECT_BASE_DIR / ".env"
 MAX_WAIT_TIME_S = 120
+VOLUMES_DIR = PROJECT_BASE_DIR / "volumes"
+
+assert ENV_FILE.exists(), f"Missing {ENV_FILE}"
 
 
 def run_compose_command(
@@ -74,13 +77,20 @@ class ComposeService:
         self.user = user
         self.build = build
         if request:
-            request.addfinalizer(self.stop)
+            if not request.config.getoption("--keep-containers"):
+                request.addfinalizer(self.stop)
             self.start()
 
     def start(self):
         if self.is_started():
-            logger.info("Service %s already started.", self.service)
-            return
+            if self.build:
+                logger.info(
+                    "Service %s already started, but starting again in case it needs re-building.",
+                    self.service,
+                )
+            else:
+                logger.info("Service %s already started.", self.service)
+                return
 
         logger.info("Starting docker compose service %s", self.service)
         start_args = ["up", self.service, "--detach"]
@@ -97,7 +107,7 @@ class ComposeService:
         run_compose_command("down", "-v", self.service)
         logger.info("Stopped service %s", self.service)
 
-    def is_started(self, check_health=False):
+    def is_started(self):
         ret = run_compose_command(
             "ps",
             "-q",
@@ -108,9 +118,6 @@ class ComposeService:
 
         if ret.returncode != 0 or not ret.stdout.strip():
             return False
-
-        if not check_health:
-            return True
 
         status = (
             run_docker_command(

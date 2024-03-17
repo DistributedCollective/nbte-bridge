@@ -1,10 +1,8 @@
 import logging
-import time
 
 import pytest
 from web3.contract import Contract
 
-from bridge.common.btc.rpc import BitcoinRPC
 from bridge.common.evm.utils import load_abi
 from bridge.bridges.runes.evm import load_rune_bridge_abi
 from .. import services
@@ -53,41 +51,42 @@ def user_evm_token(
 
 
 @pytest.fixture()
+def bitcoind():
+    # Overrides default bitcoind fixture
+    service = services.BitcoindService()
+    assert service.is_started()
+    return service
+
+
+@pytest.fixture()
 def user_ord():
-    service = services.OrdService(
-        service="user-ord",
-    )
+    # Overrides default user_ord fixture
+    service = services.OrdService(service="user-ord", ord_api_url="http://localhost:3080")
     assert service.is_started()
     return service
 
 
 @pytest.fixture()
 def alice_ord():
-    service = services.OrdService(
-        service="alice-ord",
-    )
+    # Overrides default alice_ord fixture
+    service = services.OrdService(service="alice-ord", ord_api_url="http://localhost:3080")
     assert service.is_started()
     return service
 
 
 @pytest.fixture()
-def alice_ord_wallet(alice_ord, bitcoin_rpc):
+def alice_ord_wallet(alice_ord, bitcoind):
     wallet = services.OrdWallet(
         ord=alice_ord,
         name="alice-ord-test",
     )
-    wallets = bitcoin_rpc.call("listwallets")
-    if wallet.name not in wallets:
+    if not bitcoind.load_wallet("alice-ord-test"):
         logger.info("Creating alice-ord-test wallet")
         wallet.create()
 
-    balances = wallet.cli("balance")
-    if balances["cardinal"] < 100:
-        logger.info("Funding alice-ord-test wallet")
-        address = wallet.cli("receive")["address"]
-        logger.info("ALICE ORD ADDRESS: %s", address)
-        bitcoin_rpc.mine_blocks(101, address, sleep=BTC_SLEEP_TIME)
+    bitcoind.fund_wallets(wallet)
 
+    balances = wallet.cli("balance")
     if RUNE_NAME not in balances["runes"]:
         wallet.cli(
             "etch",
@@ -102,47 +101,34 @@ def alice_ord_wallet(alice_ord, bitcoin_rpc):
             "--symbol",
             "R",
         )
-        bitcoin_rpc.mine_blocks(1, sleep=BTC_SLEEP_TIME)
+        bitcoind.mine()
 
     return wallet
 
 
 @pytest.fixture(autouse=True)
-def bridge_wallet(bitcoin_rpc):
+def bridge_wallet(bitcoind):
     wallet_name = "alice-ord"
-    wallets = bitcoin_rpc.call("listwallets")
-    if wallet_name not in wallets:
-        logger.info("Creating alice-ord wallet")
-        bitcoin_rpc.call("createwallet", wallet_name)
-        time.sleep(BTC_SLEEP_TIME)
-
-    bitcoin_rpc = BitcoinRPC(url="http://polaruser:polarpass@localhost:18443/wallet/alice-ord")
-    address = bitcoin_rpc.call("getnewaddress")
-    bitcoin_rpc.mine_blocks(101, address, sleep=BTC_SLEEP_TIME)
+    wallet, created = bitcoind.load_or_create_wallet(wallet_name)
+    bitcoind.fund_wallets(wallet)
 
 
 @pytest.fixture()
-def user_ord_wallet(user_ord, bitcoin_rpc, alice_ord_wallet):
+def user_ord_wallet(user_ord, bitcoind, bitcoin_rpc, alice_ord_wallet):
     wallet = services.OrdWallet(
         ord=user_ord,
         name="user-ord-test",
     )
-    wallets = bitcoin_rpc.call("listwallets")
     address = None
-    if wallet.name not in wallets:
+    if not bitcoind.load_wallet("user-ord-test"):
         logger.info("Creating user-ord-test wallet")
         wallet.create()
 
-    balances = wallet.cli("balance")
-    if balances["cardinal"] < 1000:
-        logger.info("Funding user-ord-test wallet")
-        address = wallet.cli("receive")["address"]
-        logger.info("USER ORD ADDRESS: %s", address)
-        bitcoin_rpc.mine_blocks(101, address, sleep=BTC_SLEEP_TIME)
+    bitcoind.fund_wallets(wallet)
 
-    if balances["runes"].get(RUNE_NAME, 0) < 1000 * 10**18:
+    if wallet.get_rune_balance(RUNE_NAME) < 1000:
         if address is None:
-            address = wallet.cli("receive")["address"]
+            address = wallet.get_receiving_address()
             logger.info("USER ORD ADDRESS: %s", address)
         alice_ord_wallet.cli(
             "send",
@@ -163,8 +149,9 @@ def test_rune_bridge(
     bridge_api,
     bitcoin_rpc,
     user_rune_bridge_contract,
+    bitcoind,
 ):
-    assert user_ord_wallet.get_rune_balance(RUNE_NAME, divisibility=18) == 1000
+    assert user_ord_wallet.get_rune_balance(RUNE_NAME) == 1000
     assert user_evm_token.functions.balanceOf(user_evm_account.address).call() == 0  # sanity check
     initial_total_supply = user_evm_token.functions.totalSupply().call()
 
@@ -178,7 +165,7 @@ def test_rune_bridge(
         amount=1000,
         rune=RUNE_NAME,
     )
-    bitcoin_rpc.mine_blocks(1, sleep=BTC_SLEEP_TIME)
+    bitcoind.mine()
 
     user_evm_token_balance = wait_for_condition(
         callback=lambda: user_evm_token.functions.balanceOf(user_evm_account.address).call(),
@@ -189,7 +176,7 @@ def test_rune_bridge(
     assert from_wei(user_evm_token_balance) == 1000
     assert from_wei(user_evm_token.functions.totalSupply().call() - initial_total_supply) == 1000
 
-    user_btc_address = user_ord_wallet.generate_address()
+    user_btc_address = user_ord_wallet.get_new_address()
     user_rune_bridge_contract.functions.transferToBtc(
         user_evm_token.address,
         to_wei(1000),
@@ -201,8 +188,8 @@ def test_rune_bridge(
     )
 
     def callback():
-        bitcoin_rpc.mine_blocks(1, sleep=BTC_SLEEP_TIME)
-        return user_ord_wallet.get_rune_balance(RUNE_NAME, divisibility=18)
+        bitcoind.mine()
+        return user_ord_wallet.get_rune_balance(RUNE_NAME)
 
     user_rune_balance = wait_for_condition(
         callback=callback,

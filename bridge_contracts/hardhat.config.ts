@@ -1,6 +1,7 @@
 import { HardhatUserConfig } from "hardhat/config";
 import {task, types} from "hardhat/config";
 import "@nomicfoundation/hardhat-toolbox";
+import { jsonAction } from './config/base';
 import './config/tap/hardhat.config.tap';
 import './config/runes/hardhat.config.runes';
 
@@ -43,7 +44,7 @@ task("deploy-regtest")
 
 task("deploy-testtoken")
     .addParam("supply", "Initial supply of the token", "0")
-    .setAction(async (taskArgs, hre) => {
+    .setAction(jsonAction(async (taskArgs, hre) => {
         const ethers = hre.ethers;
         const tokenSupply = ethers.parseUnits(taskArgs.supply, 18);
         const testToken = await ethers.deployContract(
@@ -52,8 +53,10 @@ task("deploy-testtoken")
             {}
         );
         await testToken.waitForDeployment();
-        console.log(JSON.stringify({"address": testToken.target}));
-    })
+        return {
+            "address": testToken.target
+        };
+    }))
 
 
 task("accounts", "Prints the list of accounts", async (args, hre) => {
@@ -113,19 +116,39 @@ task("wait-for-startup", "Wait for network startup")
         throw new Error("Could not connect to network");
     })
 
+task("verify-started", "Check if started")
+    .setAction(async ({}, hre) => {
+        try {
+            await hre.network.provider.send('eth_chainId', []);
+            console.log(`Connected to network ${hre.network.name}!`)
+            return;
+        } catch (e) {
+            console.log(`Could not connect to network ${hre.network.name}`);
+            throw e;
+        }
+    })
+
 task('set-mining-interval', "Set mining interval")
     .addPositionalParam('ms', 'Mining interval as milliseconds (0 for automine)', undefined, types.int)
-    .setAction(async ({ ms }, hre) => {
+    .setAction(jsonAction(async ({ ms }, hre) => {
         if (ms === 0) {
             console.log("Enabling automining");
             await hre.network.provider.send('evm_setIntervalMining', [0]);
             await hre.network.provider.send('evm_setAutomine', [true]);
+            return {
+                automine: true,
+                miningIntervalMs: ms,
+            }
         } else {
             console.log("Disabling automining and enabling interval mining with", ms, "ms");
             await hre.network.provider.send('evm_setAutomine', [false]);
             await hre.network.provider.send('evm_setIntervalMining', [ms]);
+            return {
+                automine: false,
+                miningIntervalMs: ms,
+            }
         }
-    });
+    }));
 
 
 // =================

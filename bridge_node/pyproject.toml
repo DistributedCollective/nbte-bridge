@@ -56,7 +56,8 @@ ipdb = "^0.13.13"
 
 [tool.pytest.ini_options]
 addopts = [
-    "--cov",
+    # Enalbe coverage by default at some point if wanted
+    #"--cov",
     "--cov-config",
     "pyproject.toml",
     "--cov-report",
