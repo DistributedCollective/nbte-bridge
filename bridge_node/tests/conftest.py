@@ -1,5 +1,6 @@
 import os
 import pathlib
+import logging
 
 import pytest
 from sqlalchemy import create_engine
@@ -10,10 +11,9 @@ from . import services
 BASE_DIR = os.path.join(os.path.dirname(__file__), "..")
 THIS_DIR = pathlib.Path(__file__).parent
 INTEGRATION_TEST_DIR = THIS_DIR / "integration"
-
-ALICE_EVM_PRIVATE_KEY = "0x9a9a640da1fc0181e43a9ea00b81878f26e1678e3e246b25bd2835783f2be181"
-
 DEV_DB_NAME = "nbte_tmp_test"
+
+logger = logging.getLogger(__name__)
 
 
 def pytest_addoption(parser):
@@ -57,10 +57,13 @@ def ord(request):
 
 @pytest.fixture(scope="module")
 def dbengine(postgres):
-    postgres.cli(f"DROP DATABASE IF EXISTS {DEV_DB_NAME};")
-    postgres.cli(f"CREATE DATABASE {DEV_DB_NAME};")
+    logger.info("Dropping and recreating test database %s", DEV_DB_NAME)
+    postgres.cli(f"DROP DATABASE IF EXISTS {DEV_DB_NAME}")
+    postgres.cli(f"CREATE DATABASE {DEV_DB_NAME}")
 
-    engine = create_engine(postgres.dsn_outside_docker, echo=False)
+    dsn = postgres.get_db_dsn(DEV_DB_NAME)
+    engine = create_engine(dsn, echo=False)
+    logger.info("Creating all models from metadata")
     Base.metadata.create_all(engine)
     return engine
 
