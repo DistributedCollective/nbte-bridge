@@ -5,13 +5,17 @@ import random
 import string
 import json
 from decimal import Decimal
+import time
+import logging
 
 from bridge.common.ord.client import OrdApiClient
+from .bitcoind import BitcoindService
 
 from .. import compose
 
 
 MIN_RANDOMPART_LENGTH = 8
+logger = logging.getLogger(__name__)
 
 
 class OrdService(compose.ComposeService):
@@ -60,6 +64,38 @@ class OrdService(compose.ComposeService):
         )
         wallet.create()
         return wallet
+
+    def mine_and_sync(
+        self,
+        bitcoind: BitcoindService,
+        *,
+        blocks: int = 1,
+        poll_interval=0.05,
+        timeout: float = 10.0,
+    ):
+        bitcoind.mine(blocks, sleep=0.1)
+        self.sync_with_bitcoind(bitcoind, poll_interval=poll_interval, timeout=timeout)
+
+    def sync_with_bitcoind(
+        self, bitcoind: BitcoindService, *, poll_interval=0.05, timeout: float = 10.0
+    ):
+        """
+        Make sure ord has processed all blocks from bitcoind
+        """
+        start = time.time()
+        bitcoind_block_count = bitcoind.rpc.call("getblockcount")
+        while time.time() - start < timeout:
+            ord_block_count = self.api_client.get("/blockcount")
+            if ord_block_count >= bitcoind_block_count:
+                break
+            logger.info(
+                "Waiting for ord to sync to block %d (current: %d)",
+                bitcoind_block_count,
+                ord_block_count,
+            )
+            time.sleep(poll_interval)
+        else:
+            raise TimeoutError("ORD did not sync in time")
 
 
 @dataclasses.dataclass

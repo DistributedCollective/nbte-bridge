@@ -206,6 +206,7 @@ def rune_bridge_service(global_container):
 def test_rune_bridge(
     bitcoind,
     hardhat,
+    ord,
     user_evm_wallet,
     user_ord_wallet,
     root_ord_wallet,
@@ -238,11 +239,11 @@ def test_rune_bridge(
         amount=1000,
         rune=rune_name,
     )
-    bitcoind.mine()
+    ord.mine_and_sync(bitcoind)
 
     rune_bridge.run_iteration()
 
-    hardhat.mine()
+    hardhat.mine()  # probably not necessary as automining is on
 
     user_evm_token_balance = rune_side_token_contract.functions.balanceOf(
         user_evm_wallet.address
@@ -268,12 +269,14 @@ def test_rune_bridge(
         }
     )
 
-    hardhat.mine()
+    hardhat.mine()  # probably not necessary as automining is on
+
     receipt = hardhat.web3.eth.wait_for_transaction_receipt(tx_hash)
     assert receipt.status
 
     rune_bridge.run_iteration()
-    bitcoind.rpc.mine_blocks(2)
+
+    ord.mine_and_sync(bitcoind)
 
     user_rune_balance = user_ord_wallet.get_rune_balance(rune_name)
     assert user_rune_balance == 1000

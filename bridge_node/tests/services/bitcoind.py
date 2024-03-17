@@ -51,7 +51,7 @@ class BitcoindService(compose.ComposeService):
             *args,
         ).stdout.decode()
 
-    def mine(self, blocks=1, address=None, *, sleep: float = 1.1):
+    def mine(self, blocks=1, address=None, *, sleep: float = 0.25):
         ret = self.root_wallet.mine(blocks, address)
         time.sleep(sleep)
         return ret

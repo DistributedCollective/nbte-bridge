@@ -13,7 +13,6 @@ logger = logging.getLogger(__name__)
 
 RUNE_BRIDGE_ADDRESS = "0xDc64a140Aa3E981100a9becA4E685f962f0cF6C9"
 RUNE_NAME = "MYRUNEISGOODER"
-BTC_SLEEP_TIME = 1
 
 
 @pytest.fixture()
@@ -129,7 +128,7 @@ def user_ord_wallet(ord, bitcoind, bitcoin_rpc, alice_ord_wallet):
             address,
             f"1000 {RUNE_NAME}",
         )
-        bitcoin_rpc.mine_blocks(1, sleep=BTC_SLEEP_TIME)
+        bitcoind.mine()
 
     return wallet
 
