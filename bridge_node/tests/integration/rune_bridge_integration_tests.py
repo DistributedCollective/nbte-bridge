@@ -133,7 +133,7 @@ def user_ord_wallet(ord, bitcoind, bitcoin_rpc, alice_ord_wallet):
     return wallet
 
 
-def test_rune_bridge(
+def test_integration_rune_bridge(
     user_evm_account,
     user_ord_wallet,
     user_evm_token,

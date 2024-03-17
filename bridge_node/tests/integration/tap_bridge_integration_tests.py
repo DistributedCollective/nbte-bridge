@@ -96,7 +96,7 @@ def bridgeable_asset(
     return bridgeable_asset
 
 
-def test_tap_to_rsk(
+def test_integration_tap_to_rsk(
     tap_asset,
     alice_tap,
     user_tap,
@@ -162,7 +162,7 @@ def test_tap_to_rsk(
     assert transfers[0]["id"] == 1
 
 
-def test_rsk_to_tap(
+def test_integration_rsk_to_tap(
     tap_asset,
     alice_tap,
     user_tap,
