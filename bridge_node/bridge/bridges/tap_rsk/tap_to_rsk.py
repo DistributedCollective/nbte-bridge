@@ -18,7 +18,6 @@ from .rsk import BridgeContract
 from .config import Config
 from bridge.common.evm.account import Account
 from bridge.common.p2p.network import Network
-from bridge.common.services.transactions import TransactionManager
 from bridge.common.tap.client import TapRestClient
 from bridge.common.evm.utils import recover_message
 from bridge.common.evm.provider import Web3
@@ -37,7 +36,7 @@ class SignTransferBatchAnswer(TypedDict):
 
 @service(scope="global")
 class TapToRskService:
-    transaction_manager: TransactionManager = autowired(auto)
+    dbsession: Session = autowired(auto)
     bridge_contract: BridgeContract = autowired(auto)
     tap_client: TapRestClient = autowired(auto)
     batch_limit: int = 10
@@ -53,9 +52,9 @@ class TapToRskService:
         self.network.answer_with(SIGN_TRANSFER_BATCH_QUESTION, self._answer_sign_transfer_batch)
 
     def process_current_transfer_batch(self):
-        with self.transaction_manager.transaction() as tx:
-            dbsession = tx.find_service(Session)
-            current_batch = self._get_or_create_current_batch(dbsession)
+        dbsession = self.dbsession
+        with dbsession.begin():
+            current_batch = self._get_or_create_current_batch()
             if not current_batch:
                 logger.info("No current TAP to RSK batch")
                 return
@@ -114,8 +113,7 @@ class TapToRskService:
                 signatures_by_signer[response["signer"]] = response["signatures"]
 
             # self-sign is ok
-            with self.transaction_manager.transaction() as tx:
-                dbsession = tx.find_service(Session)
+            with dbsession.begin():
                 current_batch = dbsession.query(TapToRskTransferBatch).get(batch_id)
                 current_batch.signatures = signatures_by_signer
                 if len(current_batch.signatures.keys()) >= num_required_signers:
@@ -124,8 +122,7 @@ class TapToRskService:
                 dbsession.flush()
 
         if status == TapToRskTransferBatchStatus.SIGNATURES_COLLECTED:
-            with self.transaction_manager.transaction() as tx:
-                dbsession = tx.find_service(Session)
+            with dbsession.begin():
                 current_batch = dbsession.query(TapToRskTransferBatch).get(batch_id)
 
                 accept_transfer_calls = [
@@ -155,8 +152,7 @@ class TapToRskService:
                 logger.info("Tx hash %s", tx_hash.hex())
                 tx_hashes.append(tx_hash)
 
-            with self.transaction_manager.transaction() as tx:
-                dbsession = tx.find_service(Session)
+            with dbsession.begin():
                 current_batch = dbsession.query(TapToRskTransferBatch).get(batch_id)
                 status = current_batch.status = TapToRskTransferBatchStatus.SENT_TO_RSK
                 current_batch.executed_tx_hash = tx_hashes[-1].hex()  # TODO: send all in one tx
@@ -168,8 +164,7 @@ class TapToRskService:
             )
 
         if status == TapToRskTransferBatchStatus.SENT_TO_RSK:
-            with self.transaction_manager.transaction() as tx:
-                dbsession = tx.find_service(Session)
+            with dbsession.begin():
                 current_batch = dbsession.query(TapToRskTransferBatch).get(batch_id)
                 tx_hash = current_batch.executed_tx_hash
 
@@ -177,13 +172,13 @@ class TapToRskService:
             if not receipt.status:
                 raise ValueError(f"Tx {tx_hash} failed")
 
-            with self.transaction_manager.transaction() as tx:
-                dbsession = tx.find_service(Session)
+            with dbsession.begin():
                 current_batch = dbsession.query(TapToRskTransferBatch).get(batch_id)
                 status = current_batch.status = TapToRskTransferBatchStatus.FINALIZED
                 dbsession.flush()
 
-    def _get_or_create_current_batch(self, dbsession: Session) -> TapToRskTransferBatch | None:
+    def _get_or_create_current_batch(self) -> TapToRskTransferBatch | None:
+        dbsession = self.dbsession
         current_batch = (
             dbsession.query(
                 TapToRskTransferBatch,
@@ -242,10 +237,9 @@ class TapToRskService:
                 signer=self.rsk_account.address,
             )
 
-        with self.transaction_manager.transaction() as tx:
-            dbsession = tx.find_service(Session)
+        with self.dbsession.begin():
             existing_batch = (
-                dbsession.query(TapToRskTransferBatch)
+                self.dbsession.query(TapToRskTransferBatch)
                 .filter_by(
                     hash=HexBytes(serialized_batch["hash"]),
                 )
@@ -302,8 +296,8 @@ class TapToRskService:
             # computed_hash = transfer_batch.compute_hash()
             # if computed_hash != transfer_batch.hash:
             #     raise ValueError(f"Computed hash {computed_hash} does not match given hash for batch {transfer_batch}")
-            dbsession.add(transfer_batch)
-            dbsession.flush()
+            self.dbsession.add(transfer_batch)
+            self.dbsession.flush()
 
             return SignTransferBatchAnswer(
                 signatures=my_signatures,
@@ -311,24 +305,22 @@ class TapToRskService:
             )
 
     def get_transfers_by_address(self, address: str):
-        with self.transaction_manager.transaction() as tx:
-            dbsession = tx.find_service(Session)
+        # TODO: this doesn't start a new session so that it can be used from a view. it's a bit inconsistent
+        logger.info("Getting transfer status for address %s", address)
 
-            logger.info("Getting transfer status for address %s", address)
-
-            transfers = (
-                dbsession.query(
-                    TapDepositAddress.tap_address,
-                    TapToRskTransfer.db_id,
-                    TapToRskTransferBatch.status,
-                )
-                .select_from(TapDepositAddress)
-                .join(TapToRskTransfer)
-                .outerjoin(TapToRskTransferBatch)
-                .filter(TapDepositAddress.tap_address == address)
-                .all()
+        transfers = (
+            self.dbsession.query(
+                TapDepositAddress.tap_address,
+                TapToRskTransfer.db_id,
+                TapToRskTransferBatch.status,
             )
+            .select_from(TapDepositAddress)
+            .join(TapToRskTransfer)
+            .outerjoin(TapToRskTransferBatch)
+            .filter(TapDepositAddress.tap_address == address)
+            .all()
+        )
 
-            logger.info("Got transfers: %s", transfers)
+        logger.info("Got transfers: %s", transfers)
 
-            return transfers
+        return transfers
