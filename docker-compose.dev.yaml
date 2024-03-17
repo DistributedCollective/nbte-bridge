@@ -82,6 +82,39 @@ services:
       retries: 10
       start_period: 2s
 
+  ord:
+    image:
+      bridge-ord:latest
+
+    build:
+      context: ./docker/ord/
+
+    volumes:
+      - ./volumes/ord:/home/ord/data
+
+    command: >-
+      ord
+      --bitcoin-rpc-username polaruser
+      --bitcoin-rpc-password polarpass
+      --bitcoin-rpc-url bitcoind:18443
+      --chain regtest
+      --index-runes
+      --data-dir /home/ord/data
+      server
+      --http
+      --http-port 80
+      --polling-interval 1s
+
+    depends_on:
+      bitcoind:
+        condition: service_healthy
+
+    expose:
+      - 80
+
+    ports:
+      - 127.0.0.1:3080:80
+
   alice-bridge:
     image: bridge_node:latest
     build:
@@ -387,69 +420,6 @@ services:
     ports:
       - '8292:8089'
       - '12032:10029'
-
-  alice-ord:
-    image:
-      bridge-ord:latest
-
-    build:
-      context: ./docker/ord/
-
-    volumes:
-      - ./volumes/ord/alice-ord:/home/ord/data
-
-    command: >-
-      ord
-      --bitcoin-rpc-username polaruser
-      --bitcoin-rpc-password polarpass
-      --bitcoin-rpc-url bitcoind:18443
-      --chain regtest
-      --index-runes
-      --data-dir /home/ord/data
-      server
-      --http
-      --http-port 80
-      --polling-interval 1s
-
-    depends_on:
-      bitcoind:
-        condition: service_healthy
-
-    expose:
-      - 80
-
-    ports:
-      - 127.0.0.1:3080:80
-
-  user-ord:
-    image:
-      bridge-ord:latest
-
-    build:
-      context: ./docker/ord/
-
-    volumes:
-      - ./volumes/ord/user-ord:/home/ord/data
-
-    command: >-
-      ord
-      --bitcoin-rpc-username polaruser
-      --bitcoin-rpc-password polarpass
-      --bitcoin-rpc-url bitcoind:18443
-      --chain regtest
-      --index-runes
-      --data-dir /home/ord/data
-      server
-      --http
-      --http-port 80
-      --polling-interval 1s
-
-    depends_on:
-      bitcoind:
-        condition: service_healthy
-
-    expose:
-      - 80
 
 volumes:
   postgres:

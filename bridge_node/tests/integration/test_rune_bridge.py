@@ -59,25 +59,17 @@ def bitcoind():
 
 
 @pytest.fixture()
-def user_ord():
-    # Overrides default user_ord fixture
-    service = services.OrdService(service="user-ord", ord_api_url="http://localhost:3080")
+def ord():
+    # Overrides default ord fixture
+    service = services.OrdService()
     assert service.is_started()
     return service
 
 
 @pytest.fixture()
-def alice_ord():
-    # Overrides default alice_ord fixture
-    service = services.OrdService(service="alice-ord", ord_api_url="http://localhost:3080")
-    assert service.is_started()
-    return service
-
-
-@pytest.fixture()
-def alice_ord_wallet(alice_ord, bitcoind):
+def alice_ord_wallet(ord, bitcoind):
     wallet = services.OrdWallet(
-        ord=alice_ord,
+        ord=ord,
         name="alice-ord-test",
     )
     if not bitcoind.load_wallet("alice-ord-test"):
@@ -114,9 +106,9 @@ def bridge_wallet(bitcoind):
 
 
 @pytest.fixture()
-def user_ord_wallet(user_ord, bitcoind, bitcoin_rpc, alice_ord_wallet):
+def user_ord_wallet(ord, bitcoind, bitcoin_rpc, alice_ord_wallet):
     wallet = services.OrdWallet(
-        ord=user_ord,
+        ord=ord,
         name="user-ord-test",
     )
     address = None

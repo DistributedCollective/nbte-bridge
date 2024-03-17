@@ -25,18 +25,8 @@ BTC_SLEEP_TIME = 5
 BTC_BLOCK_INTERVAL = 15
 
 
-def create_user_ord():
-    service = services.OrdService(
-        service="user-ord",
-    )
-    assert service.is_started()
-    return service
-
-
-def create_alice_ord():
-    service = services.OrdService(
-        service="alice-ord",
-    )
+def create_ord():
+    service = services.OrdService()
     assert service.is_started()
     return service
 
@@ -127,10 +117,9 @@ def setup_bridge_wallet(bitcoin_rpc: BitcoinRPC):
 
 
 def init_runes(bitcoin_rpc: BitcoinRPC):
-    alice_ord = create_alice_ord()
-    user_ord = create_user_ord()
-    alice_ord_wallet = create_alice_ord_wallet(alice_ord, bitcoin_rpc)
-    create_user_ord_wallet(user_ord, bitcoin_rpc, alice_ord_wallet)
+    ord = create_ord()
+    alice_ord_wallet = create_alice_ord_wallet(ord, bitcoin_rpc)
+    create_user_ord_wallet(ord, bitcoin_rpc, alice_ord_wallet)
     setup_bridge_wallet(bitcoin_rpc)
 
 
@@ -186,7 +175,7 @@ def print_info():
     print("To read balances of the user")
     print(
         """
-    local_dev/bin/user-ord wallet --name user-ord-test balance
+    local_dev/bin/ord wallet --name user-ord-test balance
     """
     )
     print(
@@ -194,7 +183,7 @@ def print_info():
     )
     print(
         f"""
-    local_dev/bin/user-ord wallet --name user-ord-test send --fee-rate 1 bcrt1qtxysk2megp39dnpw9va32huk5fesrlvutl0zdpc29asar4hfkrlqs2kzv5 "123 {RUNE_NAME}"
+    local_dev/bin/ord wallet --name user-ord-test send --fee-rate 1 bcrt1qtxysk2megp39dnpw9va32huk5fesrlvutl0zdpc29asar4hfkrlqs2kzv5 "123 {RUNE_NAME}"
     """
     )
 

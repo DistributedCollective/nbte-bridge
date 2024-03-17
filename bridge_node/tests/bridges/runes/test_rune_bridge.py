@@ -28,12 +28,11 @@ logger = logging.getLogger(__name__)
 def setup(
     hardhat: HardhatService,
     bitcoind: BitcoindService,
-    user_ord: OrdService,
-    alice_ord: OrdService,
+    ord: OrdService,
     dbengine,
 ):
-    root_ord_wallet = alice_ord.create_test_wallet("root-ord")  # used for funding other wallets
-    user_ord_wallet = user_ord.create_test_wallet("user-ord")  # used for
+    root_ord_wallet = ord.create_test_wallet("root-ord")  # used for funding other wallets
+    user_ord_wallet = ord.create_test_wallet("user-ord")  # used by the "end user"
     alice_btc_wallet = bitcoind.create_test_wallet("alice-bridge")  # used by the bridge backend
     bitcoind.fund_wallets(root_ord_wallet, alice_btc_wallet, user_ord_wallet)
 

@@ -49,7 +49,7 @@ class FauxRuneService:
     bitcoin_rpc_root: BitcoinRPC
     bitcoin_rpc: BitcoinRPC
 
-    ord_api_url = "http://alice-ord"
+    ord_api_url = "http://ord"
     bitcoind_host = "bitcoind:18443"
     rune_bridge_contract_address = to_checksum_address("0xDc64a140Aa3E981100a9becA4E685f962f0cF6C9")
     bitcoin_wallet = "alice-ord"

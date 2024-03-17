@@ -4,7 +4,7 @@ set -e
 THIS_DIR=$(dirname "$0")
 cd $THIS_DIR/../..
 
-docker compose -f docker-compose.dev.yaml exec -u ord alice-ord \
+docker compose -f docker-compose.dev.yaml exec -u ord ord \
   ord \
   --chain regtest \
   --bitcoin-rpc-url bitcoind:18443 \

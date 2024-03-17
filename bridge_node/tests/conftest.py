@@ -48,21 +48,11 @@ def bitcoind(request):
 
 
 @pytest.fixture(scope="module")
-def user_ord(request):
-    return services.OrdService(
-        service="user-ord",
-        ord_api_url="http://localhost:3080",
-        request=request,
-    )
-
-
-@pytest.fixture(scope="module")
-def alice_ord(request):
-    return services.OrdService(
-        service="alice-ord",
-        ord_api_url="http://localhost:3080",
-        request=request,
-    )
+def ord(request):
+    # We'll just roll with one ord service for the whole bridge and the user in tests
+    # It supports different wallets anyway
+    # This fixture shadows the built-in name `ord`, but who uses it anyway.
+    return services.OrdService(request)
 
 
 @pytest.fixture(scope="module")
