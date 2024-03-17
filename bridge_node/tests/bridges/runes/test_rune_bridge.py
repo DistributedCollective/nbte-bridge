@@ -1,7 +1,7 @@
 import logging
 from types import SimpleNamespace
 
-from sqlalchemy.orm import sessionmaker, Session
+from sqlalchemy.orm import Session
 
 from bridge.bridges.runes.bridge import RuneBridge
 from bridge.bridges.runes.faux_service import FauxRuneService
@@ -14,8 +14,7 @@ from web3 import Web3
 from web3.contract import Contract
 
 from bridge.bridges.runes.evm import load_rune_bridge_abi
-from anemic.ioc import FactoryRegistrySet, Container
-from bridge.common.services.transactions import register_transaction_manager
+from anemic.ioc import FactoryRegistry, Container
 from bridge.common.evm.utils import from_wei
 from ...mock_network import MockNetwork
 from ...services import BitcoindService, HardhatService, OrdService, OrdWallet
@@ -98,9 +97,7 @@ def create_global_container(
     rune_bridge_contract_address,
     bitcoin_wallet_name,
 ):
-    registries = FactoryRegistrySet()
-    global_registry = registries.create_registry("global")
-    transaction_registry = registries.create_registry("transaction")
+    global_registry = FactoryRegistry("global")
 
     global_registry.register_singleton(
         interface=Network,
@@ -139,21 +136,13 @@ def create_global_container(
         factory=RuneBridge,
     )
 
-    register_transaction_manager(
-        global_registry=global_registry,
-        transaction_registry=transaction_registry,
-    )
-
-    transaction_registry.register(
+    global_registry.register(
         interface=KeyValueStore,
         factory=KeyValueStore,
     )
 
-    session_factory = sessionmaker(bind=dbengine)
-
-    transaction_registry.register(
-        interface=Session,
-        factory=lambda _: session_factory(),
+    global_registry.register(
+        interface=Session, factory=lambda _: Session(bind=dbengine, autobegin=False)
     )
 
     return Container(global_registry)

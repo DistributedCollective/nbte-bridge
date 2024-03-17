@@ -18,7 +18,6 @@ from ...common.ord.client import OrdApiClient
 from ...common.ord.simple_wallet import SimpleOrdWallet
 from ...common.evm.scanner import EvmEventScanner
 from ...common.services.key_value_store import KeyValueStore
-from ...common.services.transactions import TransactionManager
 
 logger = logging.getLogger(__name__)
 
@@ -44,7 +43,8 @@ class TokenToBtcTransfer:
 @service(scope="global")
 class FauxRuneService:
     web3: Web3 = autowired(auto)
-    transaction_manager: TransactionManager = autowired(auto)
+    dbsession: Session = autowired(auto)
+    key_value_store: KeyValueStore = autowired(auto)
 
     bitcoin_rpc_root: BitcoinRPC
     bitcoin_rpc: BitcoinRPC
@@ -185,18 +185,16 @@ class FauxRuneService:
                 else:
                     logger.warning("Unknown event: %s", event)
 
-        with self.transaction_manager.transaction() as tx:
-            dbsession = tx.find_service(Session)
-            key_value_store = tx.find_service(KeyValueStore)
+        with self.dbsession.begin():
             scanner = EvmEventScanner(
                 web3=self.web3,
                 events=[
                     self.rune_bridge_contract.events.RuneTransferToBtc,
                 ],
                 callback=callback,
-                dbsession=dbsession,
+                dbsession=self.dbsession,
                 block_safety_margin=0,
-                key_value_store=key_value_store,
+                key_value_store=self.key_value_store,
                 key_value_store_namespace="runebridge",
                 default_start_block=1,
             )

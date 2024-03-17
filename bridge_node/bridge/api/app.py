@@ -10,6 +10,7 @@ def create_app(
     global_container: Container,
 ):
     def get_request_container(request: Request) -> Container:
+        # TODO: get rid of TransactionManager
         tx_manager: TransactionManager = global_container.get(interface=TransactionManager)
         tx = tx_manager.transaction()
         tx.begin()
