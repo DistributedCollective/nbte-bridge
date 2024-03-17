@@ -49,22 +49,24 @@ class BitcoindService(compose.ComposeService):
             "-rpcuser=polaruser",
             "-rpcpassword=polarpass",
             *args,
-        ).stdout
+        ).stdout.decode()
 
     def mine(self, blocks=1, address=None, *, sleep: float = 1.1):
         ret = self.root_wallet.mine(blocks, address)
         time.sleep(sleep)
         return ret
 
-    def create_test_wallet(self, prefix: str, *, fund: bool = False) -> BitcoinWallet:
+    def create_test_wallet(self, prefix: str = "", *, fund: bool = False) -> BitcoinWallet:
         """
         Creates a randomly-named wallet, suitable for testing
         """
+        if prefix:
+            prefix = f"{prefix}-"
         while True:
             randompart = "".join(
                 random.choices(string.ascii_lowercase + string.digits, k=MIN_RANDOMPART_LENGTH)
             )
-            wallet_name = f"{prefix}-{randompart}"
+            wallet_name = f"{prefix}{randompart}"
             wallet, created = self.load_or_create_wallet(wallet_name)
             if created:
                 break

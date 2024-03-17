@@ -130,17 +130,25 @@ task("verify-started", "Check if started")
 
 task('set-mining-interval', "Set mining interval")
     .addPositionalParam('ms', 'Mining interval as milliseconds (0 for automine)', undefined, types.int)
-    .setAction(async ({ ms }, hre) => {
+    .setAction(jsonAction(async ({ ms }, hre) => {
         if (ms === 0) {
             console.log("Enabling automining");
             await hre.network.provider.send('evm_setIntervalMining', [0]);
             await hre.network.provider.send('evm_setAutomine', [true]);
+            return {
+                automine: true,
+                miningIntervalMs: ms,
+            }
         } else {
             console.log("Disabling automining and enabling interval mining with", ms, "ms");
             await hre.network.provider.send('evm_setAutomine', [false]);
             await hre.network.provider.send('evm_setIntervalMining', [ms]);
+            return {
+                automine: false,
+                miningIntervalMs: ms,
+            }
         }
-    });
+    }));
 
 
 // =================

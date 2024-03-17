@@ -15,7 +15,7 @@ MIN_RANDOMPART_LENGTH = 8
 
 
 class OrdService(compose.ComposeService):
-    api_client: OrdApiClient
+    api_client: OrdApiClient | None
 
     def __init__(self, service, *, request=None, ord_api_url: str = None):
         super().__init__(service, user="ord", request=request)
@@ -40,12 +40,14 @@ class OrdService(compose.ComposeService):
         )
         return json.loads(ret.stdout)
 
-    def create_test_wallet(self, prefix: str) -> OrdWallet:
+    def create_test_wallet(self, prefix: str = "") -> OrdWallet:
         # Let's just trust that there's no collision
+        if prefix:
+            prefix = f"{prefix}-"
         randompart = "".join(
             random.choices(string.ascii_lowercase + string.digits, k=MIN_RANDOMPART_LENGTH)
         )
-        name = f"{prefix}-{randompart}"
+        name = f"{prefix}{randompart}"
         wallet = OrdWallet(
             ord=self,
             name=name,
@@ -79,6 +81,10 @@ class OrdWallet:
         return ret
 
     def get_rune_balance(self, rune: str) -> Decimal:
+        if not self.ord.api_client:
+            raise ValueError(
+                "ord must have api_client read rune balances. Pass the ord_api_url argument to OrdService.",
+            )
         rune_response = self.ord.api_client.get_rune(rune)
         if not rune_response:
             raise ValueError(f"Rune {rune} not found")

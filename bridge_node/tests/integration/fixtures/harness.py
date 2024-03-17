@@ -83,6 +83,12 @@ class IntegrationTestHarness:
     def is_started(self):
         return self._api_client.is_healthy()
 
+    def is_any_service_started(self):
+        # docker compose ps --format json returns newline-separated json objects for each service.
+        # if not services are started, it returns an empty string
+        ps_output = self._capture_docker_compose_output("ps", "--format", "json")
+        return bool(ps_output.strip())
+
     def _clean(self):
         # Currently *named* volumes are removed automatically by docker compose down -v
         # bind mounts still need cleaning in case there is something we want to clean.
@@ -236,6 +242,25 @@ def harness(request) -> IntegrationTestHarness:
     if NO_START_HARNESS:
         logger.info("Skipping harness autostart because NO_START_HARNESS=1")
     else:
-        request.addfinalizer(harness.stop)
+        keep_containers = request.config.getoption("--keep-containers")
+        if keep_containers and harness.is_any_service_started():
+            logger.info(
+                "Pytest is running with --keep-containers and some docker-compose services have already started. "
+                "Shutting down everything before stating the integration test harness."
+            )
+            harness.stop()
+
+        # The harness should in theory not mess up --keep-containers, but I'm not 100% sure.
+        # Lets at least stop hardhat interval mining
+        def finalizer():
+            if keep_containers:
+                logger.info(
+                    "Not stopping harness because --keep-containers is on, but enabling automining again"
+                )
+                harness.run_hardhat_json_command("set-mining-interval", "0")
+            else:
+                harness.stop()
+
+        request.addfinalizer(finalizer)
         harness.start()
     return harness
