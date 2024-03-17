@@ -11,7 +11,7 @@ def engine_factory(container: Container):
     return create_engine(config.db_url)
 
 
-@service(scope="global", interface_override=Session)
+@service(scope="transaction", interface_override=Session)
 def session_factory(container: Container):
     engine: Engine = container.get(interface=Engine)
-    return Session(bind=engine, autobegin=False)
+    return Session(bind=engine)

@@ -1,6 +1,4 @@
-# NOTE: THIS MODULE IS DEPRECATED. dbsession can be used directly from the global container.
 from typing import Type, TypeVar
-import warnings
 
 from anemic.ioc import Container, FactoryRegistry
 from sqlalchemy.orm.session import Session
@@ -10,11 +8,6 @@ T = TypeVar("T")
 
 class Transaction:
     def __init__(self, *, global_container: Container, transaction_registry: FactoryRegistry):
-        warnings.warn(
-            "Transaction is deprecated."
-            "Use SQLAlchemy Session directly in global services with self.dbsession.begin()",
-            DeprecationWarning,
-        )
         self._global_container = global_container
         self._transaction_registry = transaction_registry
         self._transaction_container = None
@@ -69,11 +62,6 @@ class Transaction:
 
 class TransactionManager:
     def __init__(self, *, global_container: Container, transaction_registry: FactoryRegistry):
-        warnings.warn(
-            "TransactionManager is deprecated. "
-            "Use SQLAlchemy Session directly in global services with self.dbsession.begin()",
-            DeprecationWarning,
-        )
         self._global_container = global_container
         self._transaction_registry = transaction_registry
 

@@ -9,9 +9,8 @@ from ..models.key_value_store import KeyValuePair
 _unset = object()
 
 
-@service(scope="global")
+@service(scope="transaction")
 class KeyValueStore:
-    # NOTE: this service doesn't manage its own transactions -- it must be used from the outside
     dbsession: Session = autowired(auto)
 
     def __init__(self, container: Container):

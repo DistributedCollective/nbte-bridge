@@ -9,6 +9,7 @@ from .models import (
     RskToTapTransferBatchStatus,
 )
 from .rsk import BridgeContract
+from ...common.services.transactions import TransactionManager
 from ...common.tap.client import TapRestClient
 
 
@@ -20,7 +21,7 @@ SIGN_RSK_TO_TAP_QUESTION = "taprsk-sign-evm-to-tap"
 
 @service(scope="global")
 class RskToTapService:
-    dbsession: Session = autowired(auto)
+    transaction_manager: TransactionManager = autowired(auto)
     bridge_contract: BridgeContract = autowired(auto)
     tap_client: TapRestClient = autowired(auto)
     batch_limit: int = 10
@@ -33,9 +34,9 @@ class RskToTapService:
         pass
 
     def process_current_transfer_batch(self):
-        dbsession = self.dbsession
-        with dbsession.begin():
-            current_batch = self._get_or_create_current_batch()
+        with self.transaction_manager.transaction() as tx:
+            dbsession = tx.find_service(Session)
+            current_batch = self._get_or_create_current_batch(dbsession)
             if not current_batch:
                 logger.info("No current RSK to TAP batch")
                 return
@@ -44,14 +45,16 @@ class RskToTapService:
 
         if status == RskToTapTransferBatchStatus.CREATED:
             # TODO: VPSBT creation, validate balances, etc
-            with dbsession.begin():
+            with self.transaction_manager.transaction() as tx:
+                dbsession = tx.find_service(Session)
                 batch = dbsession.query(RskToTapTransferBatch).get(batch_id)
                 assert batch.status == status
                 batch.status = status = RskToTapTransferBatchStatus.SENDING_TO_TAP
                 recipients = [t.recipient_tap_address for t in batch.transfers]
 
             # TODO: sanity check, can be removed
-            with dbsession.begin():
+            with self.transaction_manager.transaction() as tx:
+                dbsession = tx.find_service(Session)
                 batch = dbsession.query(RskToTapTransferBatch).filter_by(id=batch_id).one()
                 assert batch.status == status == RskToTapTransferBatchStatus.SENDING_TO_TAP
 
@@ -59,7 +62,8 @@ class RskToTapService:
             send_result = self.tap_client.send_assets(*recipients)
             logger.info("Transaction broadcasted to tap: %s", send_result)
 
-            with dbsession.begin():
+            with self.transaction_manager.transaction() as tx:
+                dbsession = tx.find_service(Session)
                 batch = dbsession.query(RskToTapTransferBatch).get(batch_id)
                 assert batch.status == status
                 batch.status = status = RskToTapTransferBatchStatus.SENT_TO_TAP
@@ -72,14 +76,14 @@ class RskToTapService:
 
         # TODO: check mined, store info, etc
         if status == RskToTapTransferBatchStatus.SENT_TO_TAP:
-            with dbsession.begin():
+            with self.transaction_manager.transaction() as tx:
+                dbsession = tx.find_service(Session)
                 batch = dbsession.query(RskToTapTransferBatch).get(batch_id)
                 assert batch.status == status
                 batch.status = status = RskToTapTransferBatchStatus.FINALIZED
             logger.info("RSK to TAP batch %s finalized", batch_id)
 
-    def _get_or_create_current_batch(self) -> RskToTapTransferBatch | None:
-        dbsession = self.dbsession
+    def _get_or_create_current_batch(self, dbsession: Session) -> RskToTapTransferBatch | None:
         current_batch = (
             dbsession.query(
                 RskToTapTransferBatch,
@@ -118,21 +122,23 @@ class RskToTapService:
         return current_batch
 
     def get_transfers_by_address(self, address: str):
-        # TODO: this doesn't start a new session so that it can be used from a view. it's a bit inconsistent
-        logger.info("Getting transfer status for address %s", address)
+        with self.transaction_manager.transaction() as tx:
+            dbsession = tx.find_service(Session)
 
-        transfers = (
-            self.dbsession.query(
-                RskToTapTransfer.sender_rsk_address,
-                RskToTapTransfer.db_id,
-                RskToTapTransferBatch.status,
+            logger.info("Getting transfer status for address %s", address)
+
+            transfers = (
+                dbsession.query(
+                    RskToTapTransfer.sender_rsk_address,
+                    RskToTapTransfer.db_id,
+                    RskToTapTransferBatch.status,
+                )
+                .select_from(RskToTapTransfer)
+                .join(RskToTapTransferBatch)
+                .filter(RskToTapTransfer.sender_rsk_address == address)
+                .all()
             )
-            .select_from(RskToTapTransfer)
-            .join(RskToTapTransferBatch)
-            .filter(RskToTapTransfer.sender_rsk_address == address)
-            .all()
-        )
 
-        logger.info("Got transfers: %s", transfers)
+            logger.info("Got transfers: %s", transfers)
 
-        return transfers
+            return transfers
