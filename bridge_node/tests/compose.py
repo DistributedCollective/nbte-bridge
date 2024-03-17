@@ -11,7 +11,7 @@ COMPOSE_VERBOSE = os.environ.get("COMPOSE_VERBOSE") == "1"
 PROJECT_BASE_DIR = pathlib.Path(__file__).parent.parent.parent.absolute()
 COMPOSE_COMMAND = ["docker", "compose"]
 COMPOSE_FILE = PROJECT_BASE_DIR / "docker-compose.dev.yaml"
-ENV_FILE = PROJECT_BASE_DIR / ".env"
+ENV_FILE = PROJECT_BASE_DIR / "env.test"
 MAX_WAIT_TIME_S = 120
 VOLUMES_DIR = PROJECT_BASE_DIR / "volumes"
 

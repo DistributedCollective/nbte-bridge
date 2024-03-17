@@ -1,4 +1,5 @@
 version: "3.8"
+name: sovryn-nbte-bridge
 services:
   postgres:
     image: bridge-postgres:latest
@@ -103,7 +104,7 @@ services:
       server
       --http
       --http-port 80
-      --polling-interval 1s
+      --polling-interval ${ORD_POLLING_INTERVAL:-1s}
 
     depends_on:
       bitcoind:
@@ -423,3 +424,4 @@ services:
 
 volumes:
   postgres:
+    name: ${POSTGRES_VOLUME:-sovryn-nbte-bridge_postgres}
