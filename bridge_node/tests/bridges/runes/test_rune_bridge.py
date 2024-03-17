@@ -148,7 +148,7 @@ def create_global_container(
         factory=KeyValueStore,
     )
 
-    session_factory = sessionmaker(bind=dbengine)
+    session_factory = sessionmaker(bind=dbengine, autobegin=False)
 
     transaction_registry.register(
         interface=Session,

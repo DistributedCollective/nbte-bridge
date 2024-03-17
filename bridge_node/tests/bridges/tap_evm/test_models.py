@@ -12,6 +12,7 @@ from bridge.bridges.tap_rsk.models import (
 @pytest.fixture
 def dbsession(dbengine):
     session = Session(bind=dbengine)
+    session.begin()
     yield session
     session.rollback()
 
