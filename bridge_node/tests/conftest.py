@@ -6,6 +6,7 @@ import pytest
 from sqlalchemy import create_engine
 
 from bridge.common.models.meta import Base
+import bitcointx
 from . import services
 
 BASE_DIR = os.path.join(os.path.dirname(__file__), "..")
@@ -14,6 +15,10 @@ INTEGRATION_TEST_DIR = THIS_DIR / "integration"
 DEV_DB_NAME = "nbte_tmp_test"
 
 logger = logging.getLogger(__name__)
+
+# We need to patch this somewhere so let's do it here where it's automatically active
+# for all tests. Note that threads make it fail.
+bitcointx.select_chain_params("bitcoin/regtest")
 
 
 def pytest_addoption(parser):
@@ -65,7 +70,8 @@ def dbengine(postgres):
     engine = create_engine(dsn, echo=False)
     logger.info("Creating all models from metadata")
     Base.metadata.create_all(engine)
-    return engine
+    yield engine
+    engine.dispose()
 
 
 # TODO: we can have something like this but not necessarily yet
