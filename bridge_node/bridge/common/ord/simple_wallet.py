@@ -1,20 +1,18 @@
-from decimal import Decimal
-from dataclasses import dataclass
 import logging
 import time
-from bitcointx.core import CTransaction, CTxIn, CTxOut, COutPoint
-import bitcointx
-from bitcointx.wallet import CCoinAddress
-from bitcointx.core.script import CScript
-from pyord import RuneId, Runestone, Edict
-from .client import OrdApiClient
-from bridge.common.btc.rpc import BitcoinRPC
+from dataclasses import dataclass
+from decimal import Decimal
 
+from bitcointx.core import COutPoint, CTransaction, CTxIn, CTxOut
+from bitcointx.core.script import CScript
+from bitcointx.wallet import CCoinAddress
+from pyord import Edict, RuneId, Runestone
+
+from bridge.common.btc.rpc import BitcoinRPC
+from .client import OrdApiClient
 
 TARGET_POSTAGE = 10_000  # sat locked in rune outputs
 logger = logging.getLogger(__name__)
-
-bitcointx.select_chain_params("bitcoin/regtest")
 
 
 @dataclass
