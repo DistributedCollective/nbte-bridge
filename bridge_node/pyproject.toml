@@ -56,13 +56,14 @@ ipdb = "^0.13.13"
 
 [tool.pytest.ini_options]
 addopts = [
-    "--cov",
-    "--cov-config",
-    "pyproject.toml",
-    "--cov-report",
-    "lcov",
-    "--cov-report",
-    "term-missing",
+    # Enalbe coverage by default at some point if wanted
+    #"--cov",
+    #"--cov-config",
+    #"pyproject.toml",
+    #"--cov-report",
+    #"lcov",
+    #"--cov-report",
+    #"term-missing",
 ]
 testpaths = ["tests"]
 python_files = ["test_*.py", "tests.py", "*_tests.py"]
