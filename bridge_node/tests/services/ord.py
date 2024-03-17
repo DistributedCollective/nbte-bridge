@@ -13,8 +13,8 @@ from .bitcoind import BitcoindService
 
 from .. import compose
 
-
-MIN_RANDOMPART_LENGTH = 8
+MIN_RUNE_LENGTH = 16  # sensible default for regtest, minimum is at least 13
+MIN_RANDOMPART_LENGTH = 8  # negligible changes for collisions
 logger = logging.getLogger(__name__)
 
 
@@ -191,7 +191,7 @@ class OrdWallet:
         if not symbol:
             symbol = prefix[0]
 
-        random_part_length = min(20 - len(prefix), MIN_RANDOMPART_LENGTH)
+        random_part_length = max(20 - len(prefix), MIN_RANDOMPART_LENGTH)
         random_part = "".join(random.choices(string.ascii_uppercase, k=random_part_length))
         rune = f"{prefix}{random_part}"
         return self.etch_rune(rune=rune, symbol=symbol, supply=supply, divisibility=divisibility)
