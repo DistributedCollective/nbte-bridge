@@ -119,8 +119,8 @@ def test_1_of_1_send_runes(
         supply=supply,
     )
 
-    assert test_wallet.get_rune_balance(rune_a) == 0
-    assert test_wallet.get_rune_balance(rune_b) == 0
+    assert test_wallet.get_rune_balance_decimal(rune_a) == 0
+    assert test_wallet.get_rune_balance_decimal(rune_b) == 0
     assert multisig.get_rune_balance(rune_a) == int(supply * 10**18)
     assert multisig.get_rune_balance(rune_b) == int(supply * 10**18)
 

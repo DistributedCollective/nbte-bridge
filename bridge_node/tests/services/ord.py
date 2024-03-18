@@ -122,7 +122,7 @@ class OrdWallet:
         ret = self.cli("create")
         return ret
 
-    def get_rune_balance(self, rune: str) -> Decimal:
+    def get_rune_balance_decimal(self, rune: str) -> Decimal:
         rune_response = self.ord.api_client.get_rune(rune)
         if not rune_response:
             raise ValueError(f"Rune {rune} not found")

@@ -216,14 +216,14 @@ def test_rune_bridge(
     rune_bridge,
     rune_bridge_service,
 ):
-    assert user_ord_wallet.get_rune_balance(rune_name) == 0
+    assert user_ord_wallet.get_rune_balance_decimal(rune_name) == 0
     root_ord_wallet.send_runes(
         rune=rune_name,
         amount=1000,
         receiver=user_ord_wallet.get_receiving_address(),
     )
     bitcoind.mine()
-    assert user_ord_wallet.get_rune_balance(rune_name) == 1000
+    assert user_ord_wallet.get_rune_balance_decimal(rune_name) == 1000
     assert (
         rune_side_token_contract.functions.balanceOf(user_evm_wallet.address).call() == 0
     )  # sanity check
@@ -278,5 +278,5 @@ def test_rune_bridge(
 
     ord.mine_and_sync(bitcoind)
 
-    user_rune_balance = user_ord_wallet.get_rune_balance(rune_name)
+    user_rune_balance = user_ord_wallet.get_rune_balance_decimal(rune_name)
     assert user_rune_balance == 1000

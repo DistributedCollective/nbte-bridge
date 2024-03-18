@@ -117,7 +117,7 @@ def user_ord_wallet(ord, bitcoind, bitcoin_rpc, alice_ord_wallet):
 
     bitcoind.fund_wallets(wallet)
 
-    if wallet.get_rune_balance(RUNE_NAME) < 1000:
+    if wallet.get_rune_balance_decimal(RUNE_NAME) < 1000:
         if address is None:
             address = wallet.get_receiving_address()
             logger.info("USER ORD ADDRESS: %s", address)
@@ -142,7 +142,7 @@ def test_integration_rune_bridge(
     user_rune_bridge_contract,
     bitcoind,
 ):
-    assert user_ord_wallet.get_rune_balance(RUNE_NAME) == 1000
+    assert user_ord_wallet.get_rune_balance_decimal(RUNE_NAME) == 1000
     assert user_evm_token.functions.balanceOf(user_evm_account.address).call() == 0  # sanity check
     initial_total_supply = user_evm_token.functions.totalSupply().call()
 
@@ -180,7 +180,7 @@ def test_integration_rune_bridge(
 
     def callback():
         bitcoind.mine()
-        return user_ord_wallet.get_rune_balance(RUNE_NAME)
+        return user_ord_wallet.get_rune_balance_decimal(RUNE_NAME)
 
     user_rune_balance = wait_for_condition(
         callback=callback,
