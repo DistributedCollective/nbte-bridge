@@ -43,6 +43,32 @@ class RuneResponse(TypedDict):
     parent: Any
 
 
+class RuneBalanceEntry(TypedDict):
+    amount: int
+    divisibility: int
+    symbol: str
+
+
+class OutputResponse(TypedDict):
+    # Example:
+    # {"address": "bcrt1pwrxxrwjcwrv5608gnhlwgmvxq7tj3q24syqks9pf2lc6n54ewhlqly0cus", "indexed": true, "inscriptions": [],
+    #  "runes": [["AAAANLWJOPDWUMOZHYZV", {"amount": 100000000000000000000000000, "divisibility": 18, "symbol": "A"}],
+    #            ["BBBBNAZOAMSEZRDVDLVD", {"amount": 100000000000000000000000000, "divisibility": 18, "symbol": "B"}]],
+    #  "sat_ranges": null,
+    #  "script_pubkey": "OP_PUSHNUM_1 OP_PUSHBYTES_32 70cc61ba5870d94d3ce89dfee46d860797288155810168142957f1a9d2b975fe",
+    #  "spent": false, "transaction": "71f2c5e1b5d2f612091d845f0a282e02509f18a0c5724052d064eed2fb6f61c9",
+    #  "value": 10000} %
+    address: str | None
+    indexed: bool
+    inscriptions: list[str]
+    runes: list[tuple[str, RuneBalanceEntry]]
+    sat_ranges: Any  # TODO
+    script_pubkey: str
+    spent: bool
+    transaction: str
+    value: int
+
+
 class OrdApiClient:
     def __init__(self, base_url):
         self.base_url = base_url
@@ -69,3 +95,9 @@ class OrdApiClient:
             return self.get(f"/rune/{rune_name}")
         except OrdApiNotFound:
             return None
+
+    def get_output(self, txid: str, vout: int) -> OutputResponse:
+        try:
+            return self.get(f"/output/{txid}:{vout}")
+        except OrdApiNotFound as e:
+            raise LookupError(f"Output {txid}:{vout} not found") from e
