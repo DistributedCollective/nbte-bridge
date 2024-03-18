@@ -18,37 +18,55 @@ MULTISIG_KEY_DERIVATION_PATH = "m/0/0"
 
 
 @pytest.fixture()
-def multisig(
+def multisig_factory(
     bitcoind: BitcoindService,
     ord: OrdService,
 ):
-    wallet = bitcoind.create_test_wallet(
-        prefix="ord-multisig",
-        watchonly=True,
-    )
-    multisig = OrdMultisig(
-        master_xpriv=MULTISIG_XPRVS[0],
-        master_xpubs=MULTISIG_XPUBS,
-        num_required_signers=2,
+    def create_multisig(
+        required: int,
+        xpriv: str,
+        xpubs: list[str],
+        key_derivation_path: str = MULTISIG_KEY_DERIVATION_PATH,
+    ):
+        wallet = bitcoind.create_test_wallet(
+            prefix=f"ord-multisig-{required}-of-{len(xpubs)}",
+            watchonly=True,
+        )
+        multisig = OrdMultisig(
+            master_xpriv=MULTISIG_XPRVS[0],
+            master_xpubs=MULTISIG_XPUBS,
+            num_required_signers=2,
+            key_derivation_path=MULTISIG_KEY_DERIVATION_PATH,
+            bitcoin_rpc=wallet.rpc,
+            ord_client=ord.api_client,
+        )
+        wallet.rpc.call(
+            "importdescriptors",
+            [
+                {
+                    "desc": multisig.get_descriptor(),
+                    "timestamp": "now",
+                }
+            ],
+        )
+        bitcoind.fund_addresses(multisig.change_address)
+        return multisig
+
+    return create_multisig
+
+
+@pytest.fixture()
+def multisig(multisig_factory):
+    return multisig_factory(
+        required=2,
+        xpriv=MULTISIG_XPRVS[0],
+        xpubs=MULTISIG_XPUBS,
         key_derivation_path=MULTISIG_KEY_DERIVATION_PATH,
-        bitcoin_rpc=wallet.rpc,
-        ord_client=ord.api_client,
     )
-    wallet.rpc.call(
-        "importdescriptors",
-        [
-            {
-                "desc": multisig.get_descriptor(),
-                "timestamp": "now",
-            }
-        ],
-    )
-    bitcoind.fund_addresses(multisig.change_address)
-    return multisig
 
 
 def test_verify_descriptor(
-    multisig: OrdMultisig,
+    multisig,
     bitcoind,
 ):
     derived_addresses = bitcoind.rpc.call("deriveaddresses", multisig.get_descriptor())
@@ -79,3 +97,31 @@ def test_get_rune_balance(
 
     assert multisig.get_rune_balance(rune_a) == 1234 * 10**17
     assert multisig.get_rune_balance(rune_b) == 0
+
+
+def test_1_of_1_send_runes(
+    ord: OrdService,
+    bitcoind: BitcoindService,
+    rune_factory,
+    multisig_factory,
+):
+    multisig = multisig_factory(
+        required=1,
+        xpriv=MULTISIG_XPRVS[0],
+        xpubs=[MULTISIG_XPUBS[0]],
+    )
+    test_wallet = ord.create_test_wallet("test")
+    supply = Decimal("1000")
+    rune_a, rune_b = rune_factory(
+        "AAAAAA",
+        "BBBBBB",
+        receiver=multisig.change_address,
+        supply=supply,
+    )
+
+    assert test_wallet.get_rune_balance(rune_a) == 0
+    assert test_wallet.get_rune_balance(rune_b) == 0
+    assert multisig.get_rune_balance(rune_a) == int(supply * 10**18)
+    assert multisig.get_rune_balance(rune_b) == int(supply * 10**18)
+
+    # TODO: finish this
