@@ -150,4 +150,72 @@ def test_1_of_2_send_runes(
     assert to_decimal(multisig.get_rune_balance(rune_b), 18) == supply
 
 
+def test_2_of_3_send_runes(
+    ord: OrdService,
+    bitcoind: BitcoindService,
+    rune_factory,
+    multisig_factory,
+):
+    multisig1 = multisig_factory(
+        required=2,
+        xpriv=MULTISIG_XPRVS[0],
+        xpubs=MULTISIG_XPUBS,
+    )
+    multisig2 = multisig_factory(
+        required=2,
+        xpriv=MULTISIG_XPRVS[1],
+        xpubs=MULTISIG_XPUBS,
+    )
+    assert multisig1.change_address == multisig2.change_address
+
+    test_wallet = ord.create_test_wallet("test")
+    supply = Decimal("1000")
+    rune_a, rune_b = rune_factory(
+        "AAAAAA",
+        "BBBBBB",
+        receiver=multisig1.change_address,
+        supply=supply,
+        divisibility=18,
+    )
+
+    # Sanity check
+    assert test_wallet.get_rune_balance_decimal(rune_a) == 0
+    assert test_wallet.get_rune_balance_decimal(rune_b) == 0
+    for multisig in [multisig1, multisig2]:
+        assert to_decimal(multisig.get_rune_balance(rune_a), 18) == supply
+        assert to_decimal(multisig.get_rune_balance(rune_b), 18) == supply
+
+    transfer_amount = Decimal("456.7")
+    unsigned_psbt = multisig1.create_rune_psbt(
+        transfers=[
+            RuneTransfer(
+                rune=rune_a,
+                amount=to_base_units(transfer_amount, 18),
+                receiver=test_wallet.get_receiving_address(),
+            ),
+        ]
+    )
+    signed1 = multisig1.sign_psbt(unsigned_psbt)
+    signed2 = multisig2.sign_psbt(unsigned_psbt)
+
+    with pytest.raises(Exception):
+        multisig1.combine_and_finalize_psbt(
+            initial_psbt=unsigned_psbt,
+            signed_psbts=[signed1],
+        )
+
+    finalized_psbt = multisig1.combine_and_finalize_psbt(
+        initial_psbt=unsigned_psbt,
+        signed_psbts=[signed1, signed2],
+    )
+    multisig1.broadcast_psbt(finalized_psbt)
+    ord.mine_and_sync(bitcoind)
+
+    assert test_wallet.get_rune_balance_decimal(rune_a) == transfer_amount
+    assert test_wallet.get_rune_balance_decimal(rune_b) == 0
+    for multisig in [multisig1, multisig2]:
+        assert to_decimal(multisig.get_rune_balance(rune_a), 18) == supply - transfer_amount
+        assert to_decimal(multisig.get_rune_balance(rune_b), 18) == supply
+
+
 # TODO: test won't use rune outputs for paying for transaction fees
