@@ -1,14 +1,28 @@
+import binascii
 import logging
+from collections import defaultdict
+from io import BytesIO
 
-from bitcointx.core.script import standard_multisig_redeem_script
+import pyord
+from bitcointx.core import (
+    CTransaction,
+    CTxIn,
+    CTxOut,
+)
+from bitcointx.core.key import KeyStore
+from bitcointx.core.psbt import PSBT_Input, PSBT_Output, PartiallySignedTransaction as PSBT
+from bitcointx.core.script import CScript, standard_multisig_redeem_script
 from bitcointx.wallet import CCoinExtKey, CCoinExtPubKey, P2WSHBitcoinAddress
 
 from .client import OrdApiClient
+from .simple_wallet import TARGET_POSTAGE
+from .transfers import RuneTransfer
+from .utxos import OrdOutputCache
+from ..btc import descriptors
+from ..btc.estimation import estimate_p2wsh_multisig_tx_virtual_size
 from ..btc.rpc import BitcoinRPC
 from ..btc.types import UTXO
 from ..btc.utils import encode_segwit_address
-from ..btc import descriptors
-from .utxos import OrdOutputCache
 
 logger = logging.getLogger(__name__)
 
@@ -75,7 +89,252 @@ class OrdMultisig:
             for utxo in utxos
         )
 
-    def _list_utxos(self):
+    def create_rune_psbt(self, transfers: list[RuneTransfer]):
+        # TODO: estimate the sat per vb feerate
+        fee_rate_sat_per_vbyte = 50
+
+        # We always have a change output, and we always have it at index 1
+        # The first output (index 0) is the Runestone OP_RETURN
+        # Change from runes goes to the first non-OP_RETURN output so having this
+        # at index 1 makes sense.
+        rune_change_output_index = 1
+        first_rune_output_index = 2
+
+        required_rune_amounts = defaultdict(int)
+        edicts: list[pyord.Edict] = []
+        rune_outputs = []
+
+        # Rune outputs and edicts
+        for output_index, transfer in enumerate(transfers, start=first_rune_output_index):
+            transfer.assert_valid()
+            rune_response = self._ord_client.get_rune(transfer.rune)
+            if not rune_response:
+                raise LookupError(f"Rune {transfer.rune} not found (transfer {transfer})")
+            block_height, tx_index = map(int, rune_response["id"].split(":"))
+            rune_id = pyord.RuneId(
+                height=block_height,
+                index=tx_index,
+            )
+            edicts.append(
+                pyord.Edict(
+                    id=rune_id.num,
+                    amount=transfer.amount,
+                    output=output_index,  # receiver is first output
+                )
+            )
+            rune_outputs.append(
+                CTxOut(
+                    nValue=transfer.postage,
+                    scriptPubKey=transfer.get_receiver_script_pubkey(),
+                )
+            )
+            required_rune_amounts[transfer.rune] += transfer.amount
+
+        assert all(v > 0 for v in required_rune_amounts.values())
+
+        # Init PSBT with outputs
+        psbt = PSBT()
+        runestone = pyord.Runestone(
+            edicts=edicts,
+            default_output=rune_change_output_index,
+        )
+        # Runestone always goes to output 0
+        psbt.add_output(
+            txout=CTxOut(
+                nValue=0,
+                scriptPubKey=CScript(runestone.script_pubkey()),
+            ),
+            outp=PSBT_Output(
+                index=0,
+            ),
+        )
+        # This ist the rune_change_output at index 1
+        # We always add a 10 000 sat empty output for rune change
+        # TODO: this is not ideal if we don't get change in runes
+        psbt.add_output(
+            txout=CTxOut(
+                nValue=TARGET_POSTAGE,
+                scriptPubKey=self._multisig_script.to_scriptPubKey(),
+            ),
+            outp=PSBT_Output(
+                index=rune_change_output_index,
+            ),
+        )
+        for txout in rune_outputs:
+            psbt.add_output(
+                txout=txout,
+                outp=PSBT_Output(),
+            )
+
+        # Coin selection
+        utxos = self._list_utxos()
+        used_runes = tuple(required_rune_amounts.keys())
+        required_rune_amounts = dict(required_rune_amounts)  # no defaultdict anymore
+        input_amount_sat = 0
+
+        # Coin selection for runes
+        for utxo in utxos:
+            ord_output = self._ord_output_cache.get_ord_output(
+                txid=utxo.txid,
+                vout=utxo.vout,
+            )
+            if not ord_output.has_ord_balances():
+                # Not usable for runes
+                continue
+            if ord_output.inscriptions:
+                logger.warning(
+                    "UTXO %s (ord output %s) has inscriptions, not using it",
+                    utxos,
+                    ord_output,
+                )
+                continue
+
+            relevant_rune_balances_in_utxo = {
+                rune: ord_output.get_rune_balance(rune) for rune in used_runes
+            }
+            if not any(relevant_rune_balances_in_utxo.values()):
+                # No runes in this UTXO
+                continue
+
+            # This UTXO is selected
+            input_amount_sat += utxo.amount_satoshi
+            for rune, utxo_balance in relevant_rune_balances_in_utxo.items():
+                required_rune_amounts[rune] -= utxo_balance
+
+            input_tx_raw = self._bitcoin_rpc.gettransaction(utxo.txid, True)
+            input_tx = CTransaction.stream_deserialize(
+                BytesIO(binascii.unhexlify(input_tx_raw["hex"])),
+            )
+            psbt.add_input(
+                txin=CTxIn(
+                    prevout=utxo.outpoint,
+                ),
+                inp=PSBT_Input(
+                    witness_script=self._multisig_redeem_script,
+                    utxo=input_tx.vout[utxo.vout],
+                    force_witness_utxo=True,
+                ),
+            )
+
+            if all(v <= 0 for v in required_rune_amounts.values()):
+                # We have enough runes
+                # Change is handled automatically by the protocol as long as the
+                # default output in the Runestone is set correctly
+                break
+        else:
+            raise ValueError(
+                f"Missing required rune balances: {required_rune_amounts}",
+            )
+
+        # Coin selection for funding tx fee
+        output_amount_sat = sum(txout.nValue for txout in psbt.unsigned_tx.vout)
+        # Change must be either 0 (no output generated) or at least this,
+        # else it gets rejected as dust
+        min_change_output_value_sat = TARGET_POSTAGE
+
+        while True:
+            tx_size_vbyte = estimate_p2wsh_multisig_tx_virtual_size(
+                vin=psbt.unsigned_tx.vin,
+                vout=psbt.unsigned_tx.vout,
+                num_signatures=self._num_required_signers,
+                redeem_script=self._multisig_redeem_script,
+                add_change_out=True,
+            )
+            fee_sat = tx_size_vbyte * fee_rate_sat_per_vbyte
+            if input_amount_sat == output_amount_sat + fee_sat:
+                # no change output required
+                break
+            if input_amount_sat >= output_amount_sat + fee_sat + min_change_output_value_sat:
+                # change output required
+                break
+
+            # Get the next utxo that doesn't have ord balances
+            # If no more utxos found, we cannot fund the PSBT
+            try:
+                while True:
+                    utxo = utxos.pop(0)
+                    ord_output = self._ord_output_cache.get_ord_output(
+                        txid=utxo.txid,
+                        vout=utxo.vout,
+                    )
+                    if not ord_output.has_ord_balances():
+                        break
+            except IndexError:
+                raise ValueError("Don't have enough BTC to fund PSBT")
+
+            # Add input
+            input_amount_sat += utxo.amount_satoshi
+            input_tx_raw = self._bitcoin_rpc.gettransaction(utxo.txid, True)
+            input_tx = CTransaction.stream_deserialize(
+                BytesIO(binascii.unhexlify(input_tx_raw["hex"])),
+            )
+            psbt.add_input(
+                txin=CTxIn(
+                    prevout=utxo.outpoint,
+                ),
+                inp=PSBT_Input(
+                    witness_script=self._multisig_redeem_script,
+                    utxo=input_tx.vout[utxo.vout],
+                    force_witness_utxo=True,
+                ),
+            )
+
+            # Loop from the start
+
+        # Assuming we got here, TX is funded properly.
+        # Add a change output if necessary
+        # We add a change output for btc that's separate from the "rune change output"
+        change_amount_sat = input_amount_sat - output_amount_sat - fee_sat
+        assert change_amount_sat >= 0
+        if change_amount_sat > 0:
+            psbt.add_output(
+                txout=CTxOut(
+                    nValue=change_amount_sat,
+                    scriptPubKey=self._multisig_script.to_scriptPubKey(),
+                ),
+                outp=PSBT_Output(),
+            )
+        assert psbt.get_fee() == fee_sat
+        return psbt
+
+    # TODO: add rune-PSBT-specific logic and methods, maybe
+
+    def sign_psbt(self, psbt: PSBT, finalize: bool = False) -> PSBT:
+        psbt = psbt.clone()
+        keystore = KeyStore.from_iterable(
+            [
+                self._get_master_xpriv().derive_path(self._key_derivation_path).priv,
+            ],
+        )
+        result = psbt.sign(keystore, finalize=finalize)
+        assert result.num_inputs_signed == len(psbt.inputs)
+        return psbt
+
+    def combine_and_finalize_psbt(
+        self,
+        *,
+        initial_psbt: PSBT,
+        signed_psbts: list[PSBT],
+    ):
+        psbt = initial_psbt.clone()
+        for signed_psbt in signed_psbts:
+            psbt = psbt.combine(signed_psbt)
+        sign_result = psbt.sign(KeyStore(), finalize=True)
+        if not sign_result.is_final:
+            raise Exception("Failed to finalize PSBT")
+        return psbt
+
+    def broadcast_psbt(self, psbt: PSBT):
+        tx = psbt.extract_transaction()
+        tx_hex = tx.serialize().hex()
+        accept_result = self._bitcoin_rpc.call("testmempoolaccept", [tx_hex])
+        if not accept_result[0]["allowed"]:
+            reason = accept_result[0].get("reject-reason")
+            raise ValueError(f"Transaction rejected by mempool: {reason}")
+        txid = self._bitcoin_rpc.call("sendrawtransaction", tx_hex)
+        return txid
+
+    def _list_utxos(self) -> list[UTXO]:
         raw_utxos = self._bitcoin_rpc.listunspent(1, 9999999, [self._multisig_address], False)
         utxos = [UTXO.from_rpc_response(utxo) for utxo in raw_utxos]
         utxos.sort(key=lambda utxo: utxo.confirmations, reverse=True)

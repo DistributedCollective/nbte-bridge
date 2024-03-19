@@ -4,7 +4,6 @@ from decimal import Decimal
 from typing import Any, Optional
 
 from bitcointx.core import COutPoint
-from bitcointx.core.psbt import PartiallySignedBitcoinTransaction as BitcoinTxPSBT
 
 from .utils import from_satoshi, to_satoshi
 
@@ -16,7 +15,7 @@ class UTXO:
     amount_satoshi: int
     confirmations: int
     address: Optional[str] = None
-    raw: dict[str, Any] = dataclasses.field(repr=False, default_factory=dict)
+    # raw: dict[str, Any] = dataclasses.field(repr=False, default_factory=dict)
 
     @classmethod
     def from_rpc_response(cls, rpc_dict: dict[str, Any]):
@@ -26,7 +25,7 @@ class UTXO:
             amount_satoshi=to_satoshi(rpc_dict["amount"]),
             confirmations=rpc_dict["confirmations"],
             address=rpc_dict.get("address"),
-            raw=rpc_dict,
+            # raw=rpc_dict,
         )
         assert r.amount_btc == Decimal(rpc_dict["amount"])
         return r
@@ -42,7 +41,3 @@ class UTXO:
     @property
     def amount_btc(self) -> Decimal:
         return from_satoshi(self.amount_satoshi)
-
-
-# TODO: custom PSBT class
-PSBT = BitcoinTxPSBT

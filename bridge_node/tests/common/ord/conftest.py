@@ -10,6 +10,13 @@ def root_ord_wallet(ord: OrdService, bitcoind: BitcoindService):
     return root
 
 
+def unlock_unspent(wallet_name, bitcoind):
+    # XXX: there's an ord bug where it complains that output is already locked
+    # after sending anything, even after a block is mined.
+    # this should fix it
+    bitcoind.cli(f"-rpcwallet={wallet_name}", "lockunspent", "true")
+
+
 @pytest.fixture()
 def rune_factory(root_ord_wallet, ord, bitcoind):
     def create_runes(*names, supply=100_000_000, divisibility=18, receiver: str = None):
@@ -22,21 +29,17 @@ def rune_factory(root_ord_wallet, ord, bitcoind):
             for name in names
         ]
         ord.mine_and_sync(bitcoind)
+        unlock_unspent(root_ord_wallet.name, bitcoind)
 
         if receiver:
             for etching in etchings:
-                print("SEND", etching.rune)
                 root_ord_wallet.send_runes(
                     rune=etching.rune,
                     receiver=receiver,
                     amount=supply,
                 )
                 ord.mine_and_sync(bitcoind)
-
-                # XXX: there's an ord bug where it complains that output is already locked
-                # this should fix it
-                bitcoind.cli(f"-rpcwallet={root_ord_wallet.name}", "lockunspent", "true")
-                ord.sync_with_bitcoind(bitcoind)
+                unlock_unspent(root_ord_wallet.name, bitcoind)
 
         return [e.rune for e in etchings]
 

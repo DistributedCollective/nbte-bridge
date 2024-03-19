@@ -2,6 +2,8 @@ from decimal import Decimal
 
 import pytest
 from bridge.common.ord.multisig import OrdMultisig
+from bridge.common.ord.transfers import RuneTransfer
+from bridge.common.utils import to_base_units, to_decimal
 from tests.services import BitcoindService, OrdService, OrdWallet
 
 MULTISIG_XPRVS = [
@@ -27,16 +29,18 @@ def multisig_factory(
         xpriv: str,
         xpubs: list[str],
         key_derivation_path: str = MULTISIG_KEY_DERIVATION_PATH,
+        *,
+        fund: bool = True,
     ):
         wallet = bitcoind.create_test_wallet(
             prefix=f"ord-multisig-{required}-of-{len(xpubs)}",
             watchonly=True,
         )
         multisig = OrdMultisig(
-            master_xpriv=MULTISIG_XPRVS[0],
-            master_xpubs=MULTISIG_XPUBS,
-            num_required_signers=2,
-            key_derivation_path=MULTISIG_KEY_DERIVATION_PATH,
+            master_xpriv=xpriv,
+            master_xpubs=xpubs,
+            num_required_signers=required,
+            key_derivation_path=key_derivation_path,
             bitcoin_rpc=wallet.rpc,
             ord_client=ord.api_client,
         )
@@ -49,7 +53,8 @@ def multisig_factory(
                 }
             ],
         )
-        bitcoind.fund_addresses(multisig.change_address)
+        if fund:
+            bitcoind.fund_addresses(multisig.change_address)
         return multisig
 
     return create_multisig
@@ -95,11 +100,11 @@ def test_get_rune_balance(
     )
     ord.mine_and_sync(bitcoind)
 
-    assert multisig.get_rune_balance(rune_a) == 1234 * 10**17
+    assert to_decimal(multisig.get_rune_balance(rune_a), 18) == Decimal("123.4")
     assert multisig.get_rune_balance(rune_b) == 0
 
 
-def test_1_of_1_send_runes(
+def test_1_of_2_send_runes(
     ord: OrdService,
     bitcoind: BitcoindService,
     rune_factory,
@@ -108,7 +113,7 @@ def test_1_of_1_send_runes(
     multisig = multisig_factory(
         required=1,
         xpriv=MULTISIG_XPRVS[0],
-        xpubs=[MULTISIG_XPUBS[0]],
+        xpubs=MULTISIG_XPUBS[:2],
     )
     test_wallet = ord.create_test_wallet("test")
     supply = Decimal("1000")
@@ -117,11 +122,32 @@ def test_1_of_1_send_runes(
         "BBBBBB",
         receiver=multisig.change_address,
         supply=supply,
+        divisibility=18,
     )
 
     assert test_wallet.get_rune_balance_decimal(rune_a) == 0
     assert test_wallet.get_rune_balance_decimal(rune_b) == 0
-    assert multisig.get_rune_balance(rune_a) == int(supply * 10**18)
-    assert multisig.get_rune_balance(rune_b) == int(supply * 10**18)
+    assert to_decimal(multisig.get_rune_balance(rune_a), 18) == supply
+    assert to_decimal(multisig.get_rune_balance(rune_b), 18) == supply
 
-    # TODO: finish this
+    transfer_amount = Decimal("123")
+    unsigned_psbt = multisig.create_rune_psbt(
+        transfers=[
+            RuneTransfer(
+                rune=rune_a,
+                amount=to_base_units(transfer_amount, 18),
+                receiver=test_wallet.get_receiving_address(),
+            ),
+        ]
+    )
+    signed_psbt = multisig.sign_psbt(unsigned_psbt, finalize=True)
+    multisig.broadcast_psbt(signed_psbt)
+    ord.mine_and_sync(bitcoind)
+
+    assert test_wallet.get_rune_balance_decimal(rune_a) == transfer_amount
+    assert test_wallet.get_rune_balance_decimal(rune_b) == 0
+    assert to_decimal(multisig.get_rune_balance(rune_a), 18) == supply - transfer_amount
+    assert to_decimal(multisig.get_rune_balance(rune_b), 18) == supply
+
+
+# TODO: test won't use rune outputs for paying for transaction fees
