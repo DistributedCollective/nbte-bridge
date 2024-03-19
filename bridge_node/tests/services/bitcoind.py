@@ -63,7 +63,8 @@ class BitcoindService(compose.ComposeService):
         prefix: str = "",
         *,
         fund: bool = False,
-        watchonly: bool = False,
+        blank: bool = False,
+        disable_private_keys: bool = False,
     ) -> BitcoinWallet:
         """
         Creates a randomly-named wallet, suitable for testing
@@ -75,7 +76,11 @@ class BitcoindService(compose.ComposeService):
                 random.choices(string.ascii_lowercase + string.digits, k=MIN_RANDOMPART_LENGTH)
             )
             wallet_name = f"{prefix}{randompart}"
-            wallet, created = self.load_or_create_wallet(wallet_name, watchonly=watchonly)
+            wallet, created = self.load_or_create_wallet(
+                wallet_name,
+                blank=blank,
+                disable_private_keys=disable_private_keys,
+            )
             if created:
                 break
             logger.info("Duplicate wallet name: %s. Trying again.")
@@ -130,16 +135,18 @@ class BitcoindService(compose.ComposeService):
         return f"{self.rpc_url}/wallet/{wallet_name}"
 
     def load_or_create_wallet(
-        self, wallet_name: str, *, watchonly: bool = False
+        self, wallet_name: str, *, blank: bool = False, disable_private_keys: bool = False
     ) -> tuple[BitcoinWallet, bool]:
         wallet = self.load_wallet(wallet_name)
         if wallet:
             return wallet, False
 
-        args = [wallet_name]
-        if watchonly:
-            args += [True, True]
-        self.rpc.call("createwallet", *args)
+        self.rpc.call(
+            "createwallet",
+            wallet_name,
+            disable_private_keys,
+            blank,
+        )
         logger.info("Created wallet %s", wallet_name)
         wallet = BitcoinWallet(
             name=wallet_name, rpc=BitcoinRPC(self.get_wallet_rpc_url(wallet_name))

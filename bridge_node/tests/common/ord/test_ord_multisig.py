@@ -28,30 +28,24 @@ def multisig_factory(
         required: int,
         xpriv: str,
         xpubs: list[str],
-        key_derivation_path: str = MULTISIG_KEY_DERIVATION_PATH,
+        base_derivation_path: str = MULTISIG_KEY_DERIVATION_PATH,
         *,
         fund: bool = True,
     ):
         wallet = bitcoind.create_test_wallet(
             prefix=f"ord-multisig-{required}-of-{len(xpubs)}",
-            watchonly=True,
+            blank=True,
         )
         multisig = OrdMultisig(
             master_xpriv=xpriv,
             master_xpubs=xpubs,
             num_required_signers=required,
-            key_derivation_path=key_derivation_path,
+            base_derivation_path=base_derivation_path,
             bitcoin_rpc=wallet.rpc,
             ord_client=ord.api_client,
         )
-        wallet.rpc.call(
-            "importdescriptors",
-            [
-                {
-                    "desc": multisig.get_descriptor(),
-                    "timestamp": "now",
-                }
-            ],
+        multisig.import_descriptors_to_bitcoind(
+            range=100,
         )
         if fund:
             bitcoind.fund_addresses(multisig.change_address)
@@ -66,7 +60,6 @@ def multisig(multisig_factory):
         required=2,
         xpriv=MULTISIG_XPRVS[0],
         xpubs=MULTISIG_XPUBS,
-        key_derivation_path=MULTISIG_KEY_DERIVATION_PATH,
     )
 
 
@@ -74,7 +67,7 @@ def test_verify_descriptor(
     multisig,
     bitcoind,
 ):
-    derived_addresses = bitcoind.rpc.call("deriveaddresses", multisig.get_descriptor())
+    derived_addresses = bitcoind.rpc.call("deriveaddresses", multisig.get_descriptor(), [0, 0])
     if derived_addresses != [multisig.change_address]:
         raise ValueError(
             f"Multisig address derivation failed, "
@@ -216,6 +209,54 @@ def test_2_of_3_send_runes(
     for multisig in [multisig1, multisig2]:
         assert to_decimal(multisig.get_rune_balance(rune_a), 18) == supply - transfer_amount
         assert to_decimal(multisig.get_rune_balance(rune_b), 18) == supply
+
+
+def test_ord_multisig_send_runes_from_derived_address(
+    ord: OrdService,
+    bitcoind: BitcoindService,
+    root_ord_wallet: OrdWallet,
+    multisig_factory,
+):
+    test_wallet = ord.create_test_wallet("derived-receiver")
+    multisig = multisig_factory(
+        required=1,
+        xpriv=MULTISIG_XPRVS[0],
+        xpubs=MULTISIG_XPUBS[:2],
+    )
+    supply = Decimal("1234")
+    etching = root_ord_wallet.etch_test_rune("DERIVEDTEST", supply=supply)
+    ord.mine_and_sync(bitcoind)
+
+    # Sanity check
+    assert to_decimal(multisig.get_rune_balance(etching.rune), 18) == 0
+    assert test_wallet.get_rune_balance_decimal(etching.rune) == 0
+
+    derived_address = multisig.derive_address(42)
+    assert derived_address != multisig.change_address
+
+    root_ord_wallet.send_runes(
+        rune=etching.rune,
+        receiver=derived_address,
+        amount=supply,
+    )
+    ord.mine_and_sync(bitcoind)
+
+    assert to_decimal(multisig.get_rune_balance(etching.rune), 18) == supply
+
+    transfer_amount = Decimal("98.7")
+    multisig.send_runes(
+        transfers=[
+            RuneTransfer(
+                rune=etching.rune,
+                receiver=test_wallet.get_receiving_address(),
+                amount=to_base_units(transfer_amount, 18),
+            )
+        ],
+    )
+    ord.mine_and_sync(bitcoind)
+
+    assert to_decimal(multisig.get_rune_balance(etching.rune), 18) == supply - transfer_amount
+    assert test_wallet.get_rune_balance_decimal(etching.rune) == transfer_amount
 
 
 # TODO: test won't use rune outputs for paying for transaction fees

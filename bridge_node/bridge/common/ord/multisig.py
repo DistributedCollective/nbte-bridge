@@ -15,8 +15,7 @@ from bitcointx.core.script import CScript, standard_multisig_redeem_script
 from bitcointx.wallet import CCoinExtKey, CCoinExtPubKey, P2WSHBitcoinAddress
 
 from .client import OrdApiClient
-from .simple_wallet import TARGET_POSTAGE
-from .transfers import RuneTransfer
+from .transfers import RuneTransfer, TARGET_POSTAGE_SAT
 from .utxos import OrdOutputCache
 from ..btc import descriptors
 from ..btc.estimation import estimate_p2wsh_multisig_tx_virtual_size
@@ -34,34 +33,30 @@ class OrdMultisig:
         master_xpriv: str,
         master_xpubs: list[str],
         num_required_signers: int,
-        key_derivation_path: str,
+        base_derivation_path: str,
         bitcoin_rpc: BitcoinRPC,
         ord_client: OrdApiClient,
     ):
         _xprv = CCoinExtKey(master_xpriv)
         self._get_master_xpriv = lambda: _xprv
         self._master_xpubs = [CCoinExtPubKey(xpub) for xpub in master_xpubs]
+        if _xprv.neuter() not in self._master_xpubs:
+            raise ValueError("master_xpriv not in master_xpubs")
+
         self._num_required_signers = num_required_signers
-        if not key_derivation_path.startswith("m"):
-            raise ValueError("key_derivation_path must start with 'm'")
-        self._key_derivation_path = key_derivation_path
-        self._bitcoin_rpc = bitcoin_rpc
 
-        sorted_child_pubkeys = [
-            xpub.derive_path(self._key_derivation_path).pub for xpub in self._master_xpubs
-        ]
-        sorted_child_pubkeys.sort()
+        if not base_derivation_path.startswith("m"):
+            raise ValueError("base_derivation_path must start with 'm'")
+        self._base_derivation_path = base_derivation_path
+        self._ranged_derivation_path = base_derivation_path + "/*"
+        # self._key_derivation_path = base_derivation_path + '/0'
 
-        # This implementation only cares about a single address for nw
-        self._multisig_redeem_script = standard_multisig_redeem_script(
-            total=len(self._master_xpubs),
-            required=num_required_signers,
-            pubkeys=sorted_child_pubkeys,
-        )
+        self._multisig_redeem_script = self._derive_redeem_script(0)
         self._multisig_script = P2WSHBitcoinAddress.from_redeemScript(self._multisig_redeem_script)
         self._multisig_address = encode_segwit_address(self._multisig_script)
 
-        # Ord stuff
+        self._bitcoin_rpc = bitcoin_rpc
+
         self._ord_client = ord_client
         self._ord_output_cache = OrdOutputCache(
             ord_client=ord_client,
@@ -72,12 +67,47 @@ class OrdMultisig:
         return self._multisig_address
 
     def get_descriptor(self):
+        return self._get_descriptor(self._master_xpubs)
+
+    def _get_descriptor_with_xprv(self):
+        keys = self._master_xpubs[:]
+        xprv = self._get_master_xpriv()
+        wallet_xpub_index = keys.index(xprv.neuter())
+        keys[wallet_xpub_index] = xprv
+        return self._get_descriptor(keys)
+
+    def _get_descriptor(self, keys):
         required = self._num_required_signers
-        xpubs_str = ",".join(
-            self._key_derivation_path.replace("m", str(xpub)) for xpub in self._master_xpubs
+        ranged_derivation_path = self._ranged_derivation_path
+        keys_str = ",".join(
+            ranged_derivation_path.replace(
+                "m",
+                str(key),
+            )
+            for key in keys
         )
-        descriptor = f"wsh(sortedmulti({required},{xpubs_str}))"
+        descriptor = f"wsh(sortedmulti({required},{keys_str}))"
         return descriptors.descsum_create(descriptor)
+
+    def import_descriptors_to_bitcoind(
+        self,
+        *,
+        timestamp="now",
+        range: int | tuple[int, int],
+    ):
+        response = self._bitcoin_rpc.call(
+            "importdescriptors",
+            [
+                {
+                    "desc": self._get_descriptor_with_xprv(),
+                    "timestamp": timestamp,
+                    "range": range,
+                }
+            ],
+        )
+        for result in response:
+            if not result.get("success"):
+                raise ValueError(f"Failed to import descriptor: {response}")
 
     def get_rune_balance(self, rune_name: str) -> int:
         utxos = self._list_utxos()
@@ -88,6 +118,15 @@ class OrdMultisig:
             ).get_rune_balance(rune_name)
             for utxo in utxos
         )
+
+    def send_runes(self, transfers: list[RuneTransfer]):
+        if self._num_required_signers != 1:
+            raise ValueError(
+                "send_runes can only be used with a 1-of-m multisig",
+            )
+        psbt = self.create_rune_psbt(transfers)
+        signed_psbt = self.sign_psbt(psbt, finalize=True)
+        return self.broadcast_psbt(signed_psbt)
 
     def create_rune_psbt(self, transfers: list[RuneTransfer]):
         # TODO: estimate the sat per vb feerate
@@ -153,7 +192,7 @@ class OrdMultisig:
         # TODO: this is not ideal if we don't get change in runes
         psbt.add_output(
             txout=CTxOut(
-                nValue=TARGET_POSTAGE,
+                nValue=TARGET_POSTAGE_SAT,
                 scriptPubKey=self._multisig_script.to_scriptPubKey(),
             ),
             outp=PSBT_Output(
@@ -174,6 +213,9 @@ class OrdMultisig:
 
         # Coin selection for runes
         for utxo in utxos:
+            if not utxo.witness_script:
+                logger.warning("UTXO doesn't have witnessScript, cannot use: %s", utxo)
+                continue
             ord_output = self._ord_output_cache.get_ord_output(
                 txid=utxo.txid,
                 vout=utxo.vout,
@@ -210,7 +252,8 @@ class OrdMultisig:
                     prevout=utxo.outpoint,
                 ),
                 inp=PSBT_Input(
-                    witness_script=self._multisig_redeem_script,
+                    # witness_script=self._multisig_redeem_script,
+                    witness_script=utxo.witness_script,
                     utxo=input_tx.vout[utxo.vout],
                     force_witness_utxo=True,
                 ),
@@ -230,7 +273,7 @@ class OrdMultisig:
         output_amount_sat = sum(txout.nValue for txout in psbt.unsigned_tx.vout)
         # Change must be either 0 (no output generated) or at least this,
         # else it gets rejected as dust
-        min_change_output_value_sat = TARGET_POSTAGE
+        min_change_output_value_sat = TARGET_POSTAGE_SAT
 
         while True:
             tx_size_vbyte = estimate_p2wsh_multisig_tx_virtual_size(
@@ -261,6 +304,9 @@ class OrdMultisig:
                         break
             except IndexError:
                 raise ValueError("Don't have enough BTC to fund PSBT")
+            if not utxo.witness_script:
+                logger.warning("UTXO doesn't have witnessScript, cannot use: %s", utxo)
+                continue
 
             # Add input
             input_amount_sat += utxo.amount_satoshi
@@ -273,7 +319,8 @@ class OrdMultisig:
                     prevout=utxo.outpoint,
                 ),
                 inp=PSBT_Input(
-                    witness_script=self._multisig_redeem_script,
+                    # witness_script=self._multisig_redeem_script,
+                    witness_script=utxo.witness_script,
                     utxo=input_tx.vout[utxo.vout],
                     force_witness_utxo=True,
                 ),
@@ -300,15 +347,28 @@ class OrdMultisig:
     # TODO: add rune-PSBT-specific logic and methods, maybe
 
     def sign_psbt(self, psbt: PSBT, finalize: bool = False) -> PSBT:
-        psbt = psbt.clone()
-        keystore = KeyStore.from_iterable(
-            [
-                self._get_master_xpriv().derive_path(self._key_derivation_path).priv,
-            ],
-        )
-        result = psbt.sign(keystore, finalize=finalize)
-        assert result.num_inputs_signed == len(psbt.inputs)
-        return psbt
+        serialized = psbt.to_base64()
+        result = self._bitcoin_rpc.call("walletprocesspsbt", serialized)
+        signed_psbt = PSBT.from_base64(result["psbt"])
+        if finalize:
+            signed_psbt = self.finalize_psbt(signed_psbt)
+        return signed_psbt
+
+        # psbt = psbt.clone()
+        # keystore = KeyStore.from_iterable(
+        #     [
+        #         self._get_master_xpriv().derive_path(self._key_derivation_path).priv,
+        #     ],
+        # )
+        # keystore = KeyStore.from_iterable(
+        #     [
+        #         self._get_master_xpriv(),
+        #     ],
+        #     default_path_template=BIP32PathTemplate(self._ranged_derivation_path),
+        # )
+        # result = psbt.sign(keystore, finalize=finalize)
+        # assert result.num_inputs_signed == len(psbt.inputs)
+        # return psbt
 
     def combine_and_finalize_psbt(
         self,
@@ -319,9 +379,13 @@ class OrdMultisig:
         psbt = initial_psbt.clone()
         for signed_psbt in signed_psbts:
             psbt = psbt.combine(signed_psbt)
+        return self.finalize_psbt(psbt)
+
+    def finalize_psbt(self, psbt: PSBT):
+        psbt = psbt.clone()
         sign_result = psbt.sign(KeyStore(), finalize=True)
         if not sign_result.is_final:
-            raise Exception("Failed to finalize PSBT")
+            raise ValueError("Failed to finalize PSBT")
         return psbt
 
     def broadcast_psbt(self, psbt: PSBT):
@@ -334,8 +398,27 @@ class OrdMultisig:
         txid = self._bitcoin_rpc.call("sendrawtransaction", tx_hex)
         return txid
 
+    def derive_address(self, index) -> str:
+        redeem_script = self._derive_redeem_script(index)
+        p2wsh = P2WSHBitcoinAddress.from_redeemScript(redeem_script)
+        return encode_segwit_address(p2wsh)
+
+    def _derive_redeem_script(self, index: int) -> CScript:
+        sorted_child_pubkeys = [
+            xpub.derive_path(self._base_derivation_path).derive(index).pub
+            for xpub in self._master_xpubs
+        ]
+        sorted_child_pubkeys.sort()
+
+        return standard_multisig_redeem_script(
+            total=len(self._master_xpubs),
+            required=self._num_required_signers,
+            pubkeys=sorted_child_pubkeys,
+        )
+
     def _list_utxos(self) -> list[UTXO]:
-        raw_utxos = self._bitcoin_rpc.listunspent(1, 9999999, [self._multisig_address], False)
+        # Don't filter by address here as we want all UTXOs
+        raw_utxos = self._bitcoin_rpc.listunspent(1, 9999999, [], False)
         utxos = [UTXO.from_rpc_response(utxo) for utxo in raw_utxos]
         utxos.sort(key=lambda utxo: utxo.confirmations, reverse=True)
         return utxos

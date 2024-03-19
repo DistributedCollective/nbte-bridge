@@ -4,6 +4,7 @@ from decimal import Decimal
 from typing import Any, Optional
 
 from bitcointx.core import COutPoint
+from bitcointx.core.script import CScript
 
 from .utils import from_satoshi, to_satoshi
 
@@ -15,6 +16,7 @@ class UTXO:
     amount_satoshi: int
     confirmations: int
     address: Optional[str] = None
+    witness_script: Optional[CScript] = None
     # raw: dict[str, Any] = dataclasses.field(repr=False, default_factory=dict)
 
     @classmethod
@@ -25,6 +27,9 @@ class UTXO:
             amount_satoshi=to_satoshi(rpc_dict["amount"]),
             confirmations=rpc_dict["confirmations"],
             address=rpc_dict.get("address"),
+            witness_script=(
+                CScript.fromhex(rpc_dict["witnessScript"]) if "witnessScript" in rpc_dict else None
+            ),
             # raw=rpc_dict,
         )
         assert r.amount_btc == Decimal(rpc_dict["amount"])
