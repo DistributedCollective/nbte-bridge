@@ -1,22 +1,14 @@
+import secrets
 from decimal import Decimal
 
 import pytest
 from bridge.common.ord.multisig import OrdMultisig
 from bridge.common.ord.transfers import RuneTransfer
 from bridge.common.utils import to_base_units, to_decimal
+from bitcointx.wallet import CCoinExtKey
 from tests.services import BitcoindService, OrdService, OrdWallet
 
-MULTISIG_XPRVS = [
-    "tprv8ZgxMBicQKsPdLiVtqrvinq5JyvByQZs4xWMgzZ3YWK7ndu27yQ3qoWivh8cgdtB3bKuYKWRKhaEvtykaFCsDCB7akNdcArjgrCnFhuDjmV",
-    "tprv8ZgxMBicQKsPdMXsXv4Ddkgimo1m89QjXBNUrCgAaDRX5tEDMVA8HotnZmHcMvUVtgh1yXbN74StoJqv76jvRxJmkr2wvkPwTbZb1zeXv3Y",
-    "tprv8ZgxMBicQKsPcwXzdBoYKEXmLiBsPzNRfoLadw8WsnmKSHU47fJR3UjAhni8kt5bx5jFG9JZ4oZuxnaX6beTNwc2C5coMHmAvnKpqHA8xVb",
-]
-MULTISIG_XPUBS = [
-    "tpubD6NzVbkrYhZ4WokHnVXX8CVBt1S88jkmeG78yWbLxn7Wd89nkNDe2J8b6opP4K38mRwXf9d9VVN5uA58epPKjj584R1rnDDbk6oHUD1MoWD",
-    "tpubD6NzVbkrYhZ4WpZfRZip3ALqLpXhHUbe6UyG8iiTzVDuvNUyysyiUJWejtbszZYrDaUM8UZpjLmHyvtV7r1QQNFmTqciAz1fYSYkw28Ux6y",
-    "tpubD6NzVbkrYhZ4WQZnWqU8ieBsujhoZKZLF6wMvTApJ4ZiGmipk481DyM2su3y5BDeB9fFLwSmmmsGDGJum79he2fnuQMnpWhe3bGir7Mf4uS",
-]
-MULTISIG_KEY_DERIVATION_PATH = "m/0/0"
+DEFAULT_KEY_DERIVATION_PATH = "m/0/0"
 
 
 @pytest.fixture()
@@ -24,11 +16,11 @@ def multisig_factory(
     bitcoind: BitcoindService,
     ord: OrdService,
 ):
-    def create_multisig(
+    def _create_multisig(
         required: int,
         xpriv: str,
         xpubs: list[str],
-        base_derivation_path: str = MULTISIG_KEY_DERIVATION_PATH,
+        base_derivation_path: str = DEFAULT_KEY_DERIVATION_PATH,
         *,
         fund: bool = True,
     ):
@@ -51,16 +43,45 @@ def multisig_factory(
             bitcoind.fund_addresses(multisig.change_address)
         return multisig
 
-    return create_multisig
+    def create_multisigs(
+        required: int,
+        num_signers: int,
+        base_derivation_path: str = DEFAULT_KEY_DERIVATION_PATH,
+        *,
+        fund: bool = True,
+    ):
+        assert num_signers >= required
+        assert required >= 1
+
+        xprivs = [CCoinExtKey.from_seed(secrets.token_bytes(64)) for _ in range(num_signers)]
+        xpubs = [xpriv.neuter() for xpriv in xprivs]
+        multisigs = [
+            _create_multisig(
+                required=required,
+                xpriv=str(xpriv),
+                xpubs=[str(xpub) for xpub in xpubs],
+                base_derivation_path=base_derivation_path,
+                fund=False,
+            )
+            for xpriv in xprivs
+        ]
+        assert (
+            len({m.change_address for m in multisigs}) == 1
+        ), "all multisigs should have the same change address"
+        if fund:
+            bitcoind.fund_addresses(multisigs[0].change_address)
+        return multisigs
+
+    return create_multisigs
 
 
 @pytest.fixture()
 def multisig(multisig_factory):
+    # Default multisig for easier testing
     return multisig_factory(
+        num_signers=3,
         required=2,
-        xpriv=MULTISIG_XPRVS[0],
-        xpubs=MULTISIG_XPUBS,
-    )
+    )[0]
 
 
 def test_verify_descriptor(
@@ -103,10 +124,9 @@ def test_1_of_2_send_runes(
     rune_factory,
     multisig_factory,
 ):
-    multisig = multisig_factory(
+    multisig, _ = multisig_factory(
         required=1,
-        xpriv=MULTISIG_XPRVS[0],
-        xpubs=MULTISIG_XPUBS[:2],
+        num_signers=2,
     )
     test_wallet = ord.create_test_wallet("test")
     supply = Decimal("1000")
@@ -149,15 +169,9 @@ def test_2_of_3_send_runes(
     rune_factory,
     multisig_factory,
 ):
-    multisig1 = multisig_factory(
+    multisig1, multisig2, _ = multisig_factory(
         required=2,
-        xpriv=MULTISIG_XPRVS[0],
-        xpubs=MULTISIG_XPUBS,
-    )
-    multisig2 = multisig_factory(
-        required=2,
-        xpriv=MULTISIG_XPRVS[1],
-        xpubs=MULTISIG_XPUBS,
+        num_signers=3,
     )
     assert multisig1.change_address == multisig2.change_address
 
@@ -218,10 +232,9 @@ def test_ord_multisig_send_runes_from_derived_address(
     multisig_factory,
 ):
     test_wallet = ord.create_test_wallet("derived-receiver")
-    multisig = multisig_factory(
+    multisig, _ = multisig_factory(
         required=1,
-        xpriv=MULTISIG_XPRVS[0],
-        xpubs=MULTISIG_XPUBS[:2],
+        num_signers=2,
     )
     supply = Decimal("1234")
     etching = root_ord_wallet.etch_test_rune("DERIVEDTEST", supply=supply)

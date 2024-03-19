@@ -346,7 +346,7 @@ class OrdMultisig:
 
     # TODO: add rune-PSBT-specific logic and methods, maybe
 
-    def sign_psbt(self, psbt: PSBT, finalize: bool = False) -> PSBT:
+    def sign_psbt(self, psbt: PSBT, *, finalize: bool = False) -> PSBT:
         serialized = psbt.to_base64()
         result = self._bitcoin_rpc.call("walletprocesspsbt", serialized)
         signed_psbt = PSBT.from_base64(result["psbt"])
@@ -354,17 +354,21 @@ class OrdMultisig:
             signed_psbt = self.finalize_psbt(signed_psbt)
         return signed_psbt
 
+        # TODO: not sure how to make it work without using bitcoin rpc and walletprocesspsbt
         # psbt = psbt.clone()
+        # This works for a single-address usecase
         # keystore = KeyStore.from_iterable(
         #     [
         #         self._get_master_xpriv().derive_path(self._key_derivation_path).priv,
         #     ],
         # )
+        # This doesn't work and not sure how to make it work
         # keystore = KeyStore.from_iterable(
         #     [
         #         self._get_master_xpriv(),
         #     ],
         #     default_path_template=BIP32PathTemplate(self._ranged_derivation_path),
+        #     require_path_templates=True,
         # )
         # result = psbt.sign(keystore, finalize=finalize)
         # assert result.num_inputs_signed == len(psbt.inputs)
