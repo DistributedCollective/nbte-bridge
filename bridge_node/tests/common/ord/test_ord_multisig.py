@@ -27,6 +27,7 @@ def multisig_factory(
         wallet = bitcoind.create_test_wallet(
             prefix=f"ord-multisig-{required}-of-{len(xpubs)}",
             blank=True,
+            disable_private_keys=True,
         )
         multisig = OrdMultisig(
             master_xpriv=xpriv,

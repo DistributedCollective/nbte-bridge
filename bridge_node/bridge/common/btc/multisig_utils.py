@@ -1,12 +1,19 @@
+import dataclasses
+import re
 from io import BytesIO
 
 from bitcointx.core import (
     CTxIn,
+    CTxInWitness,
     CTxOut,
     CTxWitness,
-    CTxInWitness,
     calculate_transaction_virtual_size,
 )
+from bitcointx.core.key import (
+    BIP32Path,
+    CPubKey,
+)
+from bitcointx.core.psbt import PSBT_KeyDerivationInfo
 from bitcointx.core.script import (
     CScript,
     CScriptWitness,
@@ -81,4 +88,61 @@ def estimate_p2wsh_multisig_tx_virtual_size(
         num_outputs=len(vout),
         outputs_serialized_size=outputs_size,
         witness_size=witness_size,
+    )
+
+
+@dataclasses.dataclass
+class DescriptorParseResult:
+    num_required_signers: int
+    num_signers: int
+    derivation_map: dict[CPubKey, PSBT_KeyDerivationInfo]
+    master_fingerprints: set[bytes]
+
+
+def parse_p2wsh_multisig_utxo_descriptor(
+    descriptor: str,
+) -> DescriptorParseResult:
+    """
+    Parse a from a P2WSH multisig descriptor for a single UTXO
+    (i.e. the 'desc' field of each object returned by listunspent).
+
+    The descriptor looks like this (without newlines):
+
+        wsh(multi(1,[7f3e784c/0/0/0]02557f9ba4873a6241dab9800cb16a09f0a1017b993aa26722e743309ef22bce6c,
+        [8895ce69/0/0/0]03575ea3a4be64cddefaa78d0f106dad02699545a508fd92f0ee8ecba635b5d708))#kxmewpkl
+
+    The returned object contains a derivation map (suitable for adding to PSBT_Input),
+    as well as data suitable for additional validation.
+    """
+    derivation_map = {}
+    master_fingerprints = set()
+
+    match = re.match(
+        r"^wsh\(multi\((\d+),((?:\[.*?\][a-f0-9]+,?)+)\)\)#[a-z0-9]+$",
+        descriptor,
+    )
+    if not match:
+        raise ValueError(f"Descriptor doesn't look like p2wsh multisig: {descriptor!r}")
+
+    num_required_signers = int(match.group(1))
+
+    pubkey_derivation_infos = match.group(2).split(",")
+    num_signers = len(pubkey_derivation_infos)
+
+    for pubkey_derivation_info in pubkey_derivation_infos:
+        match = re.match(r"^\[([a-z0-f]+)/(.*)\]([a-f0-9]+)$", pubkey_derivation_info)
+        if not match:
+            raise ValueError(f"Invalid pubkey derivation info: {pubkey_derivation_info!r}")
+        master_fingerprint_hex, derivation_path, pubkey_hex = match.groups()
+        master_fingerprint = bytes.fromhex(master_fingerprint_hex)
+        master_fingerprints.add(master_fingerprint)
+        derivation_map[CPubKey.fromhex(pubkey_hex)] = PSBT_KeyDerivationInfo(
+            master_fp=master_fingerprint, path=BIP32Path(f"m/{derivation_path}")
+        )
+
+    return DescriptorParseResult(
+        num_required_signers=num_required_signers,
+        num_signers=num_signers,
+        derivation_map=derivation_map,
+        master_fingerprints=master_fingerprints,
     )

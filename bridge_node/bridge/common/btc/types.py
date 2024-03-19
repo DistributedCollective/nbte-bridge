@@ -15,6 +15,10 @@ class UTXO:
     vout: int
     amount_satoshi: int
     confirmations: int
+    spendable: bool
+    solvable: bool
+    safe: bool
+    desc: Optional[str] = None  # only if solvable
     address: Optional[str] = None
     witness_script: Optional[CScript] = None
     # raw: dict[str, Any] = dataclasses.field(repr=False, default_factory=dict)
@@ -26,6 +30,10 @@ class UTXO:
             vout=rpc_dict["vout"],
             amount_satoshi=to_satoshi(rpc_dict["amount"]),
             confirmations=rpc_dict["confirmations"],
+            solvable=rpc_dict["solvable"],
+            spendable=rpc_dict["spendable"],
+            safe=rpc_dict["safe"],
+            desc=rpc_dict.get("desc"),
             address=rpc_dict.get("address"),
             witness_script=(
                 CScript.fromhex(rpc_dict["witnessScript"]) if "witnessScript" in rpc_dict else None

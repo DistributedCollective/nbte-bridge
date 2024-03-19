@@ -9,16 +9,36 @@ from bitcointx.core import (
     CTxIn,
     CTxOut,
 )
-from bitcointx.core.key import KeyStore
-from bitcointx.core.psbt import PSBT_Input, PSBT_Output, PartiallySignedTransaction as PSBT
-from bitcointx.core.script import CScript, standard_multisig_redeem_script
-from bitcointx.wallet import CCoinExtKey, CCoinExtPubKey, P2WSHBitcoinAddress
+from bitcointx.core.key import (
+    BIP32PathTemplate,
+    KeyStore,
+)
+from bitcointx.core.psbt import (
+    PSBT_Input,
+    PSBT_Output,
+    PartiallySignedTransaction as PSBT,
+)
+from bitcointx.core.script import (
+    CScript,
+    standard_multisig_redeem_script,
+)
+from bitcointx.wallet import (
+    CCoinExtKey,
+    CCoinExtPubKey,
+    P2WSHBitcoinAddress,
+)
 
 from .client import OrdApiClient
-from .transfers import RuneTransfer, TARGET_POSTAGE_SAT
+from .transfers import (
+    RuneTransfer,
+    TARGET_POSTAGE_SAT,
+)
 from .utxos import OrdOutputCache
 from ..btc import descriptors
-from ..btc.estimation import estimate_p2wsh_multisig_tx_virtual_size
+from ..btc.multisig_utils import (
+    estimate_p2wsh_multisig_tx_virtual_size,
+    parse_p2wsh_multisig_utxo_descriptor,
+)
 from ..btc.rpc import BitcoinRPC
 from ..btc.types import UTXO
 from ..btc.utils import encode_segwit_address
@@ -99,7 +119,9 @@ class OrdMultisig:
             "importdescriptors",
             [
                 {
-                    "desc": self._get_descriptor_with_xprv(),
+                    # We don't need to import descriptors with xprv since we're using keystore
+                    # "desc": self._get_descriptor_with_xprv(),
+                    "desc": self.get_descriptor(),
                     "timestamp": timestamp,
                     "range": range,
                 }
@@ -211,6 +233,33 @@ class OrdMultisig:
         required_rune_amounts = dict(required_rune_amounts)  # no defaultdict anymore
         input_amount_sat = 0
 
+        def add_psbt_input(utxo: UTXO):
+            input_tx_response = self._bitcoin_rpc.gettransaction(utxo.txid, True)
+            input_tx = CTransaction.stream_deserialize(
+                BytesIO(binascii.unhexlify(input_tx_response["hex"])),
+            )
+
+            parsed_descriptor = parse_p2wsh_multisig_utxo_descriptor(utxo.desc)
+            if self._get_master_xpriv().fingerprint not in parsed_descriptor.master_fingerprints:
+                # This should essentially never happen unless other descriptors are imported
+                # to the wallet
+                raise ValueError(
+                    "UTXO doesn't belong to this multisig (master fingerprint not found)"
+                )
+
+            psbt.add_input(
+                txin=CTxIn(
+                    prevout=utxo.outpoint,
+                ),
+                inp=PSBT_Input(
+                    # witness_script=self._multisig_redeem_script,
+                    witness_script=utxo.witness_script,
+                    utxo=input_tx.vout[utxo.vout],
+                    force_witness_utxo=True,
+                    derivation_map=parsed_descriptor.derivation_map,
+                ),
+            )
+
         # Coin selection for runes
         for utxo in utxos:
             if not utxo.witness_script:
@@ -243,21 +292,7 @@ class OrdMultisig:
             for rune, utxo_balance in relevant_rune_balances_in_utxo.items():
                 required_rune_amounts[rune] -= utxo_balance
 
-            input_tx_raw = self._bitcoin_rpc.gettransaction(utxo.txid, True)
-            input_tx = CTransaction.stream_deserialize(
-                BytesIO(binascii.unhexlify(input_tx_raw["hex"])),
-            )
-            psbt.add_input(
-                txin=CTxIn(
-                    prevout=utxo.outpoint,
-                ),
-                inp=PSBT_Input(
-                    # witness_script=self._multisig_redeem_script,
-                    witness_script=utxo.witness_script,
-                    utxo=input_tx.vout[utxo.vout],
-                    force_witness_utxo=True,
-                ),
-            )
+            add_psbt_input(utxo)
 
             if all(v <= 0 for v in required_rune_amounts.values()):
                 # We have enough runes
@@ -310,21 +345,7 @@ class OrdMultisig:
 
             # Add input
             input_amount_sat += utxo.amount_satoshi
-            input_tx_raw = self._bitcoin_rpc.gettransaction(utxo.txid, True)
-            input_tx = CTransaction.stream_deserialize(
-                BytesIO(binascii.unhexlify(input_tx_raw["hex"])),
-            )
-            psbt.add_input(
-                txin=CTxIn(
-                    prevout=utxo.outpoint,
-                ),
-                inp=PSBT_Input(
-                    # witness_script=self._multisig_redeem_script,
-                    witness_script=utxo.witness_script,
-                    utxo=input_tx.vout[utxo.vout],
-                    force_witness_utxo=True,
-                ),
-            )
+            add_psbt_input(utxo)
 
             # Loop from the start
 
@@ -347,32 +368,27 @@ class OrdMultisig:
     # TODO: add rune-PSBT-specific logic and methods, maybe
 
     def sign_psbt(self, psbt: PSBT, *, finalize: bool = False) -> PSBT:
-        serialized = psbt.to_base64()
-        result = self._bitcoin_rpc.call("walletprocesspsbt", serialized)
-        signed_psbt = PSBT.from_base64(result["psbt"])
-        if finalize:
-            signed_psbt = self.finalize_psbt(signed_psbt)
-        return signed_psbt
+        # Keystore works as long as the derivation infos are set for each PSBT input
+        psbt = psbt.clone()
+        keystore = KeyStore.from_iterable(
+            [
+                self._get_master_xpriv(),
+            ],
+            default_path_template=BIP32PathTemplate(self._ranged_derivation_path),
+            require_path_templates=True,
+        )
+        result = psbt.sign(keystore, finalize=finalize)
+        assert result.num_inputs_signed == len(psbt.inputs)
+        return psbt
 
-        # TODO: not sure how to make it work without using bitcoin rpc and walletprocesspsbt
-        # psbt = psbt.clone()
-        # This works for a single-address usecase
-        # keystore = KeyStore.from_iterable(
-        #     [
-        #         self._get_master_xpriv().derive_path(self._key_derivation_path).priv,
-        #     ],
-        # )
-        # This doesn't work and not sure how to make it work
-        # keystore = KeyStore.from_iterable(
-        #     [
-        #         self._get_master_xpriv(),
-        #     ],
-        #     default_path_template=BIP32PathTemplate(self._ranged_derivation_path),
-        #     require_path_templates=True,
-        # )
-        # result = psbt.sign(keystore, finalize=finalize)
-        # assert result.num_inputs_signed == len(psbt.inputs)
-        # return psbt
+        # Alternatively, we could use walletprocesspsbt, which works as long
+        # as the descriptor is imported to bitcoind with xpriv:
+        # serialized = psbt.to_base64()
+        # result = self._bitcoin_rpc.call("walletprocesspsbt", serialized)
+        # signed_psbt = PSBT.from_base64(result["psbt"])
+        # if finalize:
+        #     signed_psbt = self.finalize_psbt(signed_psbt)
+        # return signed_psbt
 
     def combine_and_finalize_psbt(
         self,
