@@ -1,32 +1,46 @@
 import logging
+import time
+from datetime import datetime
+from typing import (
+    Callable,
+    Protocol,
+)
 
 import Pyro5.errors
-
-from datetime import datetime
 
 from . import challenge
 
 
-def pyro_validate_handshake(conn, data):
-    cert = conn.getpeercert()
-
-    logging.debug("Validating handshake with cert: %s", cert)
-
-    return
+logger = logging.getLogger(__name__)
 
 
-class SecureContext:
-    def __init__(self, *args, **kwargs):
-        ...
-
+class SecureContext(Protocol):
     def validate_handshake(self, conn, data):
         ...
 
 
+class SecureContextFactory(Protocol):
+    def __call__(
+        self,
+        *,
+        privkey: str,
+        fetch_peer_addresses: Callable[[], list[str]],
+    ) -> SecureContext:
+        ...
+
+
 class PyroSecureContext:
-    def __init__(self, privkey, *args, **kwargs):
+    def __init__(
+        self,
+        *,
+        privkey: str,
+        fetch_peer_addresses: Callable[[], list[str]],
+    ):
         self.privkey = privkey
-        logging.debug("Enabling SSL for Pyro communication")
+        self.fetch_peer_addresses = fetch_peer_addresses
+        self._cached_peer_addresses = None
+        self._cached_peer_addresses_timestamp = None
+        logger.debug("Enabling SSL for Pyro communication")
 
         Pyro5.config.SSL = True
         Pyro5.config.SSL_REQUIRECLIENTCERT = True  # enable 2-way ssl
@@ -44,7 +58,7 @@ class PyroSecureContext:
 
         challenge.validate_message(data, binding, self.get_peer_addresses())
 
-        logging.debug("Handshake validated successfully from peer")
+        logger.debug("Handshake validated successfully from peer")
 
         signed_message = challenge.get_signed_handshake_message(binding, self.privkey)
 
@@ -55,9 +69,13 @@ class PyroSecureContext:
             "signature": signed_message.signature.hex(),
         }
 
-    def get_peer_addresses(self):  # TODO: get from external service
-        return [
-            "0x09dcD91DF9300a81a4b9C85FDd04345C3De58F48",
-            "0xA40013a058E70664367c515246F2560B82552ACb",
-            "0x4091663B0a7a14e35Ff1d6d9d0593cE15cE7710a",
-        ]
+    def get_peer_addresses(self) -> list[str]:
+        refetch_interval = 60
+        if self._cached_peer_addresses is not None:
+            if time.time() - self._cached_peer_addresses_timestamp < refetch_interval:
+                return self._cached_peer_addresses
+
+        logger.debug("(Re)fetching peer addresses")
+        self._cached_peer_addresses = self.fetch_peer_addresses()
+        self._cached_peer_addresses_timestamp = time.time()
+        return self._cached_peer_addresses

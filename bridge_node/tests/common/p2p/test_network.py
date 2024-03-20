@@ -27,7 +27,11 @@ def test_secure_pyro_network(mocker):
     )  # I don't want to actually start a server in an unit test
 
     return PyroNetwork(
-        node_id="test", host="localhost", port=8080, peers=[], context_cls=PyroSecureContext
+        node_id="test",
+        host="localhost",
+        port=8080,
+        peers=[],
+        context_cls=PyroSecureContext,
     )
 
 
@@ -188,9 +192,13 @@ def test_custom_handshake_is_used_when_using_a_custom_context(mocker):
         TransportServerStub,
     )
 
-    # Use a stub context so we can check if it was called
+    # Use a stub context, so we can check if it was called
     network = PyroNetwork(
-        node_id="test", host="localhost", port=8080, peers=[], context_cls=SecureContextStub
+        node_id="test",
+        host="localhost",
+        port=8080,
+        peers=[],
+        context_cls=SecureContextStub,
     )
 
     assert (

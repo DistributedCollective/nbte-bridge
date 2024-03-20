@@ -48,4 +48,8 @@ def validate_message(data, expected_binding, valid_addresses):
     recovered = recover_message(expected_message, data["signature"])
 
     if recovered not in valid_addresses:
-        raise Pyro5.errors.SecurityError("Recovered address does not match any allowed address")
+        raise Pyro5.errors.SecurityError(
+            "Recovered address %r does not match any of the allowed addresses %r",
+            recovered,
+            valid_addresses,
+        )

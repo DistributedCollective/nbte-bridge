@@ -1,19 +1,26 @@
-from typing import Callable, Protocol, Any, TypedDict
 import logging
 import threading
+from typing import (
+    Any,
+    Callable,
+    Protocol,
+    TypedDict,
+)
 
 import Pyro5.api
 import Pyro5.errors
+from anemic.ioc import (
+    Container,
+    service,
+)
 
-from anemic.ioc import Container, service
-from .messaging import MessageEnvelope
-
-from bridge.common.p2p.auth.bridge_ssl import SecureContext, PyroSecureContext
-
+from bridge.common.p2p.auth.bridge_ssl import (
+    PyroSecureContext,
+    SecureContextFactory,
+)
 from bridge.config import Config
-
 from .client import BoundPyroProxy
-
+from .messaging import MessageEnvelope
 
 logger = logging.getLogger(__name__)
 
@@ -58,9 +65,10 @@ class PyroNetwork(Network):
         host,
         port,
         peers,
-        context_cls: SecureContext = None,
+        context_cls: SecureContextFactory = None,
         privkey=None,
         leader_node_id=None,
+        fetch_peer_addresses: Callable[[], list[str]] = lambda: [],
     ):
         self.host = host
         self.port = port
@@ -68,6 +76,7 @@ class PyroNetwork(Network):
         self.leader_node_id = leader_node_id
         self.context = None
         self.privkey = privkey
+        self.fetch_peer_addresses = fetch_peer_addresses
 
         self.create_daemon(context_cls)
 
@@ -83,9 +92,12 @@ class PyroNetwork(Network):
         self._running = False
         self.start()
 
-    def create_daemon(self, context_cls: SecureContext | Any = None):
+    def create_daemon(self, context_cls: SecureContextFactory = None):
         if context_cls is not None:
-            self.context = context_cls(self.privkey)
+            self.context = context_cls(
+                privkey=self.privkey,
+                fetch_peer_addresses=self.fetch_peer_addresses,
+            )
 
         self.daemon = Pyro5.api.Daemon(host=self.host, port=self.port)
 
@@ -219,7 +231,30 @@ class PyroNetwork(Network):
 
 @service(scope="global", interface_override=Network)
 def create_pyro_network(container: Container):
+    from ..evm.utils import create_web3
+
     config = container.get(interface=Config)
+
+    # Federator addresses are used for validating handshakes. The addresses
+    # are fetched from a smart contact on an EVM-compatible network.
+    # We only support a single contract for now. In the future, it might
+    # be necessary to extend this to support multiple contracts.
+    # We also create a new Web3 for this instead of getting it from the Container,
+    # because we anticipate that we might need multiple Web3 instances in the future.
+    web3 = create_web3(config.evm_rpc_url)
+    federation_contract = web3.eth.contract(
+        address=config.evm_bridge_contract_address,
+        abi=[
+            {
+                "inputs": [],
+                "name": "getFederators",
+                "outputs": [{"internalType": "address[]", "name": "", "type": "address[]"}],
+                "stateMutability": "view",
+                "type": "function",
+            },
+        ],
+    )
+
     network = PyroNetwork(
         node_id=config.node_id,
         host=config.hostname,
@@ -227,6 +262,7 @@ def create_pyro_network(container: Container):
         peers=config.peers,
         context_cls=PyroSecureContext,
         privkey=config.evm_private_key,
+        fetch_peer_addresses=federation_contract.functions.getFederators().call,
         leader_node_id=config.leader_node_id,
     )
 
