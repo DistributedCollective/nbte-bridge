@@ -107,6 +107,12 @@ class BitcoindService(compose.ComposeService):
         if not any(required_amounts):
             logger.info("All wallets properly funded")
             return
+
+        # The sending will fail if amount too small
+        min_send_amount = Decimal("0.01")
+        required_amounts = [
+            amount if amount == 0 else max(amount, min_send_amount) for amount in required_amounts
+        ]
         total_required_amount = sum(required_amounts, start=Decimal(0))
 
         # Ensure root wallet is funded
