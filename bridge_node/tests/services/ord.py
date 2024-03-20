@@ -20,6 +20,7 @@ logger = logging.getLogger(__name__)
 
 class OrdService(compose.ComposeService):
     api_client: OrdApiClient
+    api_url: str
 
     def __init__(
         self,
@@ -29,6 +30,7 @@ class OrdService(compose.ComposeService):
         ord_api_url: str = "http://localhost:3080",
     ):
         super().__init__(service, user="ord", request=request)
+        self.api_url = ord_api_url
         self.api_client = OrdApiClient(
             base_url=ord_api_url,
         )

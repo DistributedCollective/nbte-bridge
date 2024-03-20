@@ -7,7 +7,7 @@ from pyramid.view import view_config, view_defaults
 
 from bridge.common.evm.provider import Web3
 from bridge.api.exceptions import ApiException
-from .faux_service import FauxRuneService
+from .service import RuneBridgeService
 
 logger = logging.getLogger(__name__)
 
@@ -16,7 +16,7 @@ logger = logging.getLogger(__name__)
 class RuneBridgeApiViews:
     request: Request
     web3: Web3 = autowired(auto)
-    faux_service: FauxRuneService = autowired(auto)
+    service: RuneBridgeService = autowired(auto)
 
     def __init__(self, request):
         self.request = request
@@ -28,7 +28,7 @@ class RuneBridgeApiViews:
         evm_address = data.get("evm_address")
         if not evm_address:
             raise ApiException("Must specify evm_address")
-        deposit_address = self.faux_service.generate_deposit_address(evm_address=evm_address)
+        deposit_address = self.service.generate_deposit_address(evm_address=evm_address)
         return {"deposit_address": deposit_address}
 
 

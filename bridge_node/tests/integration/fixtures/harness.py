@@ -10,6 +10,7 @@ import json
 from bridge.api_client import BridgeAPIClient
 from ..constants import NODE1_API_BASE_URL
 from ...compose import ENV_FILE as COMPOSE_ENV_FILE, COMPOSE_FILE, PROJECT_BASE_DIR
+from ...services import BitcoindService
 
 logger = logging.getLogger(__name__)
 
@@ -45,9 +46,12 @@ class IntegrationTestHarness:
     ]
     VOLUMES_PATH = PROJECT_BASE_DIR / "volumes"
 
+    bitcoind: BitcoindService
+
     def __init__(self, *, verbose=False):
         self._api_client = BridgeAPIClient(NODE1_API_BASE_URL)
         self.verbose = verbose
+        self.bitcoind = BitcoindService()
 
     def start(self):
         if self.is_started():
@@ -102,20 +106,9 @@ class IntegrationTestHarness:
     def _bitcoind_lnd_init(self):
         logger.info("bitcoind/lnd init")
         logger.info("Waiting for bitcoin rpc startup")
-        time.sleep(5)  # Quick and dirty, just sleep x amount of time
-        logger.info("Mining initial btc block")
-        # NOTE: the btc address is random and not really important
-        self._run_docker_compose_command(
-            "exec",
-            self.BITCOIND_CONTAINER,
-            "bitcoin-cli",
-            "-datadir=/home/bitcoin/.bitcoin",
-            "-regtest",
-            "generatetoaddress",
-            "1",
-            "bcrt1qtxysk2megp39dnpw9va32huk5fesrlvutl0zdpc29asar4hfkrlqs2kzv5",
-            verbose=False,
-        )
+        self.bitcoind.wait()
+        logger.info("Mining initial btc block (tapd/lnd won't start before)")
+        self.bitcoind.mine()
         logger.info("Giving some time for LND nodes to start and connect to bitcoind.")
         time.sleep(2)
         lnd_containers = [f"{f}-lnd" for f in self.FEDERATORS]
@@ -149,31 +142,19 @@ class IntegrationTestHarness:
                 raise Exception("should not get here")
             addr = json.loads(addr_response)["address"]
             logger.info("Mining 2 blocks to %s's addr %s", lnd_container, addr)
-            self._run_docker_compose_command(
-                "exec",
-                self.BITCOIND_CONTAINER,
-                "bitcoin-cli",
-                "-datadir=/home/bitcoin/.bitcoin",
-                "-regtest",
-                "generatetoaddress",
-                "2",
-                addr,
-                verbose=False,
-            )
+            self.bitcoind.mine(2, address=addr)
             logger.info("Mined.")
 
+        # Rune bridge wallets
+        for wallet_name in ["alice-runes", "bob-runes"]:
+            wallet, created = self.bitcoind.load_or_create_wallet(wallet_name)
+            if created:
+                logger.info("Mining 2 blocks to %s", wallet_name)
+                self.bitcoind.mine(2, address=wallet.get_receiving_address())
+
+        # BTC initial blocks
         logger.info("Mining 100 blocks to a random address to see mining rewards")
-        self._run_docker_compose_command(
-            "exec",
-            self.BITCOIND_CONTAINER,
-            "bitcoin-cli",
-            "-datadir=/home/bitcoin/.bitcoin",
-            "-regtest",
-            "generatetoaddress",
-            "101",
-            "bcrt1qtxysk2megp39dnpw9va32huk5fesrlvutl0zdpc29asar4hfkrlqs2kzv5",
-            verbose=False,
-        )
+        self.bitcoind.mine(100)
 
         logger.info("Waiting for macaroons to be available (start of tapd)")
         for _ in range(20):

@@ -101,26 +101,12 @@ def create_user_ord_wallet(user_ord, bitcoin_rpc, alice_ord_wallet):
     return wallet
 
 
-def setup_bridge_wallet(bitcoin_rpc: BitcoinRPC):
-    wallet_name = "alice-ord"
-    wallets = bitcoin_rpc.call("listwallets")
-    if wallet_name not in wallets:
-        logger.info("Creating alice-ord wallet")
-        bitcoin_rpc.call("createwallet", wallet_name)
-        time.sleep(BTC_SLEEP_TIME)
-
-    bitcoin_rpc = BitcoinRPC(
-        url="http://polaruser:polarpass@localhost:18443/wallet/alice-ord"
-    )
-    address = bitcoin_rpc.call("getnewaddress")
-    bitcoin_rpc.mine_blocks(101, address, sleep=BTC_SLEEP_TIME)
-
-
 def init_runes(bitcoin_rpc: BitcoinRPC):
     ord = create_ord()
     alice_ord_wallet = create_alice_ord_wallet(ord, bitcoin_rpc)
     create_user_ord_wallet(ord, bitcoin_rpc, alice_ord_wallet)
-    setup_bridge_wallet(bitcoin_rpc)
+    # harness takes care of the bridge wallets
+    # setup_bridge_wallet(bitcoin_rpc)
 
 
 bitcoin_mining = False

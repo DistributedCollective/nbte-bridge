@@ -11,24 +11,41 @@ class Config:
     leader_node_id = environ.var()
     port = environ.var(5000, converter=int)
     peers = environ.var(converter=lambda s: [x.split("@") for x in s.split(",")])
+    db_url = environ.var()
 
-    evm_bridge_contract_address = environ.var()
-    evm_rpc_url = environ.var()
+    # Generic blockchain settings for all bridges
     evm_block_safety_margin = environ.var(converter=int, default=5)
-    evm_start_block = environ.var(converter=int, default=1)
-
     btc_network: Literal["mainnet", "testnet", "signet", "regtest"] = environ.var()
 
+    # Tap bridge config.
+    # TODO: prefix these!
+    evm_bridge_contract_address = environ.var()
+    evm_rpc_url = environ.var()
+    evm_start_block = environ.var(converter=int, default=1)
     tap_host = environ.var()
     tap_macaroon_path = environ.var()
     tap_tls_cert_path = environ.var()
-
     # TODO: handle secrets properly
-    db_url = environ.var()
     evm_private_key = environ.var()  # TODO: should be secret
     btc_rpc_url = (
         environ.var()
     )  # TODO: should be secret, it has the auth in it (or then let's separate auth)
+
+    # Rune bridge config
+    runes_rune_bridge_contract_address = environ.var()
+    runes_evm_rpc_url = environ.var()
+    runes_evm_default_start_block = environ.var(converter=int, default=1)
+    runes_btc_rpc_wallet_url = environ.var()
+    runes_ord_api_url = environ.var()
+    runes_btc_base_derivation_path = environ.var(default="m/13/0/0")
+
+    # Rune bridge secrets
+    # TODO: these should be secret
+    secret_runes_evm_private_key = environ.var()  # TODO: secret
+    secret_runes_btc_master_xpriv = environ.var()
+    secret_runes_btc_master_xpubs = environ.var(converter=lambda s: s.split(","))
+    secret_runes_btc_rpc_auth = environ.var(default="")
+    secret_runes_ord_api_auth = environ.var(default="")
 
 
 @service(interface_override=Config, scope="global")
