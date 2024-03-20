@@ -1,22 +1,24 @@
-# Implement everything rune bridge related here until we have a proper implementation
-# TODO: obviously get rid of this module
-
-from web3 import Web3
-from web3.types import EventData
 import logging
 from dataclasses import dataclass
 from decimal import Decimal
+from typing import Protocol
 
-from eth_utils import to_checksum_address, add_0x_prefix
-from anemic.ioc import Container, auto, autowired, service
+from eth_utils import (
+    add_0x_prefix,
+    to_checksum_address,
+)
+from sqlalchemy.orm import (
+    Session,
+)
+from web3 import Web3
+from web3.contract import Contract
+from web3.types import EventData
+
 from bridge.common.btc.rpc import BitcoinRPC
-from .evm import load_rune_bridge_abi
-from sqlalchemy.orm.session import Session
-
+from ...common.evm.scanner import EvmEventScanner
 from ...common.evm.utils import from_wei
 from ...common.ord.client import OrdApiClient
 from ...common.ord.simple_wallet import SimpleOrdWallet
-from ...common.evm.scanner import EvmEventScanner
 from ...common.services.key_value_store import KeyValueStore
 from ...common.services.transactions import TransactionManager
 
@@ -41,54 +43,35 @@ class TokenToBtcTransfer:
     rune_name: str
 
 
-@service(scope="global")
-class FauxRuneService:
-    web3: Web3 = autowired(auto)
-    transaction_manager: TransactionManager = autowired(auto)
+class RuneBridgeServiceConfig(Protocol):
+    bridge_id: str
+    evm_block_safety_margin: int
+    evm_default_start_block: int
 
-    bitcoin_rpc_root: BitcoinRPC
-    bitcoin_rpc: BitcoinRPC
 
-    ord_api_url = "http://ord"
-    bitcoind_host = "bitcoind:18443"
-    rune_bridge_contract_address = to_checksum_address("0xDc64a140Aa3E981100a9becA4E685f962f0cF6C9")
-    bitcoin_wallet = "alice-ord"
-
+class RuneBridgeService:
     last_bitcoin_block: str | None = None
-    # _evm_addresses_by_deposit_address: dict[str, str]
 
-    def __init__(self, container: Container, *, setting_overrides: dict[str, str] = None):
-        if setting_overrides:
-            # Hack for testing
-            for k, v in setting_overrides.items():
-                logger.info("Overriding setting %r with value %r", k, v)
-                setattr(self, k, v)
-
-        self.container = container
-        self.bitcoin_rpc_root = BitcoinRPC(url=f"http://polaruser:polarpass@{self.bitcoind_host}")
-        self.bitcoin_rpc = BitcoinRPC(
-            url=f"http://polaruser:polarpass@{self.bitcoind_host}/wallet/{self.bitcoin_wallet}"
-        )
-        self.rune_bridge_contract = self.web3.eth.contract(
-            address=self.rune_bridge_contract_address,
-            abi=load_rune_bridge_abi("RuneBridge"),
-        )
-        self.ord_client = OrdApiClient(
-            base_url=self.ord_api_url,
-        )
-        self.ord_wallet = SimpleOrdWallet(
-            bitcoin_rpc=self.bitcoin_rpc,
-            ord_client=self.ord_client,
-        )
-
-    def _ensure_bitcoin_wallet(self):
-        wallets = self.bitcoin_rpc_root.call("listwallets")
-        if self.bitcoin_wallet not in wallets:
-            self.bitcoin_rpc_root.call("createwallet", self.bitcoin_wallet)
+    def __init__(
+        self,
+        *,
+        config: RuneBridgeServiceConfig,
+        transaction_manager: TransactionManager,
+        bitcoin_rpc: BitcoinRPC,
+        ord_client: OrdApiClient,
+        ord_wallet: SimpleOrdWallet,
+        web3: Web3,
+        rune_bridge_contract: Contract,
+    ):
+        self.config = config
+        self.bitcoin_rpc = bitcoin_rpc
+        self.rune_bridge_contract = rune_bridge_contract
+        self.ord_client = ord_client
+        self.ord_wallet = ord_wallet
+        self.transaction_manager = transaction_manager
+        self.web3 = web3
 
     def generate_deposit_address(self, evm_address: str) -> str:
-        self._ensure_bitcoin_wallet()
-
         evm_address = to_checksum_address(evm_address)
         label = f"runes:deposit:{evm_address}"
 
@@ -98,8 +81,6 @@ class FauxRuneService:
         return self.bitcoin_rpc.call("getnewaddress", label)
 
     def scan_rune_deposits(self) -> list[RuneToEvmTransfer]:
-        self._ensure_bitcoin_wallet()
-
         if not self.last_bitcoin_block:
             resp = self.bitcoin_rpc.call("listsinceblock")
         else:
@@ -195,17 +176,16 @@ class FauxRuneService:
                 ],
                 callback=callback,
                 dbsession=dbsession,
-                block_safety_margin=0,
+                block_safety_margin=self.config.evm_block_safety_margin,
                 key_value_store=key_value_store,
-                key_value_store_namespace="runebridge",
-                default_start_block=1,
+                key_value_store_namespace=self.config.bridge_id,
+                default_start_block=self.config.evm_default_start_block,
             )
             scanner.scan_new_events()
         return events
 
     def send_token_to_btc(self, deposit: TokenToBtcTransfer):
         logger.info("Sending to BTC: %s", deposit)
-        self._ensure_bitcoin_wallet()
         self.ord_wallet.send_runes(
             rune_name=deposit.rune_name,
             amount=from_wei(deposit.amount_wei),

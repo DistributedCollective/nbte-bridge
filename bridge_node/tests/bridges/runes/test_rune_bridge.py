@@ -4,8 +4,10 @@ from types import SimpleNamespace
 from sqlalchemy.orm import sessionmaker, Session
 
 from bridge.bridges.runes.bridge import RuneBridge
-from bridge.bridges.runes.faux_service import FauxRuneService
-from bridge.common.evm.account import Account
+from bridge.bridges.runes.service import RuneBridgeService
+from bridge.common.btc.rpc import BitcoinRPC
+from bridge.common.ord.client import OrdApiClient
+from bridge.common.ord.simple_wallet import SimpleOrdWallet
 from bridge.common.p2p.network import Network
 from bridge.common.services.key_value_store import KeyValueStore
 
@@ -14,8 +16,8 @@ from web3 import Web3
 from web3.contract import Contract
 
 from bridge.bridges.runes.evm import load_rune_bridge_abi
-from anemic.ioc import FactoryRegistrySet, Container
-from bridge.common.services.transactions import register_transaction_manager
+from anemic.ioc import Container, FactoryRegistry
+from bridge.common.services.transactions import TransactionManager
 from bridge.common.evm.utils import from_wei
 from ...mock_network import MockNetwork
 from ...services import BitcoindService, HardhatService, OrdService, OrdWallet
@@ -70,16 +72,17 @@ def setup(
     bob_network.add_peers([alice_network, carol_network])
     carol_network.add_peers([alice_network, bob_network])
 
-    alice_container = create_global_container(
+    rune_bridge = create_rune_bridge(
         network=alice_network,
-        evm_account=alice_evm_wallet.account,
         web3=alice_evm_wallet.web3,
         dbengine=dbengine,
-        rune_bridge_contract_address=rune_bridge_contract.address,
-        bitcoin_wallet_name=alice_btc_wallet.name,
+        rune_bridge_contract=rune_bridge_contract,
+        ord_client=ord.api_client,
+        bitcoin_rpc=alice_btc_wallet.rpc,
     )
     return SimpleNamespace(
-        global_container=alice_container,
+        rune_bridge=rune_bridge,
+        rune_bridge_service=rune_bridge.service,
         rune_name=etching.rune,
         user_ord_wallet=user_ord_wallet,
         user_evm_wallet=user_evm_wallet,
@@ -89,78 +92,59 @@ def setup(
     )
 
 
-def create_global_container(
+def create_rune_bridge(
+    *,
     network: Network,
-    evm_account,
-    web3,
+    web3: Web3,
     dbengine,
-    rune_bridge_contract_address,
-    bitcoin_wallet_name,
-):
-    registries = FactoryRegistrySet()
-    global_registry = registries.create_registry("global")
-    transaction_registry = registries.create_registry("transaction")
-
-    global_registry.register_singleton(
-        interface=Network,
-        singleton=network,
-    )
-
-    global_registry.register_singleton(
-        interface=Account,
-        singleton=evm_account,
-    )
-
-    global_registry.register_singleton(
-        interface=Web3,
-        singleton=web3,
-    )
-
-    def rune_service_factory(container):
-        # TODO: just hack this now so we'll get forwards
-        return FauxRuneService(
-            container,
-            setting_overrides={
-                "ord_api_url": "http://localhost:3080",
-                "bitcoind_host": "localhost:18443",
-                "rune_bridge_contract_address": rune_bridge_contract_address,
-                "bitcoin_wallet": bitcoin_wallet_name,
-            },
-        )
-
-    global_registry.register(
-        interface=FauxRuneService,
-        factory=rune_service_factory,
-    )
-
-    global_registry.register(
-        interface=RuneBridge,
-        factory=RuneBridge,
-    )
-
-    register_transaction_manager(
-        global_registry=global_registry,
-        transaction_registry=transaction_registry,
-    )
-
+    rune_bridge_contract: Contract,
+    ord_client: OrdApiClient,
+    bitcoin_rpc: BitcoinRPC,
+) -> RuneBridge:
+    transaction_registry = FactoryRegistry("transaction")
     transaction_registry.register(
         interface=KeyValueStore,
         factory=KeyValueStore,
     )
-
     session_factory = sessionmaker(bind=dbengine, autobegin=False)
-
     transaction_registry.register(
         interface=Session,
         factory=lambda _: session_factory(),
     )
+    transaction_manager = TransactionManager(
+        global_container=Container(FactoryRegistry("global")),
+        transaction_registry=transaction_registry,
+    )
 
-    return Container(global_registry)
+    bridge_id = "test-runebridge"
+    service = RuneBridgeService(
+        config=SimpleNamespace(
+            bridge_id=bridge_id,
+            evm_block_safety_margin=0,
+            evm_default_start_block=1,
+        ),
+        web3=web3,
+        transaction_manager=transaction_manager,
+        bitcoin_rpc=bitcoin_rpc,
+        ord_client=ord_client,
+        ord_wallet=SimpleOrdWallet(
+            bitcoin_rpc=bitcoin_rpc,
+            ord_client=ord_client,
+        ),
+        # bind contract to web3 user
+        rune_bridge_contract=web3.eth.contract(
+            address=rune_bridge_contract.address,
+            abi=rune_bridge_contract.abi,
+        ),
+    )
 
+    rune_bridge = RuneBridge(
+        bridge_id=bridge_id,
+        network=network,
+        service=service,
+    )
 
-@pytest.fixture()
-def global_container(setup) -> Container:
-    return setup.global_container
+    return rune_bridge
 
 
 @pytest.fixture()
@@ -194,13 +178,13 @@ def rune_side_token_contract(setup) -> Contract:
 
 
 @pytest.fixture()
-def rune_bridge(global_container):
-    return global_container.get(interface=RuneBridge)
+def rune_bridge(setup):
+    return setup.rune_bridge
 
 
 @pytest.fixture()
-def rune_bridge_service(global_container):
-    return global_container.get(interface=FauxRuneService)
+def rune_bridge_service(setup):
+    return setup.rune_bridge_service
 
 
 def test_rune_bridge(
