@@ -3,6 +3,8 @@ import logging
 import pathlib
 import subprocess
 import time
+import json
+
 from typing import Any
 
 logger = logging.getLogger(__name__)
@@ -108,31 +110,31 @@ class ComposeService:
         logger.info("Stopped service %s", self.service)
 
     def is_started(self):
-        ret = run_compose_command(
-            "ps",
-            "-q",
-            self.service,
-            check=False,
-            capture=True,
-        )
+        info = self.get_container_info()
 
-        if ret.returncode != 0 or not ret.stdout.strip():
+        if info is None:
             return False
 
-        status = (
-            run_docker_command(
-                "inspect",
-                ret.stdout.strip(),
+        return info["State"] == "running" and info["Health"] in ["healthy", ""]
+
+    def get_container_info(self):
+        stdout = (
+            run_compose_command(
+                "ps",
+                "-a",
                 "--format",
-                "{{if index .State.Health }}{{.State.Health.Status}}{{end}}",
-                check=False,
+                "json",
+                self.service,
                 capture=True,
             )
             .stdout.decode("utf-8")
             .strip()
         )
 
-        return status in ["healthy", ""]
+        if not stdout:
+            return None
+
+        return json.loads(stdout)
 
     def wait(self):
         start_time = time.time()
