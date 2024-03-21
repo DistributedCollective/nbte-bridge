@@ -195,6 +195,20 @@ class PyroNetwork(Network):
         # NOTE: peer_host includes port
         return f"PYRO:{peer_id}@{peer_host}"
 
+    def get_network_info(self):
+        return {
+            "node_id": self.node_id,
+            "uri": str(self.uri),
+            "is_leader": self.is_leader(),
+            "peers": {peer._pyroUri.object: self.get_peer_info(peer) for peer in self.peers},
+        }
+
+    def get_peer_info(self, peer):
+        return {
+            "status": "offline" if not peer._pyroConnection else "online",
+            "uri": str(peer._pyroUri),
+        }
+
     def start(self):
         if self._running:
             raise RuntimeError("Already running")

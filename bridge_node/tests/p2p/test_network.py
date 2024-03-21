@@ -9,6 +9,10 @@ from bridge.common.p2p.auth.bridge_ssl import PyroSecureContext
 from tests.mock_network import MockNetwork
 
 
+def create_test_pyro_network(node_id="test", host="localhost", port=8080):
+    return PyroNetwork(node_id=node_id, host=host, port=port, peers=[])
+
+
 @pytest.fixture
 def test_pyro_network(mocker):
     mocker.patch(
@@ -16,7 +20,7 @@ def test_pyro_network(mocker):
         TransportServerStub,
     )  # I don't want to actually start a server in an unit test
 
-    return PyroNetwork(node_id="test", host="localhost", port=8080, peers=[])
+    return create_test_pyro_network()
 
 
 @pytest.fixture
@@ -215,3 +219,26 @@ def test_mock_network():
 
     for network in networks:
         assert network.ask("test") == ["test answer", "test answer"]
+
+
+def test_network_peer_statuses_can_be_listed(test_pyro_network):
+    peer1 = ("peer1", "localhost:8081")
+    peer2 = ("peer2", "localhost:8082")
+
+    test_pyro_network._peers = [peer1, peer2]
+
+    assert test_pyro_network.get_network_info() == {
+        "node_id": "test",
+        "uri": "PYRO:test@localhost:8080",
+        "is_leader": False,
+        "peers": {
+            "peer1": {
+                "status": "offline",
+                "uri": "PYRO:peer1@localhost:8081",
+            },
+            "peer2": {
+                "status": "offline",
+                "uri": "PYRO:peer2@localhost:8082",
+            },
+        },
+    }
