@@ -41,26 +41,6 @@ def run_compose_command(
     )
 
 
-def run_docker_command(
-    *args,
-    check: bool = True,
-    capture: bool = False,
-    quiet: bool = not COMPOSE_VERBOSE,
-    **extra_kwargs,
-) -> subprocess.CompletedProcess:
-    extra_kwargs["check"] = check
-    if capture:
-        extra_kwargs["capture_output"] = True
-    elif quiet:
-        extra_kwargs["stdout"] = subprocess.DEVNULL
-        extra_kwargs["stderr"] = subprocess.DEVNULL
-    return subprocess.run(
-        ["docker"] + list(args),
-        cwd=PROJECT_BASE_DIR,
-        **extra_kwargs,
-    )
-
-
 class ComposeExecException(RuntimeError):
     def __init__(self, stderr):
         super().__init__(stderr)
