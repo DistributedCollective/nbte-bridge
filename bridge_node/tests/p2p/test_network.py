@@ -221,12 +221,7 @@ def test_mock_network():
         assert network.ask("test") == ["test answer", "test answer"]
 
 
-def test_network_peer_statuses_can_be_listed(test_pyro_network, mocker):
-    mocker.patch(
-        "bridge.common.p2p.client.BoundPyroProxy._pyroBind",
-        lambda self: None,
-    )
-
+def test_network_peer_statuses_can_be_listed(test_pyro_network):
     peer1 = ("peer1", "localhost:8081")
     peer2 = ("peer2", "localhost:8082")
 
