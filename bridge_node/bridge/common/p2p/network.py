@@ -206,9 +206,13 @@ class PyroNetwork(Network):
     def get_peer_info(self, peer):
         # Due to how peers are created at the moment, it's not connected
         # until the first call is made
-        peer._pyroBind()
-
-        logger.debug("Peer info for %r, connection: %s", peer, peer._pyroConnection)
+        try:
+            peer._pyroBind()
+        except Pyro5.errors.CommunicationError:
+            return {
+                "status": "offline",
+                "uri": str(peer._pyroUri),
+            }
 
         info = {
             "status": "offline" if not peer._pyroConnection else "online",
