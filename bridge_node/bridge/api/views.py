@@ -157,6 +157,10 @@ class ApiViews:
             "error": "An unknown error occured",
         }
 
+    @view_config(route_name="network_info", request_method="GET")
+    def network_info(self):
+        return self.tap_to_rsk_service.network.get_network_info()
+
 
 @view_config(route_name="index", renderer="json")
 def index(request):
@@ -173,6 +177,7 @@ def includeme(config: Configurator):
     config.add_route("generate_tap_deposit_address", "/tap/deposit-addresses/")
     config.add_route("tap_to_rsk_transfers", "/tap/transfers/")
     config.add_route("rsk_to_tap_transfers", "/rsk/transfers/")
+    config.add_route("network_info", "/network/")
 
     from ..bridges.runes import views as rune_bridge_views
 
