@@ -1,0 +1,14 @@
+#!/bin/bash
+set -e
+
+THIS_DIR=$(dirname "$0")
+cd $THIS_DIR/../..
+
+docker compose -f docker-compose.dev.yaml exec -u ord ord \
+  ord \
+  --chain testnet \
+  --bitcoin-rpc-url bitcoind:18332 \
+  --bitcoin-rpc-username bitcoinuser \
+  --bitcoin-rpc-password bitcoinpass \
+  --data-dir /home/ord/data \
+  "$@"
