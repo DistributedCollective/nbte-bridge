@@ -38,6 +38,7 @@ class PyroSecureContext:
         Pyro5.config.SSL_CLIENTCERT = "/srv/bridge_backend/certs/client-cert.pem"
         Pyro5.config.SSL_CLIENTKEY = "/srv/bridge_backend/certs/client-key.pem"
         Pyro5.config.LOGWIRE = True
+        Pyro5.config.COMMTIMEOUT = 3
 
     def validate_handshake(self, conn, data):
         binding = conn.sock.get_channel_binding(cb_type="tls-unique")

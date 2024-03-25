@@ -1,4 +1,3 @@
-version: "3.8"
 services:
   postgres:
     image: bridge-postgres:latest
@@ -392,6 +391,10 @@ services:
     image:
       bridge-ord:latest
 
+    environment:
+      USERID: ${USERID:-1000}
+      GROUPID: ${GROUPID:-1000}
+
     build:
       context: ./docker/ord/
 
@@ -424,6 +427,10 @@ services:
   user-ord:
     image:
       bridge-ord:latest
+
+    environment:
+      USERID: ${USERID:-1000}
+      GROUPID: ${GROUPID:-1000}
 
     build:
       context: ./docker/ord/
