@@ -5,6 +5,14 @@ import { jsonAction } from './config/base';
 import './config/tap/hardhat.config.tap';
 import './config/runes/hardhat.config.runes';
 
+const DEPLOYER_PRIVATE_KEY = process.env.DEPLOYER_PRIVATE_KEY || '';
+
+if (!DEPLOYER_PRIVATE_KEY) {
+    console.log('DEPLOYER_PRIVATE_KEY missing, non-local deployments not working');
+}
+
+const privateKeys = DEPLOYER_PRIVATE_KEY ? [DEPLOYER_PRIVATE_KEY] : [];
+
 const config: HardhatUserConfig = {
     solidity: {
         compilers: [
@@ -17,7 +25,12 @@ const config: HardhatUserConfig = {
         "docker": {
             url: "http://localhost:18545",
         },
-    }
+        "rsk-testnet": {
+            url: "https://testnet.sovryn.app/rpc",
+            chainId: 31,
+            accounts: privateKeys,
+        },
+    },
 };
 
 

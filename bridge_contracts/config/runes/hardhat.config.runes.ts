@@ -55,6 +55,50 @@ task(`${PREFIX}deploy-regtest`)
         }
     }));
 
+task(`${PREFIX}deploy-testnet`)
+    .setAction(jsonAction(async ({}, hre) => {
+        const ethers = hre.ethers;
+
+        const bridge = await ethers.deployContract(
+            "RuneBridge",
+            [
+            ],
+            {}
+        );
+        await bridge.waitForDeployment();
+        console.log(
+            `RuneBridge deployed to ${bridge.target}`
+        );
+
+        return {
+            addresses: {
+                RuneBridge: bridge.target
+            }
+        }
+    }));
+
+task(`${PREFIX}register-rune`)
+    .addParam("bridgeAddress", "RuneBridge contract address")
+    .addParam("runeName", "Rune name")
+    .addParam("runeSymbol", "Rune symbol")
+    .setAction(jsonAction(async ({runeName, runeSymbol, bridgeAddress}, hre) => {
+        const ethers = hre.ethers;
+
+        const bridge = await ethers.getContractAt("RuneBridge", bridgeAddress);
+
+        console.log(`Registering rune ${runeName} with symbol ${runeSymbol}`);
+        const tx = await bridge.registerRune(
+            runeName,
+            runeSymbol
+        );
+        console.log('tx hash:', tx.hash, 'waiting for tx...');
+        await tx.wait();
+
+        return {
+            success: true,
+        }
+    }));
+
 
 task(`${PREFIX}check-token-balances`)
     .addParam('bridge', 'Rune Bridge Address')

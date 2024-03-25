@@ -1,0 +1,5 @@
+This code is forked from https://github.com/kylemanna/docker-bitcoind and
+https://github.com/jamaljsr/polar (both MIT-licensed), and modified to
+support all networks (mainnet/testnet/regtest) and our purposes in general.
+
+TODO: we could use lncm/bitcoind:v26.0: https://github.com/lncm/docker-bitcoind/blob/master/26.0/Dockerfile
