@@ -4,13 +4,17 @@ import socket
 from typing import Literal
 
 
+def comma_separated(s: str):
+    return [x.strip() for x in s.split(",") if x.strip()]
+
+
 @environ.config(prefix="BRIDGE")
 class Config:
     node_id = environ.var()
     hostname = environ.var(socket.gethostname())
     leader_node_id = environ.var()
     port = environ.var(5000, converter=int)
-    peers = environ.var(converter=lambda s: [x.split("@") for x in s.split(",")])
+    peers = environ.var(converter=lambda s: [x.split("@") for x in comma_separated(s)])
     db_url = environ.var()
 
     # Generic blockchain settings for all bridges
@@ -43,7 +47,7 @@ class Config:
     # TODO: these should be secret
     secret_runes_evm_private_key = environ.var()  # TODO: secret
     secret_runes_btc_master_xpriv = environ.var()
-    secret_runes_btc_master_xpubs = environ.var(converter=lambda s: s.split(","))
+    secret_runes_btc_master_xpubs = environ.var(converter=comma_separated)
     secret_runes_btc_rpc_auth = environ.var(default="")
     secret_runes_ord_api_auth = environ.var(default="")
 
