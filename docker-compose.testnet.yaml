@@ -107,7 +107,7 @@ services:
     environment:
       # NOTE: the private keys and other secrets are supposed to be here -- they are not used in the real world, only regtest. Don't report them.
       - BRIDGE_NODE_ID=node-1
-      - BRIDGE_HOSTNAME=bridge-1
+      - BRIDGE_HOSTNAME=bridge-node-1
       - BRIDGE_LEADER_NODE_ID=node-1
       - BRIDGE_DB_URL=postgresql://bridge1:a5f83ab52f2c6c8d0a31e99c@postgres:5432/bridge1
       - LOG_LEVEL=DEBUG
