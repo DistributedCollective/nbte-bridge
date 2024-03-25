@@ -34,7 +34,7 @@ services:
     command: >-
       bitcoind
       -server=1
-      -chain=testnet
+      -testnet
       -rpcuser=bitcoinuser -rpcpassword=bitcoinpass
       -debug=1 -printtoconsole
       -listenonion=0
@@ -46,7 +46,7 @@ services:
       test: [
         "CMD",
         "bitcoin-cli",
-        "-chain=testnet",
+        "-testnet",
         "-rpcport=18332",
         "-rpcuser=bitcoinuser",
         "-rpcpassword=bitcoinpass",
