@@ -74,16 +74,16 @@ services:
 
     command: >-
       ord
-      --bitcoin-rpc-username polaruser
-      --bitcoin-rpc-password polarpass
+      --bitcoin-rpc-username bitcoinuser
+      --bitcoin-rpc-password bitcoinpass
       --bitcoin-rpc-url bitcoind:18332
-      --chain regtest
+      --chain testnet
       --index-runes
       --data-dir /home/ord/data
       server
       --http
       --http-port 80
-      --polling-interval ${ORD_POLLING_INTERVAL:-1s}
+      --polling-interval 5s
 
     depends_on:
       bitcoind:
