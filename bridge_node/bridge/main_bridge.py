@@ -24,14 +24,15 @@ class MainBridge(Bridge):
     def __init__(self, container: Container):
         self.container = container
         self.network.add_listener(self.on_message)
+        self.enabled_bridge_names = set(self.config.enabled_bridges)
+        logger.info("Enabled bridges: %s", self.enabled_bridge_names)
 
     @property
     def bridges(self) -> list[Bridge]:
         all_bridges = [self.tap_rsk_bridge, self.rune_bridge]
-        enabled_bridge_names = set(self.config.enabled_bridges)
-        if "all" in enabled_bridge_names:
+        if "all" in self.enabled_bridge_names:
             return all_bridges
-        return [bridge for bridge in all_bridges if bridge.name in enabled_bridge_names]
+        return [bridge for bridge in all_bridges if bridge.name in self.enabled_bridge_names]
 
     def init(self):
         for bridge in self.bridges:
