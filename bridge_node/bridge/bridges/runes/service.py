@@ -50,8 +50,6 @@ class RuneBridgeServiceConfig(Protocol):
 
 
 class RuneBridgeService:
-    last_bitcoin_block: str | None = None
-
     def __init__(
         self,
         *,
@@ -81,10 +79,15 @@ class RuneBridgeService:
         return self.bitcoin_rpc.call("getnewaddress", label)
 
     def scan_rune_deposits(self) -> list[RuneToEvmTransfer]:
-        if not self.last_bitcoin_block:
+        last_block_key = f"{self.config.bridge_id}:btc:deposits:last_scanned_block"
+        with self.transaction_manager.transaction() as tx:
+            key_value_store = tx.find_service(KeyValueStore)
+            last_bitcoin_block = key_value_store.get_value(last_block_key, default_value=None)
+
+        if not last_bitcoin_block:
             resp = self.bitcoin_rpc.call("listsinceblock")
         else:
-            resp = self.bitcoin_rpc.call("listsinceblock", self.last_bitcoin_block)
+            resp = self.bitcoin_rpc.call("listsinceblock", last_bitcoin_block)
 
         transfers = []
         for tx in resp["transactions"]:
@@ -123,7 +126,9 @@ class RuneBridgeService:
             logger.info("Transfer: %s", transfer)
             transfers.append(transfer)
 
-        self.last_bitcoin_block = resp["lastblock"]
+        with self.transaction_manager.transaction() as tx:
+            key_value_store = tx.find_service(KeyValueStore)
+            key_value_store.set_value(last_block_key, resp["lastblock"])
         return transfers
 
     def send_rune_to_evm(self, transfer: RuneToEvmTransfer):
