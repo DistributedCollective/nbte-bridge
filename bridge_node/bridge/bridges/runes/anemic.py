@@ -26,7 +26,7 @@ def rune_bridge_wiring_factory(container: Container):
     config: Config = container.get(interface=Config)
     return wire_rune_bridge(
         config=RuneBridgeConfig(
-            bridge_id="runersk",
+            bridge_id="runesrsk",
             rune_bridge_contract_address=config.runes_rune_bridge_contract_address,
             evm_rpc_url=config.runes_evm_rpc_url,
             btc_rpc_wallet_url=config.runes_btc_rpc_wallet_url,
