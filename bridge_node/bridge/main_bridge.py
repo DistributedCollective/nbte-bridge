@@ -8,6 +8,7 @@ from bridge.common.p2p.network import Network
 from .bridges.tap_rsk.bridge import TapRskBridge
 from .bridges.runes.bridge import RuneBridge
 from .common.interfaces.bridge import Bridge
+from .config import Config
 
 logger = logging.getLogger(__name__)
 
@@ -15,6 +16,7 @@ logger = logging.getLogger(__name__)
 @service(scope="global")
 class MainBridge(Bridge):
     name = "MAIN_BRIDGE"
+    config: Config = autowired(auto)
     network: Network = autowired(auto)
     tap_rsk_bridge: TapRskBridge = autowired(auto)
     rune_bridge: RuneBridge = autowired(auto)
@@ -25,7 +27,11 @@ class MainBridge(Bridge):
 
     @property
     def bridges(self) -> list[Bridge]:
-        return [self.tap_rsk_bridge, self.rune_bridge]
+        all_bridges = [self.tap_rsk_bridge, self.rune_bridge]
+        enabled_bridge_names = set(self.config.enabled_bridges)
+        if "all" in enabled_bridge_names:
+            return all_bridges
+        return [bridge for bridge in all_bridges if bridge.name in enabled_bridge_names]
 
     def init(self):
         for bridge in self.bridges:
