@@ -142,7 +142,7 @@ class RuneBridgeService:
             [],
         ).transact(
             {
-                "gas": 10_000_000,
+                "gas": 500_000,
             }
         )
         logger.info("Sent Rune-to-EVM transfer %s, waiting...", tx_hash.hex())
