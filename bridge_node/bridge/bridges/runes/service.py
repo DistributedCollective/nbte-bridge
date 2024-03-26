@@ -46,7 +46,7 @@ class TokenToBtcTransfer:
 class RuneBridgeServiceConfig(Protocol):
     bridge_id: str
     evm_block_safety_margin: int
-    runes_evm_default_start_block: int
+    evm_default_start_block: int
 
 
 class RuneBridgeService:
@@ -179,7 +179,7 @@ class RuneBridgeService:
                 block_safety_margin=self.config.evm_block_safety_margin,
                 key_value_store=key_value_store,
                 key_value_store_namespace=self.config.bridge_id,
-                default_start_block=self.config.runes_evm_default_start_block,
+                default_start_block=self.config.evm_default_start_block,
             )
             scanner.scan_new_events()
         return events
