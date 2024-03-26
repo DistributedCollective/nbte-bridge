@@ -25,6 +25,8 @@ def create_app(
         return tx.container
 
     with Configurator() as config:
+        config.include("bridge.cors")
+        config.add_cors_preflight_handler()
         config.scan("bridge.api")
         config.scan("bridge.bridges.runes")
         config.include("bridge.api.views", route_prefix="/api/v1")
