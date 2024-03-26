@@ -111,6 +111,7 @@ services:
       - BRIDGE_LEADER_NODE_ID=node-1
       - BRIDGE_DB_URL=postgresql://bridge1:a5f83ab52f2c6c8d0a31e99c@postgres:5432/bridge1
       - LOG_LEVEL=DEBUG
+      - BRIDGE_ENABLED_BRIDGES=runesrsk
       - BRIDGE_EVM_PRIVATE_KEY=0x9a9a640da1fc0181e43a9ea00b81878f26e1678e3e246b25bd2835783f2be181
       # ^-- address 0x4091663B0a7a14e35Ff1d6d9d0593cE15cE7710a
       - BRIDGE_EVM_BLOCK_SAFETY_MARGIN=1
