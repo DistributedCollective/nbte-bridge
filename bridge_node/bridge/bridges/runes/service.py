@@ -100,31 +100,31 @@ class RuneBridgeService:
             evm_address = tx["label"][len("runes:deposit:") :]
             txid = tx["txid"]
             vout = tx["vout"]
-            outpoint = f"{txid}:{vout}"
 
-            utxos_by_rune = self.ord_client.get("/runes/balances")
-            for rune_name, utxos in utxos_by_rune.items():
-                if outpoint in utxos:
-                    amount_raw = utxos[outpoint]
-                    amount_decimal = Decimal(amount_raw) / 10**18
-                    break
-            else:
-                raise ValueError(f"Could not find {outpoint} in {utxos_by_rune}")
+            output = self.ord_client.get_output(txid, vout)
+            logger.info("Received %s runes in outpoint %s:%s", len(output["runes"]), txid, vout)
+            for rune_name, balance_entry in output["runes"]:
+                amount_raw = balance_entry["amount"]
+                amount_decimal = Decimal(amount_raw) / 10 ** balance_entry["divisibility"]
+                logger.info(
+                    "Received %s %s for %s at %s:%s",
+                    amount_decimal,
+                    rune_name,
+                    evm_address,
+                    txid,
+                    vout,
+                )
 
-            logger.info(
-                "Received %s %s for %s at %s:%s", amount_decimal, rune_name, evm_address, txid, vout
-            )
-
-            transfer = RuneToEvmTransfer(
-                evm_address=evm_address,
-                amount_raw=amount_raw,
-                amount_decimal=amount_decimal,
-                txid=txid,
-                vout=vout,
-                rune_name=rune_name,
-            )
-            logger.info("Transfer: %s", transfer)
-            transfers.append(transfer)
+                transfer = RuneToEvmTransfer(
+                    evm_address=evm_address,
+                    amount_raw=amount_raw,
+                    amount_decimal=amount_decimal,
+                    txid=txid,
+                    vout=vout,
+                    rune_name=rune_name,
+                )
+                logger.info("Transfer: %s", transfer)
+                transfers.append(transfer)
 
         with self.transaction_manager.transaction() as tx:
             key_value_store = tx.find_service(KeyValueStore)
