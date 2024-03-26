@@ -5,13 +5,8 @@ import { jsonAction } from './config/base';
 import './config/tap/hardhat.config.tap';
 import './config/runes/hardhat.config.runes';
 
-const DEPLOYER_PRIVATE_KEY = process.env.DEPLOYER_PRIVATE_KEY || '';
-
-if (!DEPLOYER_PRIVATE_KEY) {
-    console.log('DEPLOYER_PRIVATE_KEY missing, non-local deployments not working');
-}
-
-const privateKeys = DEPLOYER_PRIVATE_KEY ? [DEPLOYER_PRIVATE_KEY] : [];
+const TESTNET_DEPLOYER_PRIVATE_KEY = process.env.TESTNET_DEPLOYER_PRIVATE_KEY || '';
+const MAINNET_DEPLOYER_PRIVATE_KEY = process.env.MAINNET_DEPLOYER_PRIVATE_KEY || '';
 
 const config: HardhatUserConfig = {
     solidity: {
@@ -28,7 +23,12 @@ const config: HardhatUserConfig = {
         "rsk-testnet": {
             url: "https://testnet.sovryn.app/rpc",
             chainId: 31,
-            accounts: privateKeys,
+            accounts: TESTNET_DEPLOYER_PRIVATE_KEY ? [TESTNET_DEPLOYER_PRIVATE_KEY] : [],
+        },
+        "rsk-mainnet": {
+            url: "https://mainnet.sovryn.app/rpc",
+            chainId: 30,
+            accounts: MAINNET_DEPLOYER_PRIVATE_KEY ? [MAINNET_DEPLOYER_PRIVATE_KEY] : [],
         },
     },
 };
