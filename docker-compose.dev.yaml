@@ -1,4 +1,3 @@
-version: "3.8"
 name: sovryn-nbte-bridge
 services:
   postgres:
@@ -86,6 +85,10 @@ services:
   ord:
     image:
       bridge-ord:latest
+
+    environment:
+      USERID: ${USERID:-1000}
+      GROUPID: ${GROUPID:-1000}
 
     build:
       context: ./docker/ord/
