@@ -15,8 +15,7 @@ docker-compose.yaml
 
 # Editors
 .vscode/
-.idea/workspace.xml
-.idea/tasks.xml
+.idea/
 *.sublime-project
 *.sublime-workspace
 
@@ -37,6 +36,7 @@ cover/
 nosetests.xml
 coverage
 .ruff_cache/
+
 
 # Distribution / packaging
 .Python
