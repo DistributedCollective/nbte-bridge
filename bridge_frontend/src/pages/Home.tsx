@@ -12,6 +12,8 @@ import {transferToBTC} from "../utils/contracts";
 import './Home.css'
 import {MetamaskConnectButton} from '../components/TopNav';
 
+const BASE_URL = process.env.REACT_APP_API_BASE_URL ?? "http://localhost:8181"
+
 const Home = () => {
   const {provider, account, tokenBalances} = ethereumStore(
     state => pick(['provider', 'account', 'tokenBalances'], state)
@@ -99,7 +101,7 @@ export const RuneTransferForm = () => {
   const {tokenBalances, account} = useStore(ethereumStore);
   const [depositAddress, setDepositAddress] = React.useState<string>('');
   const generateDepositAddress = async () => {
-    const url = "http://localhost:8181/api/v1/runes/deposit-addresses/"
+    const url = `${BASE_URL}/api/v1/runes/deposit-addresses/`
     const data = {"evm_address": account}
     const response = await fetch(url, {
       method: "POST",
