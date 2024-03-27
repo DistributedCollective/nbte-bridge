@@ -136,3 +136,17 @@ services:
       - BRIDGE_RUNES_BTC_RPC_WALLET_URL=http://bitcoinuser:bitcoinpass@bitcoind:18332/wallet/runebridge
       - BRIDGE_SECRET_RUNES_EVM_PRIVATE_KEY=${BRIDGE_SECRET_RUNES_EVM_PRIVATE_KEY}
       - BRIDGE_SECRET_RUNES_BTC_MASTER_XPRIV=${BRIDGE_SECRET_RUNES_BTC_MASTER_XPRIV}
+
+  web:
+    image: bridge_frontend:latest
+    build:
+      context: bridge_frontend
+    restart: always
+    ports:
+      - 127.0.0.1:3000:3000
+    healthcheck:
+      test: curl -f http://localhost:3000 || exit 1
+      interval: 10s
+      timeout: 10s
+      retries: 5
+      start_period: 5s

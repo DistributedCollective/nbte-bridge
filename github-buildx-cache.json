@@ -41,20 +41,24 @@
           "type=docker"
         ]
       },
-      "alice-ord": {
+      "ord": {
         "cache-from": [
-          "type=gha,scope=interjektio/sovryn-nbte-bridge/ord"
+          "type=gha,scope=interjektio/sovryn-nbte-bridge/bridge-ord"
         ],
         "cache-to": [
-          "type=gha,mode=max,scope=interjektio/sovryn-nbte-bridge/ord"
+          "type=gha,mode=max,scope=interjektio/sovryn-nbte-bridge/bridge-ord"
         ],
         "output": [
           "type=docker"
         ]
       },
-      "user-ord": {
+
+      "web": {
         "cache-from": [
-          "type=gha,scope=interjektio/sovryn-nbte-bridge/ord"
+          "type=gha,scope=interjektio/sovryn-nbte-bridge/bridge_frontend"
+        ],
+        "cache-to": [
+          "type=gha,mode=max,scope=interjektio/sovryn-nbte-bridge/bridge_frontend"
         ],
         "output": [
           "type=docker"

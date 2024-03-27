@@ -170,6 +170,7 @@ services:
       - BRIDGE_SECRET_RUNES_EVM_PRIVATE_KEY=0x9a9a640da1fc0181e43a9ea00b81878f26e1678e3e246b25bd2835783f2be181
       - BRIDGE_SECRET_RUNES_BTC_MASTER_XPRIV=tprv8ZgxMBicQKsPdLiVtqrvinq5JyvByQZs4xWMgzZ3YWK7ndu27yQ3qoWivh8cgdtB3bKuYKWRKhaEvtykaFCsDCB7akNdcArjgrCnFhuDjmV
 
+
   bob-bridge:
     image: bridge_node:latest
     build:
@@ -215,6 +216,7 @@ services:
       - BRIDGE_RUNES_BTC_RPC_WALLET_URL=http://polaruser:polarpass@bitcoind:18443/wallet/bob-runes
       - BRIDGE_SECRET_RUNES_EVM_PRIVATE_KEY=0x034262349de8b7bb1d8fdd7a9b6096aae0906a8f3b58ecc31af58b9f9a30e567
       - BRIDGE_SECRET_RUNES_BTC_MASTER_XPRIV=tprv8ZgxMBicQKsPdMXsXv4Ddkgimo1m89QjXBNUrCgAaDRX5tEDMVA8HotnZmHcMvUVtgh1yXbN74StoJqv76jvRxJmkr2wvkPwTbZb1zeXv3Y
+
 
   alice-lnd:
     environment:
@@ -448,6 +450,21 @@ services:
     ports:
       - '8292:8089'
       - '12032:10029'
+
+  web:
+    image: bridge_frontend:latest
+    build:
+      context: bridge_frontend
+    restart: always
+    ports:
+      - 127.0.0.1:3000:3000
+    healthcheck:
+      test: curl -f http://localhost:3000 || exit 1
+      interval: 10s
+      timeout: 10s
+      retries: 5
+      start_period: 5s
+
 
 volumes:
   postgres:
