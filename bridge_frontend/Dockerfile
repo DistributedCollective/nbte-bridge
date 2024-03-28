@@ -7,6 +7,7 @@ RUN apk add curl && \
     rm -rf /var/cache/apk/*
 
 FROM base as builder
+
 COPY package.json package-lock.json ./
 # Install dependencies
 RUN npm ci
@@ -15,6 +16,12 @@ RUN npm ci
 COPY tsconfig.json ./
 COPY public ./public
 COPY src ./src
+
+ARG REACT_APP_API_BASE_URL
+ARG REACT_APP_RUNE_BRIDGE_CONTRACT_ADDRESS
+
+ENV REACT_APP_API_BASE_URL=$REACT_APP_API_BASE_URL
+ENV REACT_APP_RUNE_BRIDGE_CONTRACT_ADDRESS=$REACT_APP_RUNE_BRIDGE_CONTRACT_ADDRESS
 
 # Build the app
 RUN npm run build

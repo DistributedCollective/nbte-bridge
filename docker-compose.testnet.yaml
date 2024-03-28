@@ -145,6 +145,9 @@ services:
     image: bridge_frontend:latest
     build:
       context: bridge_frontend
+      args:
+        - REACT_APP_API_BASE_URL=
+        - REACT_APP_RUNE_BRIDGE_CONTRACT_ADDRESS=0x09E4D1C764113AbeE5986d5CF7A53893491a4BA8
     restart: always
     ports:
       - 127.0.0.1:3003:3000
@@ -158,7 +161,6 @@ services:
       - "traefik.http.routers.web.rule=PathPrefix(`/`)"
       - "traefik.http.services.web.loadbalancer.server.port=3000"
       - "traefik.enable=true"
-
 
   reverse-proxy:
     image: traefik:v2.11
