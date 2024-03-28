@@ -463,7 +463,7 @@ services:
       context: bridge_frontend
     restart: always
     ports:
-      - 127.0.0.1:3000:3000
+      - 127.0.0.1:3003:3000
     healthcheck:
       test: curl -f http://localhost:3000 || exit 1
       interval: 10s
