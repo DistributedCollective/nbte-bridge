@@ -138,6 +138,12 @@ services:
     volumes:
       - ./volumes/lnd/alice-lnd:/var/bridge/lnd
       - ./volumes/tapd/alice-tap:/var/bridge/tapd
+    labels:
+      - "traefik.http.routers.alice-bridge.rule=PathPrefix(`/api/`)"
+      - "traefik.http.services.alice-bridge.loadbalancer.server.port=8080"
+      - "traefik.enable=true"
+
+
     environment:
       # NOTE: the private keys and other secrets are supposed to be here -- they are not used in the real world, only regtest. Don't report them.
       - BRIDGE_NODE_ID=alice-node
@@ -464,7 +470,19 @@ services:
       timeout: 10s
       retries: 5
       start_period: 5s
+    labels:
+      - "traefik.http.services.web.loadbalancer.server.port=3000"
+      - "traefik.enable=true"
 
+  reverse-proxy:
+    image: traefik:v2.11
+    command: --providers.docker --providers.docker.exposedbydefault=false
+    ports:
+      - "127.0.0.1:80:80"
+      - "127.0.0.1:8080:8080"
+    volumes:
+      # So that Traefik can listen to the Docker events
+      - /var/run/docker.sock:/var/run/docker.sock
 
 volumes:
   postgres:
