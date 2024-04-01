@@ -5,6 +5,7 @@ import logging
 import pytest
 from sqlalchemy import create_engine
 
+from bridge.common.models import load_models
 from bridge.common.models.meta import Base
 import bitcointx
 from . import services
@@ -62,6 +63,7 @@ def ord(request):
 
 @pytest.fixture(scope="module")
 def dbengine(postgres):
+    load_models()
     logger.info("Dropping and recreating test database %s", DEV_DB_NAME)
     postgres.cli(f"DROP DATABASE IF EXISTS {DEV_DB_NAME}")
     postgres.cli(f"CREATE DATABASE {DEV_DB_NAME}")
