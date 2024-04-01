@@ -40,6 +40,7 @@ class Config:
     runes_rune_bridge_contract_address = environ.var()
     runes_evm_rpc_url = environ.var()
     runes_evm_default_start_block = environ.var(converter=int, default=1)
+    runes_btc_num_required_signers = environ.var(converter=int)
     runes_btc_rpc_wallet_url = environ.var()
     runes_ord_api_url = environ.var()
     runes_btc_base_derivation_path = environ.var(default="m/13/0/0")

@@ -9,14 +9,15 @@ from ...common.p2p.network import Network
 from ...common.services.transactions import TransactionManager
 from ...common.btc.rpc import BitcoinRPC
 from ...common.evm.utils import create_web3
-from ...common.ord.simple_wallet import SimpleOrdWallet
 from ...common.ord.client import OrdApiClient
+from ...common.ord.multisig import OrdMultisig
 
 
 @dataclass
 class RuneBridgeWiring:
     bridge: RuneBridge
     service: RuneBridgeService
+    multisig: OrdMultisig
 
 
 def wire_rune_bridge(
@@ -32,9 +33,14 @@ def wire_rune_bridge(
     ord_client = OrdApiClient(
         base_url=_add_auth(config.ord_api_url, secrets.ord_api_auth),
     )
-    ord_wallet = SimpleOrdWallet(
-        ord_client=ord_client,
+
+    ord_multisig = OrdMultisig(
+        master_xpriv=secrets.btc_master_xpriv,
+        master_xpubs=secrets.btc_master_xpubs,
+        num_required_signers=config.btc_num_required_signers,
+        base_derivation_path=config.btc_base_derivation_path,
         bitcoin_rpc=bitcoin_rpc,
+        ord_client=ord_client,
     )
 
     evm_account = Account.from_key(secrets.evm_private_key)
@@ -49,7 +55,7 @@ def wire_rune_bridge(
         transaction_manager=transaction_manager,
         bitcoin_rpc=bitcoin_rpc,
         ord_client=ord_client,
-        ord_wallet=ord_wallet,
+        ord_multisig=ord_multisig,
         web3=web3,
         rune_bridge_contract=rune_bridge_contract,
     )
@@ -60,7 +66,7 @@ def wire_rune_bridge(
         service=service,
     )
 
-    return RuneBridgeWiring(bridge=bridge, service=service)
+    return RuneBridgeWiring(bridge=bridge, service=service, multisig=ord_multisig)
 
 
 def _add_auth(url: str, auth: str | None) -> str:

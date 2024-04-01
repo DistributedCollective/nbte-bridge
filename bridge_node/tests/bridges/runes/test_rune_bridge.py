@@ -24,6 +24,7 @@ from bridge.bridges.runes.wiring import wire_rune_bridge
 from bridge.common.evm.utils import from_wei
 from bridge.common.services.key_value_store import KeyValueStore
 from bridge.common.services.transactions import TransactionManager
+from ...utils.bitcoin import generate_extended_keypair
 from ...mock_network import MockNetwork
 from ...services import (
     BitcoindService,
@@ -45,8 +46,7 @@ def setup(
 ):
     root_ord_wallet = ord.create_test_wallet("root-ord")  # used for funding other wallets
     user_ord_wallet = ord.create_test_wallet("user-ord")  # used by the "end user"
-    alice_btc_wallet = bitcoind.create_test_wallet("alice-bridge")  # used by the bridge backend
-    bitcoind.fund_wallets(root_ord_wallet, alice_btc_wallet, user_ord_wallet)
+    bitcoind.fund_wallets(root_ord_wallet, user_ord_wallet)
 
     etching = root_ord_wallet.etch_test_rune("RUNETEST")
     bitcoind.mine()
@@ -97,6 +97,15 @@ def setup(
         transaction_registry=transaction_registry,
     )
 
+    # TODO: make the wallet 2-of-3
+    bridge_multisig_wallet = bitcoind.create_test_wallet(
+        "runebridge-multisig",
+        blank=True,
+        disable_private_keys=True,
+    )
+    alice_xprv, alice_xpub = generate_extended_keypair()
+    bob_xprv, bob_xpub = generate_extended_keypair()
+
     # TODO: not sure if we should use wire_rune_bridge
     # or directly instantiate it. Directly instantiating is more explicit and suits
     # test, but on the other hand, with wire_rune_bridge we don't have to care
@@ -107,19 +116,27 @@ def setup(
             bridge_id="test-runebridge",
             rune_bridge_contract_address=rune_bridge_contract.address,
             evm_rpc_url=hardhat.rpc_url,
-            btc_rpc_wallet_url=bitcoind.get_wallet_rpc_url(alice_btc_wallet.name),
+            btc_rpc_wallet_url=bitcoind.get_wallet_rpc_url(bridge_multisig_wallet.name),
+            btc_num_required_signers=1,
             ord_api_url=ord.api_url,
             evm_block_safety_margin=0,
             evm_default_start_block=1,
         ),
         secrets=RuneBridgeSecrets(
             evm_private_key=alice_evm_wallet.account.key,
-            btc_master_xpriv="TODO",
-            btc_master_xpubs=["TODO"],
+            btc_master_xpriv=str(alice_xprv),
+            btc_master_xpubs=[str(alice_xpub), str(bob_xpub)],
         ),
         network=alice_network,
         transaction_manager=transaction_manager,
     )
+
+    # Ensure bitcoind sees the wallet
+    alice_wiring.multisig.import_descriptors_to_bitcoind(
+        range=100,
+    )
+    # Fund the multisig wallet
+    bitcoind.fund_addresses(alice_wiring.multisig.change_address)
 
     return SimpleNamespace(
         rune_bridge=alice_wiring.bridge,
@@ -174,6 +191,7 @@ def rune_bridge_service(setup) -> RuneBridgeService:
 
 
 def test_rune_bridge(
+    dbsession,
     bitcoind,
     hardhat,
     ord,
@@ -200,9 +218,11 @@ def test_rune_bridge(
     initial_total_supply = rune_side_token_contract.functions.totalSupply().call()
 
     # Test runes to evm
-    deposit_address = rune_bridge_service.generate_deposit_address(
-        evm_address=user_evm_wallet.address,
-    )
+    with dbsession.begin():
+        deposit_address = rune_bridge_service.generate_deposit_address(
+            evm_address=user_evm_wallet.address,
+            dbsession=dbsession,
+        )
     logger.info("DEPOSIT ADDRESS: %s", deposit_address)
     user_ord_wallet.send_runes(
         receiver=deposit_address,

@@ -5,6 +5,8 @@ from pyramid.config import Configurator
 from pyramid.request import Request
 from pyramid.view import view_config, view_defaults
 
+from sqlalchemy.orm import Session
+
 from bridge.common.evm.provider import Web3
 from bridge.api.exceptions import ApiException
 from .service import RuneBridgeService
@@ -17,6 +19,7 @@ class RuneBridgeApiViews:
     request: Request
     web3: Web3 = autowired(auto)
     service: RuneBridgeService = autowired(auto)
+    dbsession: Session = autowired(auto)
 
     def __init__(self, request):
         self.request = request
@@ -28,7 +31,10 @@ class RuneBridgeApiViews:
         evm_address = data.get("evm_address")
         if not evm_address:
             raise ApiException("Must specify evm_address")
-        deposit_address = self.service.generate_deposit_address(evm_address=evm_address)
+        deposit_address = self.service.generate_deposit_address(
+            evm_address=evm_address,
+            dbsession=self.dbsession,
+        )
         return {"deposit_address": deposit_address}
 
 

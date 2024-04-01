@@ -32,6 +32,7 @@ def rune_bridge_wiring_factory(container: Container):
             btc_rpc_wallet_url=config.runes_btc_rpc_wallet_url,
             ord_api_url=config.runes_ord_api_url,
             btc_base_derivation_path=config.runes_btc_base_derivation_path,
+            btc_num_required_signers=config.runes_btc_num_required_signers,
             evm_block_safety_margin=config.evm_block_safety_margin,
             evm_default_start_block=config.runes_evm_default_start_block,
         ),

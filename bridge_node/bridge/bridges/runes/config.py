@@ -9,6 +9,7 @@ class RuneBridgeConfig:
     evm_rpc_url: str
     btc_rpc_wallet_url: str
     ord_api_url: str
+    btc_num_required_signers: int
     btc_base_derivation_path: str = "m/13/0/0"
     evm_block_safety_margin: int = 0
     evm_default_start_block: int = 1

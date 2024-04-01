@@ -3,10 +3,7 @@ from dataclasses import dataclass
 from decimal import Decimal
 from typing import Protocol
 
-from eth_utils import (
-    add_0x_prefix,
-    to_checksum_address,
-)
+import eth_utils
 from sqlalchemy.orm import (
     Session,
 )
@@ -15,10 +12,10 @@ from web3.contract import Contract
 from web3.types import EventData
 
 from bridge.common.btc.rpc import BitcoinRPC
+from .models import User, DepositAddress
 from ...common.evm.scanner import EvmEventScanner
-from ...common.evm.utils import from_wei
 from ...common.ord.client import OrdApiClient
-from ...common.ord.simple_wallet import SimpleOrdWallet
+from ...common.ord.multisig import OrdMultisig, RuneTransfer
 from ...common.services.key_value_store import KeyValueStore
 from ...common.services.transactions import TransactionManager
 
@@ -57,7 +54,7 @@ class RuneBridgeService:
         transaction_manager: TransactionManager,
         bitcoin_rpc: BitcoinRPC,
         ord_client: OrdApiClient,
-        ord_wallet: SimpleOrdWallet,
+        ord_multisig: OrdMultisig,
         web3: Web3,
         rune_bridge_contract: Contract,
     ):
@@ -65,18 +62,40 @@ class RuneBridgeService:
         self.bitcoin_rpc = bitcoin_rpc
         self.rune_bridge_contract = rune_bridge_contract
         self.ord_client = ord_client
-        self.ord_wallet = ord_wallet
+        self.ord_multisig = ord_multisig
         self.transaction_manager = transaction_manager
         self.web3 = web3
 
-    def generate_deposit_address(self, evm_address: str) -> str:
-        evm_address = to_checksum_address(evm_address)
-        label = f"runes:deposit:{evm_address}"
+    def generate_deposit_address(self, *, evm_address: str, dbsession: Session) -> str:
+        # TODO: dbsession now passed as parameter, seems ugly?
+        if not eth_utils.is_checksum_formatted_address(evm_address):
+            raise ValueError(
+                f"Invalid EVM address: {evm_address} (not a valid address or not checksummed properly)"
+            )
 
-        # could check existing address here but no need to
-        # self.bitcoin_rpc.call("getaddressesbylabel", label)
+        user = (
+            dbsession.query(User)
+            .filter_by(bridge_id=self.config.bridge_id, evm_address=evm_address)
+            .first()
+        )
+        if not user:
+            user = User(
+                bridge_id=self.config.bridge_id,
+                evm_address=evm_address,
+            )
+            dbsession.add(user)
+            dbsession.flush()
 
-        return self.bitcoin_rpc.call("getnewaddress", label)
+        deposit_address = user.deposit_address
+        if not deposit_address:
+            deposit_address = DepositAddress(
+                user_id=user.id,
+                btc_address=self.ord_multisig.derive_address(user.id),
+            )
+            dbsession.add(deposit_address)
+            dbsession.flush()
+
+        return deposit_address.btc_address
 
     def scan_rune_deposits(self) -> list[RuneToEvmTransfer]:
         last_block_key = f"{self.config.bridge_id}:btc:deposits:last_scanned_block"
@@ -93,16 +112,38 @@ class RuneBridgeService:
         for tx in resp["transactions"]:
             if tx["category"] != "receive":
                 continue
-            if "label" not in tx:
+
+            btc_address = tx.get("address")
+            if not btc_address:
+                logger.warning("No BTC address in transaction %s", tx)
                 continue
-            if not tx["label"].startswith("runes:deposit:"):
+
+            if btc_address == self.ord_multisig.change_address:
+                logger.info("Ignoring tx to change address %s", btc_address)
                 continue
-            evm_address = tx["label"][len("runes:deposit:") :]
+
+            # TODO: temporary solution here, we should actually always store RuneDeposits
+            with self.transaction_manager.transaction() as _tx:
+                dbsession = _tx.find_service(Session)
+                deposit_address = (
+                    dbsession.query(DepositAddress).filter_by(btc_address=btc_address).first()
+                )
+                if not deposit_address:
+                    logger.warning("No deposit address found for %s", tx)
+                    continue
+                evm_address = deposit_address.user.evm_address
+
             txid = tx["txid"]
             vout = tx["vout"]
 
             output = self.ord_client.get_output(txid, vout)
-            logger.info("Received %s runes in outpoint %s:%s", len(output["runes"]), txid, vout)
+            logger.info(
+                "Received %s runes in outpoint %s:%s (user %s)",
+                len(output["runes"]),
+                txid,
+                vout,
+                evm_address,
+            )
             for rune_name, balance_entry in output["runes"]:
                 amount_raw = balance_entry["amount"]
                 amount_decimal = Decimal(amount_raw) / 10 ** balance_entry["divisibility"]
@@ -137,7 +178,7 @@ class RuneBridgeService:
             transfer.evm_address,
             transfer.rune_name,
             transfer.amount_raw,
-            add_0x_prefix(transfer.txid),
+            eth_utils.add_0x_prefix(transfer.txid),
             transfer.vout,
             [],
         ).transact(
@@ -191,8 +232,14 @@ class RuneBridgeService:
 
     def send_token_to_btc(self, deposit: TokenToBtcTransfer):
         logger.info("Sending to BTC: %s", deposit)
-        self.ord_wallet.send_runes(
-            rune_name=deposit.rune_name,
-            amount=from_wei(deposit.amount_wei),
-            receiver_address=deposit.receiver_address,
+        # TODO: multisig transfers
+        self.ord_multisig.send_runes(
+            transfers=[
+                RuneTransfer(
+                    rune=deposit.rune_name,
+                    receiver=deposit.receiver_address,
+                    # TODO: handle divisibility etc, it might not always be the same as wei
+                    amount=deposit.amount_wei,
+                )
+            ]
         )

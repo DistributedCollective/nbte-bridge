@@ -4,6 +4,7 @@ import logging
 
 import pytest
 from sqlalchemy import create_engine
+from sqlalchemy.orm import Session
 
 from bridge.common.models import load_models
 from bridge.common.models.meta import Base
@@ -76,9 +77,6 @@ def dbengine(postgres):
     engine.dispose()
 
 
-# TODO: we can have something like this but not necessarily yet
-# @pytest.fixture(scope="module")
-# def dbsession(engine):
-#     session = Session(bind=engine)
-#     yield session
-#     session.rollback()
+@pytest.fixture(scope="module")
+def dbsession(dbengine):
+    return Session(bind=dbengine, autobegin=False)
