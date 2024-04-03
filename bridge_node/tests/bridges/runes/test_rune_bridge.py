@@ -48,7 +48,7 @@ def setup(
     user_ord_wallet = ord.create_test_wallet("user-ord")  # used by the "end user"
     bitcoind.fund_wallets(root_ord_wallet, user_ord_wallet)
 
-    etching = root_ord_wallet.etch_test_rune("RUNETEST")
+    rune = root_ord_wallet.etch_test_rune("RUNETEST")
     bitcoind.mine()
 
     alice_evm_wallet = hardhat.create_test_wallet("alice", impersonate=False)
@@ -57,7 +57,7 @@ def setup(
     deployment = hardhat.run_json_command(
         "runes-deploy-regtest",
         "--rune-name",
-        etching.rune,
+        rune,
         "--owner",
         alice_evm_wallet.address,
     )
@@ -68,7 +68,7 @@ def setup(
     )
 
     rune_side_token_contract = hardhat.web3.eth.contract(
-        address=rune_bridge_contract.functions.getTokenByRune(etching.rune).call(),
+        address=rune_bridge_contract.functions.getTokenByRune(rune).call(),
         abi=load_rune_bridge_abi("RuneSideToken"),
     )
 
@@ -141,7 +141,7 @@ def setup(
     return SimpleNamespace(
         rune_bridge=alice_wiring.bridge,
         rune_bridge_service=alice_wiring.service,
-        rune_name=etching.rune,
+        rune_name=rune,
         user_ord_wallet=user_ord_wallet,
         user_evm_wallet=user_evm_wallet,
         root_ord_wallet=root_ord_wallet,
@@ -192,7 +192,6 @@ def rune_bridge_service(setup) -> RuneBridgeService:
 
 def test_rune_bridge(
     dbsession,
-    bitcoind,
     hardhat,
     ord,
     user_evm_wallet,
@@ -210,7 +209,7 @@ def test_rune_bridge(
         amount=1000,
         receiver=user_ord_wallet.get_receiving_address(),
     )
-    bitcoind.mine()
+    ord.mine_and_sync()
     assert user_ord_wallet.get_rune_balance_decimal(rune_name) == 1000
     assert (
         rune_side_token_contract.functions.balanceOf(user_evm_wallet.address).call() == 0
@@ -229,7 +228,7 @@ def test_rune_bridge(
         amount=1000,
         rune=rune_name,
     )
-    ord.mine_and_sync(bitcoind)
+    ord.mine_and_sync()
 
     rune_bridge.run_iteration()
 
@@ -266,7 +265,7 @@ def test_rune_bridge(
 
     rune_bridge.run_iteration()
 
-    ord.mine_and_sync(bitcoind)
+    ord.mine_and_sync()
 
     user_rune_balance = user_ord_wallet.get_rune_balance_decimal(rune_name)
     assert user_rune_balance == 1000

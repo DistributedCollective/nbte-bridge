@@ -113,7 +113,7 @@ def test_get_rune_balance(
         amount=Decimal("123.4"),
         receiver=multisig.change_address,
     )
-    ord.mine_and_sync(bitcoind)
+    ord.mine_and_sync()
 
     assert to_decimal(multisig.get_rune_balance(rune_a), 18) == Decimal("123.4")
     assert multisig.get_rune_balance(rune_b) == 0
@@ -156,7 +156,7 @@ def test_1_of_2_send_runes(
     )
     signed_psbt = multisig.sign_psbt(unsigned_psbt, finalize=True)
     multisig.broadcast_psbt(signed_psbt)
-    ord.mine_and_sync(bitcoind)
+    ord.mine_and_sync()
 
     assert test_wallet.get_rune_balance_decimal(rune_a) == transfer_amount
     assert test_wallet.get_rune_balance_decimal(rune_b) == 0
@@ -217,7 +217,7 @@ def test_2_of_3_send_runes(
         signed_psbts=[signed1, signed2],
     )
     multisig1.broadcast_psbt(finalized_psbt)
-    ord.mine_and_sync(bitcoind)
+    ord.mine_and_sync()
 
     assert test_wallet.get_rune_balance_decimal(rune_a) == transfer_amount
     assert test_wallet.get_rune_balance_decimal(rune_b) == 0
@@ -228,7 +228,6 @@ def test_2_of_3_send_runes(
 
 def test_ord_multisig_send_runes_from_derived_address(
     ord: OrdService,
-    bitcoind: BitcoindService,
     root_ord_wallet: OrdWallet,
     multisig_factory,
 ):
@@ -238,39 +237,39 @@ def test_ord_multisig_send_runes_from_derived_address(
         num_signers=2,
     )
     supply = Decimal("1234")
-    etching = root_ord_wallet.etch_test_rune("DERIVEDTEST", supply=supply)
-    ord.mine_and_sync(bitcoind)
+    rune = root_ord_wallet.etch_test_rune("DERIVEDTEST", supply=supply)
+    ord.mine_and_sync()
 
     # Sanity check
-    assert to_decimal(multisig.get_rune_balance(etching.rune), 18) == 0
-    assert test_wallet.get_rune_balance_decimal(etching.rune) == 0
+    assert to_decimal(multisig.get_rune_balance(rune), 18) == 0
+    assert test_wallet.get_rune_balance_decimal(rune) == 0
 
     derived_address = multisig.derive_address(42)
     assert derived_address != multisig.change_address
 
     root_ord_wallet.send_runes(
-        rune=etching.rune,
+        rune=rune,
         receiver=derived_address,
         amount=supply,
     )
-    ord.mine_and_sync(bitcoind)
+    ord.mine_and_sync()
 
-    assert to_decimal(multisig.get_rune_balance(etching.rune), 18) == supply
+    assert to_decimal(multisig.get_rune_balance(rune), 18) == supply
 
     transfer_amount = Decimal("98.7")
     multisig.send_runes(
         transfers=[
             RuneTransfer(
-                rune=etching.rune,
+                rune=rune,
                 receiver=test_wallet.get_receiving_address(),
                 amount=to_base_units(transfer_amount, 18),
             )
         ],
     )
-    ord.mine_and_sync(bitcoind)
+    ord.mine_and_sync()
 
-    assert to_decimal(multisig.get_rune_balance(etching.rune), 18) == supply - transfer_amount
-    assert test_wallet.get_rune_balance_decimal(etching.rune) == transfer_amount
+    assert to_decimal(multisig.get_rune_balance(rune), 18) == supply - transfer_amount
+    assert test_wallet.get_rune_balance_decimal(rune) == transfer_amount
 
 
 # TODO: test won't use rune outputs for paying for transaction fees

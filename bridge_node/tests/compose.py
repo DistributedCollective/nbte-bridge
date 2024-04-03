@@ -5,7 +5,10 @@ import subprocess
 import time
 import json
 
-from typing import Any
+from typing import (
+    Any,
+    Optional,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -25,6 +28,7 @@ def run_compose_command(
     check: bool = True,
     capture: bool = False,
     quiet: bool = not COMPOSE_VERBOSE,
+    timeout: Optional[float] = None,
     **extra_kwargs,
 ) -> subprocess.CompletedProcess:
     extra_kwargs["check"] = check
@@ -33,6 +37,8 @@ def run_compose_command(
     elif quiet:
         extra_kwargs["stdout"] = subprocess.DEVNULL
         extra_kwargs["stderr"] = subprocess.DEVNULL
+    if timeout:
+        extra_kwargs["timeout"] = timeout
     compose_args = (*COMPOSE_COMMAND, "-f", str(COMPOSE_FILE), "--env-file", str(ENV_FILE))
     return subprocess.run(
         compose_args + args,
@@ -126,7 +132,7 @@ class ComposeService:
         else:
             raise TimeoutError(f"Service {self.service} did not start in {MAX_WAIT_TIME_S} seconds")
 
-    def exec(self, *args: Any):
+    def exec(self, *args: Any, timeout: Optional[float] = None):
         exec_args = ["exec"]
         if self.user:
             exec_args.extend(["-u", self.user])
@@ -136,7 +142,17 @@ class ComposeService:
             return run_compose_command(
                 *exec_args,
                 capture=True,
+                timeout=timeout,
             )
         except subprocess.CalledProcessError as e:
             logger.error("Error executing command %s: %s (%s)", exec_args, e, e.stderr)
             raise ComposeExecException(e.stderr) from e
+
+    def copy_to_container(self, src: str | pathlib.Path, dest: str):
+        run_compose_command(
+            "cp",
+            str(src),
+            f"{self.service}:{dest}",
+            check=True,
+            quiet=True,
+        )

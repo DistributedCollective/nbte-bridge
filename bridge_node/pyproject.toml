@@ -42,7 +42,7 @@ eth-utils = "^2.3.1"
 python-bitcointx = "^1.1.4"
 pyramid = "^2.0.2"
 python-dotenv = "^1.0.1"
-pyord = "^0.1.0"
+pyord = "0.2.0"
 
 [tool.poetry.group.dev.dependencies]
 pytest = "^7.4.3"
@@ -53,6 +53,7 @@ ruff = "^0.1.11"
 pre-commit = "^3.6.0"
 ipython = "^8.19.0"
 ipdb = "^0.13.13"
+pyyaml = "^6.0.1"
 
 [tool.pytest.ini_options]
 addopts = [

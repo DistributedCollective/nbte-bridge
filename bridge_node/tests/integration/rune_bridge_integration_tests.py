@@ -79,18 +79,11 @@ def alice_ord_wallet(ord, bitcoind):
 
     balances = wallet.cli("balance")
     if RUNE_NAME not in balances["runes"]:
-        wallet.cli(
-            "etch",
-            "--divisibility",
-            "18",
-            "--fee-rate",
-            "1",
-            "--rune",
-            RUNE_NAME,
-            "--supply",
-            "100000000",
-            "--symbol",
-            "R",
+        wallet.etch_rune(
+            rune=RUNE_NAME,
+            supply=100000000,
+            divisibility=18,
+            symbol="R",
         )
         bitcoind.mine()
 
@@ -126,7 +119,7 @@ def user_ord_wallet(ord, bitcoind, bitcoin_rpc, alice_ord_wallet):
             "--fee-rate",
             "1",
             address,
-            f"1000 {RUNE_NAME}",
+            f"1000:{RUNE_NAME}",
         )
         bitcoind.mine()
 

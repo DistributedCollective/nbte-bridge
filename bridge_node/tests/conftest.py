@@ -55,11 +55,11 @@ def bitcoind(request):
 
 
 @pytest.fixture(scope="module")
-def ord(request):
+def ord(request, bitcoind):
     # We'll just roll with one ord service for the whole bridge and the user in tests
     # It supports different wallets anyway
     # This fixture shadows the built-in name `ord`, but who uses it anyway.
-    return services.OrdService(request)
+    return services.OrdService(bitcoind=bitcoind, request=request)
 
 
 @pytest.fixture(scope="module")

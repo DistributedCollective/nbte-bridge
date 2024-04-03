@@ -171,14 +171,10 @@ class OrdMultisig:
             rune_response = self._ord_client.get_rune(transfer.rune)
             if not rune_response:
                 raise LookupError(f"Rune {transfer.rune} not found (transfer {transfer})")
-            block_height, tx_index = map(int, rune_response["id"].split(":"))
-            rune_id = pyord.RuneId(
-                height=block_height,
-                index=tx_index,
-            )
+            rune_id = pyord.RuneId.from_str(rune_response["id"])
             edicts.append(
                 pyord.Edict(
-                    id=rune_id.num,
+                    id=rune_id,
                     amount=transfer.amount,
                     output=output_index,  # receiver is first output
                 )
@@ -197,13 +193,13 @@ class OrdMultisig:
         psbt = PSBT()
         runestone = pyord.Runestone(
             edicts=edicts,
-            default_output=rune_change_output_index,
+            pointer=rune_change_output_index,
         )
         # Runestone always goes to output 0
         psbt.add_output(
             txout=CTxOut(
                 nValue=0,
-                scriptPubKey=CScript(runestone.script_pubkey()),
+                scriptPubKey=CScript(runestone.encipher()),
             ),
             outp=PSBT_Output(
                 index=0,
