@@ -48,7 +48,7 @@ def setup(
     user_ord_wallet = ord.create_test_wallet("user-ord")  # used by the "end user"
     bitcoind.fund_wallets(root_ord_wallet, user_ord_wallet)
 
-    rune = root_ord_wallet.etch_test_rune("RUNETEST")
+    etching = root_ord_wallet.etch_test_rune("RUNETEST")
     bitcoind.mine()
 
     alice_evm_wallet = hardhat.create_test_wallet("alice", impersonate=False)
@@ -57,7 +57,7 @@ def setup(
     deployment = hardhat.run_json_command(
         "runes-deploy-regtest",
         "--rune-name",
-        rune,
+        etching.rune,
         "--owner",
         alice_evm_wallet.address,
     )
@@ -68,7 +68,7 @@ def setup(
     )
 
     rune_side_token_contract = hardhat.web3.eth.contract(
-        address=rune_bridge_contract.functions.getTokenByRune(rune).call(),
+        address=rune_bridge_contract.functions.getTokenByRune(etching.rune).call(),
         abi=load_rune_bridge_abi("RuneSideToken"),
     )
 
@@ -141,7 +141,7 @@ def setup(
     return SimpleNamespace(
         rune_bridge=alice_wiring.bridge,
         rune_bridge_service=alice_wiring.service,
-        rune_name=rune,
+        rune_name=etching.rune,
         user_ord_wallet=user_ord_wallet,
         user_evm_wallet=user_evm_wallet,
         root_ord_wallet=root_ord_wallet,

@@ -19,6 +19,7 @@ COMPOSE_FILE = PROJECT_BASE_DIR / "docker-compose.dev.yaml"
 ENV_FILE = PROJECT_BASE_DIR / "env.test"
 MAX_WAIT_TIME_S = 120
 VOLUMES_DIR = PROJECT_BASE_DIR / "volumes"
+COMPOSE_BASE_ARGS = (*COMPOSE_COMMAND, "-f", str(COMPOSE_FILE), "--env-file", str(ENV_FILE))
 
 assert ENV_FILE.exists(), f"Missing {ENV_FILE}"
 
@@ -33,17 +34,25 @@ def run_compose_command(
 ) -> subprocess.CompletedProcess:
     extra_kwargs["check"] = check
     if capture:
+        # TODO: capture should capture just stdout, not stderr
         extra_kwargs["capture_output"] = True
     elif quiet:
         extra_kwargs["stdout"] = subprocess.DEVNULL
         extra_kwargs["stderr"] = subprocess.DEVNULL
     if timeout:
         extra_kwargs["timeout"] = timeout
-    compose_args = (*COMPOSE_COMMAND, "-f", str(COMPOSE_FILE), "--env-file", str(ENV_FILE))
     return subprocess.run(
-        compose_args + args,
+        COMPOSE_BASE_ARGS + args,
         cwd=PROJECT_BASE_DIR,
         **extra_kwargs,
+    )
+
+
+def compose_popen(*args, **kwargs) -> subprocess.Popen:
+    return subprocess.Popen(
+        COMPOSE_BASE_ARGS + args,
+        cwd=PROJECT_BASE_DIR,
+        **kwargs,
     )
 
 
@@ -133,11 +142,7 @@ class ComposeService:
             raise TimeoutError(f"Service {self.service} did not start in {MAX_WAIT_TIME_S} seconds")
 
     def exec(self, *args: Any, timeout: Optional[float] = None):
-        exec_args = ["exec"]
-        if self.user:
-            exec_args.extend(["-u", self.user])
-        exec_args.append(self.service)
-        exec_args.extend(str(a) for a in args)
+        exec_args = self._get_exec_args(*args)
         try:
             return run_compose_command(
                 *exec_args,
@@ -147,6 +152,18 @@ class ComposeService:
         except subprocess.CalledProcessError as e:
             logger.error("Error executing command %s: %s (%s)", exec_args, e, e.stderr)
             raise ComposeExecException(e.stderr) from e
+
+    def exec_popen(self, *args, **kwargs) -> subprocess.Popen:
+        popen_args = self._get_exec_args(*args)
+        return compose_popen(*popen_args, **kwargs)
+
+    def _get_exec_args(self, *args):
+        exec_args = ["exec"]
+        if self.user:
+            exec_args.extend(["-u", self.user])
+        exec_args.append(self.service)
+        exec_args.extend(str(a) for a in args)
+        return exec_args
 
     def copy_to_container(self, src: str | pathlib.Path, dest: str):
         run_compose_command(

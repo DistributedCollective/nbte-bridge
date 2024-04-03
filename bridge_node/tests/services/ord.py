@@ -1,23 +1,24 @@
 from __future__ import annotations
 
+import json
+import logging
+import pathlib
 import random
 import string
-import json
-from decimal import Decimal
-import time
-import logging
+import subprocess
 import tempfile
-import threading
+import time
+from dataclasses import dataclass
+from decimal import Decimal
 
 from bridge.common.ord.client import OrdApiClient
 from .bitcoind import BitcoindService
-
 from .. import compose
-import pathlib
 from ..utils.ord_batch import create_batch_file
 
 MIN_RUNE_LENGTH = 16  # sensible default for regtest, minimum is at least 13
 MIN_RANDOMPART_LENGTH = 8  # negligible changes for collisions
+TIMEOUT = 120.0
 logger = logging.getLogger(__name__)
 
 
@@ -42,6 +43,13 @@ class OrdService(compose.ComposeService):
 
     def cli(self, *args):
         ret = self.exec(
+            *self.cli_args(*args),
+            timeout=TIMEOUT,
+        )
+        return json.loads(ret.stdout)
+
+    def cli_args(self, *args):
+        return (
             "ord",
             "--chain",
             "regtest",
@@ -54,12 +62,7 @@ class OrdService(compose.ComposeService):
             "--data-dir",
             "/home/ord/data",
             *args,
-            timeout=60,
         )
-        return ret.stdout
-
-    def cli_json(self, *args):
-        return json.loads(self.cli(*args))
 
     def create_test_wallet(self, prefix: str = "") -> OrdWallet:
         # Let's just trust that there's no collision
@@ -106,6 +109,16 @@ class OrdService(compose.ComposeService):
             raise TimeoutError("ORD did not sync in time")
 
 
+@dataclass
+class EtchingInfo:
+    commit: str
+    reveal: str
+    rune: str
+    rune_destination: str
+    rune_location: str
+    rune_destination: str
+
+
 class OrdWallet:
     def __init__(
         self,
@@ -118,25 +131,25 @@ class OrdWallet:
         self.addresses = []
 
     def cli(self, *args):
-        return self.ord.cli("wallet", "--name", self.name, *args)
+        return self.ord.cli(*self.cli_args(*args))
 
-    def cli_json(self, *args):
-        return json.loads(self.cli(*args))
+    def cli_args(self, *args):
+        return "wallet", "--name", self.name, *args
 
     def create(self):
-        ret = self.cli_json("create")
+        ret = self.cli("create")
         return ret
 
     def get_rune_balance_decimal(self, rune: str) -> Decimal:
         rune_response = self.ord.api_client.get_rune(rune)
         if not rune_response:
             raise ValueError(f"Rune {rune} not found")
-        balances = self.cli_json("balance")
+        balances = self.cli("balance")
         balance_dec = Decimal(balances["runes"].get(rune, 0))
         return balance_dec / (10 ** rune_response["entry"]["divisibility"])
 
     def get_balance_btc(self) -> Decimal:
-        balances = self.cli_json("balance")
+        balances = self.cli("balance")
         # TODO: cardinal or total? or we could also get this from bitcoin rpc
         # but maybe cardinal is good because we don't want to use balances locked for runes
         balance_dec = Decimal(balances["cardinal"])
@@ -150,7 +163,7 @@ class OrdWallet:
         amount: int | Decimal,
         fee_rate: int | Decimal = 1,
     ):
-        ret = self.cli_json(
+        ret = self.cli(
             "send",
             "--fee-rate",
             fee_rate,
@@ -167,7 +180,7 @@ class OrdWallet:
         supply: int | Decimal,
         divisibility: int,
         fee_rate: int = 1,
-    ) -> str:
+    ) -> EtchingInfo:
         if not rune.isalpha() or not rune.isupper():
             raise ValueError("rune must be an uppercase alphabetic string")
 
@@ -175,8 +188,7 @@ class OrdWallet:
 
         # Etching now happens with the `ord wallet batch` command, which requires both a yaml file
         # and at least one inscription file. In addition, the command will wait until more blocks are mined,
-        # so we have to do some threading magic to mine blocks in the background.
-        # TODO: check if we could instead CTRL-C the process, then mine, then `ord wallet resume`
+        # so we need to do some hacky things with Popen to get it running.
         with tempfile.TemporaryDirectory(prefix="nbtebridge-tests") as tmpdir:
             inscription_file_path = pathlib.Path(tmpdir) / "inscription.txt"
             batch_file_path = pathlib.Path(tmpdir) / "batch.batch"
@@ -205,30 +217,65 @@ class OrdWallet:
             self.ord.copy_to_container(batch_file_path, "/tmp/batch.batch")
             logger.info("Inscription and batch files copied to ord container")
 
-            batch_processed = False
+        popen_args = self.ord.cli_args(
+            *self.cli_args("batch", "--fee-rate", fee_rate, "--batch", "/tmp/batch.batch")
+        )
+        process = self.ord.exec_popen(
+            *popen_args,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            encoding="utf-8",
+        )
+        try:
+            logger.debug("Waiting ord to broadcast the commitment transaction...")
+            for line in process.stderr:
+                # TODO: add a timeout
+                # Wait for the "Waiting for rune commitment <txid> to mature" line
+                logger.info("ord stderr: %s", line.rstrip())
+                if "rune commitment" in line:
+                    break
 
-            def mine_bitcoins():
-                logger.info("Starting bitcoin mining")
-                time.sleep(2)
-                while not batch_processed:
-                    logger.info("Mining 6 blocks")
-                    # 6 blocks for it to mature, one more block to see rewards
-                    self.ord.bitcoind.mine(6)
-                    time.sleep(1)
-                logger.info("Stopping bitcoin mining")
+            # 6 blocks for the rune commitment to mature
+            logger.debug("Mining 6 blocks for the commitment to mature")
+            self.ord.bitcoind.mine(6)
 
-            t = threading.Thread(target=mine_bitcoins)
-            t.start()
-            try:
-                logger.info("Launching batch command")
-                self.cli("batch", "--fee-rate", fee_rate, "--batch", "/tmp/batch.batch")
-                logger.info("Batch command done")
-            finally:
-                batch_processed = True
-                t.join()
+            retval = process.wait(timeout=TIMEOUT)
+            if retval != 0:
+                logger.error(
+                    "ord batch failed with return code %d. Stdout: %s, Stderr: %s",
+                    retval,
+                    process.stdout.read(),
+                    process.stderr.read(),
+                )
+                raise compose.ComposeExecException(process.stderr.read())
 
-            self.ord.mine_and_sync()
-        return rune
+            # process_output looks like this:
+            # {'commit': 'e8e58c55840e6493104fa6ab43a4f986407bae6fe8861325b8cf7bc90fcc4ffe', 'commit_psbt': None,
+            #  'inscriptions': [
+            #      {'destination': 'bcrt1pt47jp64qeqctut7r67j7grpxnkqq6tukldqepruhn3lkvnlpkyuqyd4ec7',
+            #       'id': 'acc173689c4351943725c417c574ac12cdad34c5f4088b469879cefde0741ee1i0',
+            #       'location': 'acc173689c4351943725c417c574ac12cdad34c5f4088b469879cefde0741ee1:0:0'}],
+            #  'parent': None,
+            #  'reveal': 'acc173689c4351943725c417c574ac12cdad34c5f4088b469879cefde0741ee1', 'reveal_broadcast': True,
+            #  'reveal_psbt': None,
+            #  'rune': {'destination': 'bcrt1ph94h9wz4jrz4qamsu4rwz9tdc3rhrnu69vhr6q0yjh7g7kz8h8rs5n0j2w',
+            #           'location': 'acc173689c4351943725c417c574ac12cdad34c5f4088b469879cefde0741ee1:1',
+            #           'rune': 'RUNETESTNRHPWVFMTTQP'}
+            process_output = json.load(process.stdout)
+            logger.info("ord output: %s", process_output)
+        finally:
+            if process.poll() is None:
+                process.terminate()
+
+        self.ord.mine_and_sync()
+
+        return EtchingInfo(
+            commit=process_output["commit"],
+            reveal=process_output["reveal"],
+            rune=process_output["rune"]["rune"],
+            rune_destination=process_output["rune"]["destination"],
+            rune_location=process_output["rune"]["location"],
+        )
 
     def etch_test_rune(
         self,
@@ -237,7 +284,7 @@ class OrdWallet:
         supply: int | Decimal = 100_000_000,
         divisibility: int = 18,
         symbol: str = None,
-    ) -> str:
+    ) -> EtchingInfo:
         if not symbol:
             symbol = prefix[0]
 
@@ -247,7 +294,7 @@ class OrdWallet:
         return self.etch_rune(rune=rune, symbol=symbol, supply=supply, divisibility=divisibility)
 
     def get_new_address(self) -> str:
-        addr = self.cli_json("receive")["addresses"][0]
+        addr = self.cli("receive")["addresses"][0]
         self.addresses.append(addr)
         return addr
 

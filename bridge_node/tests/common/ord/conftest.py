@@ -21,19 +21,18 @@ def rune_factory(root_ord_wallet, ord, bitcoind):
             )
             for name in names
         ]
-        ord.mine_and_sync()
         # root_ord_wallet.unlock_unspent()
 
         if receiver:
-            for rune in etchings:
+            for etching in etchings:
                 root_ord_wallet.send_runes(
-                    rune=rune,
+                    rune=etching.rune,
                     receiver=receiver,
                     amount=supply,
                 )
                 ord.mine_and_sync()
                 # root_ord_wallet.unlock_unspent()
 
-        return etchings
+        return [e.rune for e in etchings]
 
     return create_runes
