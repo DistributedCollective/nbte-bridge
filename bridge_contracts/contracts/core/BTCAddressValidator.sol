@@ -18,14 +18,14 @@ contract BTCAddressValidator is IBTCAddressValidator, NBTEBridgeAccessControllab
     uint256 public nonBech32MinLength = 26;
     uint256 public nonBech32MaxLength = 35;
     uint8 public maxSegwitVersion = 1; // 0 = segwit v0 (p2wsh/p2wpkh), 1 = taproot, previous versions implicitly supported
+    uint256 precomputedBech32ChecksumStart;
 
-    // bech32 allowed characters are ascii lowercase less 1, b, i, o
-    uint256 public constant BECH32_INVALID_CHARACTERS = 0xfffffffffffffffffffffffffffffffff8008205fffffffffc02ffffffffffff;
     uint8 constant BECH32_FIRST_ORD = 48;
     uint8 constant BECH32_LAST_ORD = 122;
     uint8 constant BECH32_MAX_VALID_MAPPED = 0x1f;
     bytes constant BECH32_ALPHABET_MAP = hex"0fff0a1115141a1e0705ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff1dff180d19090817ff12161f1b13ff010003100b1c0c0e060402";
-    uint256 constant BECH32_CHECKSUM_LENGTH = 6;
+    uint256 constant SEGWIT_V0_BECH32_CHECKSUM_CONSTANT = 1;  // bech32 original
+    uint256 constant SEGWIT_V1_BECH32_CHECKSUM_CONSTANT = 0x2bc830a3;  // bech32m
 
     /// @dev The constructor.
     /// @param _accessControl       Address of the FastBTCAccessControl contract.
@@ -39,7 +39,7 @@ contract BTCAddressValidator is IBTCAddressValidator, NBTEBridgeAccessControllab
     )
     NBTEBridgeAccessControllable(_accessControl)
     {
-        bech32Prefix = _bech32Prefix;
+        _setBech32Prefix(_bech32Prefix);
         supportsLegacy = _nonBech32Prefixes.length > 0;
         nonBech32Prefixes = _nonBech32Prefixes;
     }
@@ -77,25 +77,46 @@ contract BTCAddressValidator is IBTCAddressValidator, NBTEBridgeAccessControllab
             return false;
         }
 
-        {
+        uint256 chk = precomputedBech32ChecksumStart;
+
+        uint256 checksumConstant = SEGWIT_V0_BECH32_CHECKSUM_CONSTANT;
+        unchecked {
             bytes1 versionUnmapped = _btcAddressBytes[bytes(bech32Prefix).length];
+            if (uint8(versionUnmapped) < BECH32_FIRST_ORD) {
+                return false;
+            }
             uint8 version = uint8(BECH32_ALPHABET_MAP[uint8(versionUnmapped) - BECH32_FIRST_ORD]);
             if (version > maxSegwitVersion) {
                 return false;
             }
+            if (version >= 1) {
+                checksumConstant = SEGWIT_V1_BECH32_CHECKSUM_CONSTANT;
+            }
+
+            // micro-optimization: compute polymod for version here
+            chk = polymodStep(chk) ^ uint8(version);
         }
 
-        // for each character set the corresponding bit in the bitmask
-        uint256 bitmask = 0;
         unchecked {
-            for (uint256 i = bytes(bech32Prefix).length; i < _btcAddressBytes.length; i++) {
-                bitmask |= uint256(1) << uint8(_btcAddressBytes[i]);
+            for (uint256 i = bytes(bech32Prefix).length + 1; i < _btcAddressBytes.length; i++) {
+                bytes1 c = _btcAddressBytes[i];
+                uint8 ord = uint8(c);
+                if (ord < BECH32_FIRST_ORD || ord > BECH32_LAST_ORD) {
+                    return false;
+                }
+                bytes1 mapped = BECH32_ALPHABET_MAP[ord - BECH32_FIRST_ORD];
+                if (uint8(mapped) > BECH32_MAX_VALID_MAPPED) {
+                    return false;
+                }
+
+                chk = polymodStep(chk) ^ uint8(mapped);
             }
         }
 
-        // if any bit in the bitmask thus set corresponds to a character considered invalid
-        // in bech32, raise an error here.
-        return (bitmask & BECH32_INVALID_CHARACTERS) == 0;
+        if (chk != checksumConstant) {
+            return false;
+        }
+        return true;
     }
 
     /// @dev Is the given address a valid non-bech32 Bitcoin address?
@@ -176,6 +197,33 @@ contract BTCAddressValidator is IBTCAddressValidator, NBTEBridgeAccessControllab
         return true;
     }
 
+    function polymodStep(
+        uint256 pre
+    )
+    private
+    pure
+    returns (uint256) {
+        uint256 b = pre >> 25;
+
+        pre = (pre & 0x1ffffff) << 5;
+        if ((b >> 0) & 1 != 0) {
+            pre ^= 0x3b6a57b2;
+        }
+        if ((b >> 1) & 1 != 0) {
+            pre ^= 0x26508e6d;
+        }
+        if ((b >> 2) & 1 != 0) {
+            pre ^= 0x1ea119fa;
+        }
+        if ((b >> 3) & 1 != 0) {
+            pre ^= 0x3d4233dd;
+        }
+        if ((b >> 4) & 1 != 0) {
+            pre ^= 0x2a1462b3;
+        }
+        return pre;
+    }
+
     // ADMIN API
 
     /// @dev Sets the valid prefix for bech32 addresses. Can only be called by admins.
@@ -186,7 +234,30 @@ contract BTCAddressValidator is IBTCAddressValidator, NBTEBridgeAccessControllab
     external
     onlyAdmin
     {
+        _setBech32Prefix(_prefix);
+    }
+
+    function _setBech32Prefix(
+        string memory _prefix
+    )
+    internal
+    {
+        require(bech32MinLength > bytes(_prefix).length + 1, "minLength must be greater than prefix length plus version");
         bech32Prefix = _prefix;
+
+        // precompute bech32 checksum start
+        uint256 chk = 1;
+        uint256 i = 0;
+        for (; i < bytes(bech32Prefix).length - 1; i++) {
+            bytes1 c = bytes(bech32Prefix)[i];
+            chk = polymodStep(chk) ^ (uint8(c) >> 5);
+        }
+        chk = polymodStep(chk);
+        for (uint256 j = 0; j < i; j++) {
+            chk = polymodStep(chk) ^ (uint8(bytes(bech32Prefix)[j]) & 0x1f);
+        }
+        require(uint8(bytes(bech32Prefix)[i]) == 0x31, "bech32Prefix doesn't end in '1'");
+        precomputedBech32ChecksumStart = chk;
     }
 
     /// @dev Sets the valid prefix for non-bech32 addresses. Can only be called by admins.
@@ -212,6 +283,7 @@ contract BTCAddressValidator is IBTCAddressValidator, NBTEBridgeAccessControllab
     onlyAdmin
     {
         require(_minLength <= _maxLength, "minLength greater than maxLength");
+        require(_minLength > bytes(bech32Prefix).length + 1, "minLength must be greater than prefix length plus version");
         bech32MinLength = _minLength;
         bech32MaxLength = _maxLength;
     }
