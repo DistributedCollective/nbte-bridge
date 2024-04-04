@@ -53,6 +53,7 @@ describe("BTCAddressValidator", function() {
 
         it("validates bech32 addresses", async () => {
             expect(await btcAddressValidator.isValidBtcAddress("bc1qw508d6qejxtdg4y5r3zarvary0c5xw7kv8f3t4")).to.be.true;
+
             // bech32 must not contain 1, b, i, o
             expect(await btcAddressValidator.isValidBtcAddress("bc1qw508d6qejxtdg4y5r3zarvary0c5xw7kv8f3t1")).to.be.false;
             expect(await btcAddressValidator.isValidBtcAddress("bc1qw508d6qejxtdg4y5r3zarvary0c5xw7kv8f3tb")).to.be.false;
@@ -65,7 +66,25 @@ describe("BTCAddressValidator", function() {
             // we don't allow upper case
             expect(await btcAddressValidator.isValidBtcAddress("bc1qw508d6qejxtdg4y5r3zarvary0c5xw7kv8f3t4".toUpperCase())).to.be.false;
             expect(await btcAddressValidator.isValidBtcAddress("bc1q" + ("w508d6qejxtdg4y5r3zarvary0c5xw7kv8f3t4".toUpperCase()))).to.be.false;
-        })
+        });
+
+        it('validates bech32 max versions correctly', async () => {
+            const segwitV0Address = "bc1qw508d6qejxtdg4y5r3zarvary0c5xw7kv8f3t4";
+            const taprootAddress = "bc1p5d7rjq7g6rdk2yhzks9smlaqtedr4dekq08ge8ztwac72sfr9rusxg3297";
+
+            expect(await btcAddressValidator.isValidBtcAddress(segwitV0Address)).to.be.true;
+            expect(await btcAddressValidator.isValidBtcAddress(taprootAddress)).to.be.true;
+
+            await btcAddressValidator.connect(ownerAccount).setMaxSegwitVersion(0);
+
+            expect(await btcAddressValidator.isValidBtcAddress(segwitV0Address)).to.be.true;
+            expect(await btcAddressValidator.isValidBtcAddress(taprootAddress)).to.be.false;
+        });
+
+        it('has reasonable gas costs', async () => {
+            const estimate = await btcAddressValidator.isValidBtcAddress.estimateGas("bc1qw508d6qejxtdg4y5r3zarvary0c5xw7kv8f3t4");
+            expect(estimate).to.be.lessThanOrEqual(39918n);
+        });
     })
 
     // TODO:

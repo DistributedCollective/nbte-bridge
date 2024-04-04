@@ -17,10 +17,15 @@ contract BTCAddressValidator is IBTCAddressValidator, NBTEBridgeAccessControllab
     uint256 public bech32MaxLength = 64; // 62 for others, 64 for regtest
     uint256 public nonBech32MinLength = 26;
     uint256 public nonBech32MaxLength = 35;
-    uint256 public bech32MaxVersion = 1; // 1 = taproot, previous versions implicitly supported
+    uint8 public maxSegwitVersion = 1; // 0 = segwit v0 (p2wsh/p2wpkh), 1 = taproot, previous versions implicitly supported
 
     // bech32 allowed characters are ascii lowercase less 1, b, i, o
-    uint256 public constant invalidBech32 = 0xfffffffffffffffffffffffffffffffff8008205fffffffffc02ffffffffffff;
+    uint256 public constant BECH32_INVALID_CHARACTERS = 0xfffffffffffffffffffffffffffffffff8008205fffffffffc02ffffffffffff;
+    uint8 constant BECH32_FIRST_ORD = 48;
+    uint8 constant BECH32_LAST_ORD = 122;
+    uint8 constant BECH32_MAX_VALID_MAPPED = 0x1f;
+    bytes constant BECH32_ALPHABET_MAP = hex"0fff0a1115141a1e0705ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff1dff180d19090817ff12161f1b13ff010003100b1c0c0e060402";
+    uint256 constant BECH32_CHECKSUM_LENGTH = 6;
 
     /// @dev The constructor.
     /// @param _accessControl       Address of the FastBTCAccessControl contract.
@@ -39,8 +44,8 @@ contract BTCAddressValidator is IBTCAddressValidator, NBTEBridgeAccessControllab
         nonBech32Prefixes = _nonBech32Prefixes;
     }
 
-    /// @notice Is the given string is a valid Bitcoin address?
-    /// @dev The validation provided by this function is limited. Additional off-chain validation is recommended!
+    /// @dev Is the given string is a valid Bitcoin address?
+    /// @dev Additional off-chain validation is recommended
     /// @param _btcAddress  A (possibly invalid) Bitcoin address.
     /// @return The validity of the address, as boolean.
     function isValidBtcAddress(
@@ -60,7 +65,6 @@ contract BTCAddressValidator is IBTCAddressValidator, NBTEBridgeAccessControllab
     }
 
     /// @dev Is the given address a valid bech32 Bitcoin address?
-    /// @dev Does very cursory validation -- additional validation is required for full validation.
     function validateBech32Address(
         string calldata _btcAddress
     )
@@ -68,28 +72,30 @@ contract BTCAddressValidator is IBTCAddressValidator, NBTEBridgeAccessControllab
     view
     returns (bool)
     {
-        // TODO:
-        // - could see if someone has already done this in a library,
-        // this does not validate the actual address
-
         bytes memory _btcAddressBytes = bytes(_btcAddress);
         if (_btcAddressBytes.length < bech32MinLength || _btcAddressBytes.length > bech32MaxLength) {
             return false;
         }
 
-        //uint256 version = _btcAddressBytes[bytes(bech32Prefix).length];
+        {
+            bytes1 versionUnmapped = _btcAddressBytes[bytes(bech32Prefix).length];
+            uint8 version = uint8(BECH32_ALPHABET_MAP[uint8(versionUnmapped) - BECH32_FIRST_ORD]);
+            if (version > maxSegwitVersion) {
+                return false;
+            }
+        }
 
-        uint256 bitmask = 0;
         // for each character set the corresponding bit in the bitmask
+        uint256 bitmask = 0;
         unchecked {
-            for (uint256 i = bytes(bech32Prefix).length + 1; i < _btcAddressBytes.length; i++) {
+            for (uint256 i = bytes(bech32Prefix).length; i < _btcAddressBytes.length; i++) {
                 bitmask |= uint256(1) << uint8(_btcAddressBytes[i]);
             }
         }
 
         // if any bit in the bitmask thus set corresponds to a character considered invalid
         // in bech32, raise an error here.
-        return (bitmask & invalidBech32) == 0;
+        return (bitmask & BECH32_INVALID_CHARACTERS) == 0;
     }
 
     /// @dev Is the given address a valid non-bech32 Bitcoin address?
@@ -223,5 +229,16 @@ contract BTCAddressValidator is IBTCAddressValidator, NBTEBridgeAccessControllab
         require(_minLength <= _maxLength, "minLength greater than maxLength");
         nonBech32MinLength = _minLength;
         nonBech32MaxLength = _maxLength;
+    }
+
+    /// @dev Set the maximum supported bech32/segwit version
+    /// @param _version The new maximum version length.
+    function setMaxSegwitVersion(
+        uint8 _version
+    )
+    external
+    onlyAdmin
+    {
+        maxSegwitVersion = _version;
     }
 }
