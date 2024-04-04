@@ -47,6 +47,12 @@ class HardhatService(compose.ComposeService):
     def mine(self, blocks: int = 1):
         return self.make_request("hardhat_mine", [to_hex(blocks)])
 
+    def snapshot(self):
+        return self.make_request("evm_snapshot", [])
+
+    def revert(self, snapshot_id: str):
+        return self.make_request("evm_revert", [snapshot_id])
+
     def create_test_wallet(
         self, name=None, *, fund: bool = True, impersonate: bool = True
     ) -> EVMWallet:
