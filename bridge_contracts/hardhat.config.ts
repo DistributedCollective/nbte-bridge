@@ -46,7 +46,10 @@ task("deploy-regtest")
         await hre.run("tap-deploy-regtest");
 
         console.log("Deploying rune bridge");
-        await hre.run("runes-deploy-regtest");
+        await hre.run("runes-deploy-regtest", {
+            federators: '0x4091663B0a7a14e35Ff1d6d9d0593cE15cE7710a',
+            owner: '0x4091663B0a7a14e35Ff1d6d9d0593cE15cE7710a',
+        });
     });
 
 

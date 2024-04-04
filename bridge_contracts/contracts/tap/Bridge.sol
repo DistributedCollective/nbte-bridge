@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-pragma solidity ^0.8.9;
+pragma solidity 0.8.19;
 
 import "@openzeppelin/contracts/access/Ownable.sol";
 import "@openzeppelin/contracts/security/ReentrancyGuard.sol";
@@ -190,6 +190,7 @@ contract Bridge is Ownable, ReentrancyGuard {
         bytes[] memory signatures
     )
     internal
+    view
     {
         // signature validation
         bytes32 signedMessageHash = ECDSA.toEthSignedMessageHash(

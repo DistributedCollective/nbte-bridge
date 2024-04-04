@@ -21,7 +21,6 @@ describe("TapUtils", function () {
       const ret = await tapUtils.decodeTapAddress(
           address,
       );
-      console.log(ret);
       expect(ret.chainParamsHrp).to.equal('taprt');
       expect(ret.assetVersion).to.equal(0);
       expect(ret.assetId).to.equal('0x4896ae2a18dc2006516005db8f338cb319c76035afe3c9ee2bc00382fa77fbda');

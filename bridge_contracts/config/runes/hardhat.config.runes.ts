@@ -5,15 +5,22 @@ import {jsonAction} from '../base';
 const PREFIX = 'runes-'
 
 task(`${PREFIX}deploy-regtest`)
-    .addOptionalParam("runeName", "Rune name")
-    .addOptionalParam("runeSymbol", "Rune symbol")
+    .addParam("federators", "Federator addresses, comma separated")
+    .addOptionalParam("runeName", "Rune name to register")
+    .addOptionalParam("runeSymbol", "Rune symbol to register")
     .addOptionalParam("owner", "Owner address")
-    .setAction(jsonAction(async ({runeName, runeSymbol, owner}, hre) => {
+    .setAction(jsonAction(async ({
+        federators,
+        runeName,
+        runeSymbol,
+        owner
+    }, hre) => {
         const ethers = hre.ethers;
 
         const bridge = await ethers.deployContract(
             "RuneBridge",
             [
+                federators.split(','),
             ],
             {}
         );
@@ -25,8 +32,8 @@ task(`${PREFIX}deploy-regtest`)
         if (runeName) {
             if (!runeSymbol) {
                 runeSymbol = runeName.charAt(0);
-
             }
+
             console.log(`Registering rune ${runeName} with symbol ${runeSymbol}`);
             const tx = await bridge.registerRune(
                 runeName,
@@ -36,11 +43,6 @@ task(`${PREFIX}deploy-regtest`)
             await tx.wait();
         }
 
-        // temporarily set node1 as owner
-        if (!owner) {
-            console.log('Owner not given, using default owner');
-            owner = '0x4091663B0a7a14e35Ff1d6d9d0593cE15cE7710a';
-        }
         if (owner) {
             console.log(`Setting owner to ${owner}`);
             const tx = await bridge.transferOwnership(owner);
