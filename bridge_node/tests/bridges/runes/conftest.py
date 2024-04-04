@@ -20,8 +20,10 @@ from bridge.bridges.runes.config import (
 from bridge.bridges.runes.evm import load_rune_bridge_abi
 from bridge.bridges.runes.service import RuneBridgeService
 from bridge.bridges.runes.wiring import wire_rune_bridge
+from bridge.common.ord.multisig import OrdMultisig
 from bridge.common.services.key_value_store import KeyValueStore
 from bridge.common.services.transactions import TransactionManager
+from .bridge_util import RuneBridgeUtil
 from ...mock_network import MockNetwork
 from ...services import (
     BitcoindService,
@@ -142,6 +144,7 @@ def runes_setup(
         user_ord_wallet=user_ord_wallet,
         user_evm_wallet=user_evm_wallet,
         root_ord_wallet=root_ord_wallet,
+        bridge_ord_multisig=alice_wiring.multisig,
         rune_bridge_contract=rune_bridge_contract,
         rune_side_token_contract=rune_side_token_contract,
     )
@@ -185,3 +188,33 @@ def rune_bridge(runes_setup) -> RuneBridge:
 @pytest.fixture()
 def rune_bridge_service(runes_setup) -> RuneBridgeService:
     return runes_setup.rune_bridge_service
+
+
+@pytest.fixture()
+def bridge_ord_multisig(runes_setup) -> OrdMultisig:
+    return runes_setup.bridge_ord_multisig
+
+
+@pytest.fixture()
+def bridge_util(
+    dbsession,
+    ord,
+    bitcoind,
+    hardhat,
+    root_ord_wallet,
+    rune_bridge,
+    rune_bridge_contract,
+    rune_bridge_service,
+    bridge_ord_multisig,
+) -> RuneBridgeUtil:
+    return RuneBridgeUtil(
+        ord=ord,
+        hardhat=hardhat,
+        bitcoind=bitcoind,
+        dbsession=dbsession,
+        root_ord_wallet=root_ord_wallet,
+        bridge_ord_multisig=bridge_ord_multisig,
+        rune_bridge=rune_bridge,
+        rune_bridge_service=rune_bridge_service,
+        rune_bridge_contract=rune_bridge_contract,
+    )

@@ -1,10 +1,7 @@
 from __future__ import annotations
-from typing import IO, Literal, NotRequired, TypedDict, Union
-from decimal import Decimal
+from typing import IO, Literal, NotRequired, TypedDict
 import yaml
-
-
-Decimalish = Union[Decimal, int, float, str]
+from .types import Decimalish
 
 
 # Example batch file below, TypedDicts follow

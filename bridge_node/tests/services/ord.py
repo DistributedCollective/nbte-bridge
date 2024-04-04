@@ -15,6 +15,7 @@ from bridge.common.ord.client import OrdApiClient
 from .bitcoind import BitcoindService
 from .. import compose
 from ..utils.ord_batch import create_batch_file
+from ..utils.types import Decimalish
 
 MIN_RUNE_LENGTH = 16  # sensible default for regtest, minimum is at least 13
 MIN_RANDOMPART_LENGTH = 8  # negligible changes for collisions
@@ -160,8 +161,8 @@ class OrdWallet:
         *,
         rune: str,
         receiver: str,
-        amount_decimal: int | Decimal | str,
-        fee_rate: int | Decimal = 1,
+        amount_decimal: Decimalish,
+        fee_rate: Decimalish = 1,
     ):
         amount_decimal = str(Decimal(amount_decimal))  # Test that it can be converted to decimal
         ret = self.cli(
@@ -178,9 +179,9 @@ class OrdWallet:
         *,
         rune: str,
         symbol: str,
-        supply_decimal: int | Decimal | str,
+        supply_decimal: Decimalish,
         divisibility: int,
-        fee_rate: int = 1,
+        fee_rate: Decimalish = 1,
     ) -> EtchingInfo:
         if not rune.isalpha() or not rune.isupper():
             raise ValueError("rune must be an uppercase alphabetic string")
