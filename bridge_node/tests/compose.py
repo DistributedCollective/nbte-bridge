@@ -58,6 +58,8 @@ def compose_popen(*args, **kwargs) -> subprocess.Popen:
 
 class ComposeExecException(RuntimeError):
     def __init__(self, stderr):
+        if isinstance(stderr, bytes):
+            stderr = stderr.decode()
         super().__init__(stderr)
 
 
