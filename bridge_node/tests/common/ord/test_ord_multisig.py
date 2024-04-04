@@ -110,7 +110,7 @@ def test_get_rune_balance(
 
     root_ord_wallet.send_runes(
         rune=rune_a,
-        amount=Decimal("123.4"),
+        amount_decimal=Decimal("123.4"),
         receiver=multisig.change_address,
     )
     ord.mine_and_sync()
@@ -250,7 +250,7 @@ def test_ord_multisig_send_runes_from_derived_address(
     root_ord_wallet.send_runes(
         rune=etching.rune,
         receiver=derived_address,
-        amount=supply,
+        amount_decimal=supply,
     )
     ord.mine_and_sync()
 

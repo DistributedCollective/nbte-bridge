@@ -160,15 +160,16 @@ class OrdWallet:
         *,
         rune: str,
         receiver: str,
-        amount: int | Decimal,
+        amount_decimal: int | Decimal | str,
         fee_rate: int | Decimal = 1,
     ):
+        amount_decimal = str(Decimal(amount_decimal))  # Test that it can be converted to decimal
         ret = self.cli(
             "send",
             "--fee-rate",
             fee_rate,
             receiver,
-            f"{amount}:{rune}",
+            f"{amount_decimal}:{rune}",
         )
         return ret
 
@@ -177,14 +178,14 @@ class OrdWallet:
         *,
         rune: str,
         symbol: str,
-        supply: int | Decimal,
+        supply_decimal: int | Decimal | str,
         divisibility: int,
         fee_rate: int = 1,
     ) -> EtchingInfo:
         if not rune.isalpha() or not rune.isupper():
             raise ValueError("rune must be an uppercase alphabetic string")
 
-        logger.info("Etching rune %s with supply %s in batch", rune, supply)
+        logger.info("Etching rune %s with supply %s in batch", rune, supply_decimal)
 
         # Etching now happens with the `ord wallet batch` command, which requires both a yaml file
         # and at least one inscription file. In addition, the command will wait until more blocks are mined,
@@ -206,8 +207,8 @@ class OrdWallet:
                         "etching": {
                             "rune": rune,
                             "divisibility": divisibility,
-                            "premine": str(supply),
-                            "supply": str(supply),
+                            "premine": str(supply_decimal),
+                            "supply": str(supply_decimal),
                             "symbol": symbol,
                         },
                     },
@@ -291,7 +292,9 @@ class OrdWallet:
         random_part_length = max(20 - len(prefix), MIN_RANDOMPART_LENGTH)
         random_part = "".join(random.choices(string.ascii_uppercase, k=random_part_length))
         rune = f"{prefix}{random_part}"
-        return self.etch_rune(rune=rune, symbol=symbol, supply=supply, divisibility=divisibility)
+        return self.etch_rune(
+            rune=rune, symbol=symbol, supply_decimal=supply, divisibility=divisibility
+        )
 
     def get_new_address(self) -> str:
         addr = self.cli("receive")["addresses"][0]

@@ -83,7 +83,7 @@ def alice_ord_wallet(ord, bitcoind):
     if RUNE_NAME not in balances["runes"]:
         wallet.etch_rune(
             rune=RUNE_NAME,
-            supply=100000000,
+            supply_decimal=100000000,
             divisibility=18,
             symbol="R",
         )
@@ -141,7 +141,7 @@ def test_integration_rune_bridge(
     logger.info("DEPOSIT ADDRESS: %s", deposit_address)
     user_ord_wallet.send_runes(
         receiver=deposit_address,
-        amount=1000,
+        amount_decimal=1000,
         rune=RUNE_NAME,
     )
     bitcoind.mine()

@@ -28,7 +28,7 @@ def rune_factory(root_ord_wallet, ord, bitcoind):
                 root_ord_wallet.send_runes(
                     rune=etching.rune,
                     receiver=receiver,
-                    amount=supply,
+                    amount_decimal=supply,
                 )
                 ord.mine_and_sync()
                 # root_ord_wallet.unlock_unspent()

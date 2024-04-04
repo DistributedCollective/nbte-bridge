@@ -36,7 +36,7 @@ def test_sanity_checks(
     assert user_ord_wallet.get_rune_balance_decimal(rune_name) == 0
     root_ord_wallet.send_runes(
         rune=rune_name,
-        amount=1000,
+        amount_decimal=1000,
         receiver=user_ord_wallet.get_receiving_address(),
     )
     ord.mine_and_sync()
@@ -64,7 +64,7 @@ def test_round_trip_happy_case(
 ):
     root_ord_wallet.send_runes(
         rune=rune_name,
-        amount=1000,
+        amount_decimal=1000,
         receiver=user_ord_wallet.get_receiving_address(),
     )
     ord.mine_and_sync()
@@ -74,7 +74,7 @@ def test_round_trip_happy_case(
 
     user_ord_wallet.send_runes(
         receiver=deposit_address,
-        amount=1000,
+        amount_decimal=1000,
         rune=rune_name,
     )
     ord.mine_and_sync()
