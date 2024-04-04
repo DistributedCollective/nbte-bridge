@@ -69,7 +69,7 @@ addopts = [
 testpaths = ["tests"]
 python_files = ["test_*.py", "tests.py", "*_tests.py"]
 markers = [
-    "integration: marks tests as integration test, requiring for example postgres (deselect with '-m \"not integration\"')",
+    "integration: marks tests as integration test, requiring startup of the slow integration testing harness (deselect with '-m \"not integration\"')",
 ]
 
 [tool.coverage.run]
