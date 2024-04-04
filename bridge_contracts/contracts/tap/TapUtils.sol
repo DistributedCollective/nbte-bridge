@@ -357,18 +357,30 @@ contract TapUtils {
 
     function polymodStep(
         uint256 pre
-    ) internal pure returns (uint256) {
+    )
+    private
+    pure
+    returns (uint256) {
         uint256 b = pre >> 25;
 
         // using * 1 instead of ifs. evil!
-        return (
-            ((pre & 0x1ffffff) << 5) ^
-            (((b >> 0) & 1) * 0x3b6a57b2) ^
-            (((b >> 1) & 1) * 0x26508e6d) ^
-            (((b >> 2) & 1) * 0x1ea119fa) ^
-            (((b >> 3) & 1) * 0x3d4233dd) ^
-            (((b >> 4) & 1) * 0x2a1462b3)
-        );
+        pre = (pre & 0x1ffffff) << 5;
+        if ((b >> 0) & 1 != 0) {
+            pre ^= 0x3b6a57b2;
+        }
+        if ((b >> 1) & 1 != 0) {
+            pre ^= 0x26508e6d;
+        }
+        if ((b >> 2) & 1 != 0) {
+            pre ^= 0x1ea119fa;
+        }
+        if ((b >> 3) & 1 != 0) {
+            pre ^= 0x3d4233dd;
+        }
+        if ((b >> 4) & 1 != 0) {
+            pre ^= 0x2a1462b3;
+        }
+        return pre;
     }
 
     // *************************
