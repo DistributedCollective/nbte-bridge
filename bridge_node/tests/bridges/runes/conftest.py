@@ -1,4 +1,5 @@
 import logging
+import time
 from types import SimpleNamespace
 
 import pytest
@@ -44,6 +45,8 @@ def runes_setup(
     ord: OrdService,
     dbengine,
 ):
+    start = time.time()
+
     root_ord_wallet = ord.create_test_wallet("root-ord")  # used for funding other wallets
     user_ord_wallet = ord.create_test_wallet("user-ord")  # used by the "end user"
     bitcoind.fund_wallets(root_ord_wallet, user_ord_wallet)
@@ -136,6 +139,8 @@ def runes_setup(
     )
     # Fund the multisig wallet
     bitcoind.fund_addresses(alice_wiring.multisig.change_address)
+
+    logger.info("Rune Bridge setup took %s seconds", time.time() - start)
 
     return SimpleNamespace(
         rune_bridge=alice_wiring.bridge,

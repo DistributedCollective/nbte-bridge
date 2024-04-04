@@ -66,28 +66,22 @@ def test_round_trip_happy_case(
         rune=rune_name,
     )
 
-    bridge_util.assert_balances(
+    initial_balances = bridge_util.snapshot_balances(
         user_ord_wallet=user_ord_wallet,
         user_evm_wallet=user_evm_wallet,
         rune=rune_name,
-        expected_user_token_balance_decimal=0,
-        expected_user_rune_balance_decimal=0,
-        expected_token_total_supply_decimal=0,
-        expected_bridge_token_balance_decimal=0,
-        expected_bridge_rune_balance_decimal=1000,
+    )
+    initial_balances.assert_values(
+        bridge_rune_balance_decimal=1000,
+        # Other values are asserted to equal 0
     )
 
     bridge_util.run_bridge_iteration()
 
-    bridge_util.assert_balances(
-        user_ord_wallet=user_ord_wallet,
-        user_evm_wallet=user_evm_wallet,
-        rune=rune_name,
-        expected_user_token_balance_decimal=1000,
-        expected_user_rune_balance_decimal=0,
-        expected_token_total_supply_decimal=1000,
-        expected_bridge_token_balance_decimal=0,
-        expected_bridge_rune_balance_decimal=1000,
+    bridge_util.snapshot_balances_again(initial_balances).assert_values(
+        user_token_balance_decimal=1000,
+        token_total_supply_decimal=1000,
+        bridge_rune_balance_decimal=1000,
     )
 
     # Test EVM to Runes
@@ -101,26 +95,12 @@ def test_round_trip_happy_case(
         receiver_address=user_btc_address,
     )
 
-    bridge_util.assert_balances(
-        user_ord_wallet=user_ord_wallet,
-        user_evm_wallet=user_evm_wallet,
-        rune=rune_name,
-        expected_user_token_balance_decimal=0,
-        expected_user_rune_balance_decimal=0,
-        expected_token_total_supply_decimal=0,
-        expected_bridge_token_balance_decimal=0,
-        expected_bridge_rune_balance_decimal=1000,
+    bridge_util.snapshot_balances_again(initial_balances).assert_values(
+        bridge_rune_balance_decimal=1000,
     )
 
     bridge_util.run_bridge_iteration()
 
-    bridge_util.assert_balances(
-        user_ord_wallet=user_ord_wallet,
-        user_evm_wallet=user_evm_wallet,
-        rune=rune_name,
-        expected_user_token_balance_decimal=0,
-        expected_user_rune_balance_decimal=1000,
-        expected_token_total_supply_decimal=0,
-        expected_bridge_token_balance_decimal=0,
-        expected_bridge_rune_balance_decimal=0,
+    bridge_util.snapshot_balances_again(initial_balances).assert_values(
+        user_rune_balance_decimal=1000,
     )

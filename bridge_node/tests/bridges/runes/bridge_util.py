@@ -14,6 +14,7 @@ from bridge.common.evm.utils import (
     to_wei,
 )
 from bridge.common.ord.multisig import OrdMultisig
+from .balances import BalanceSnapshot
 from ...services import (
     BitcoindService,
     HardhatService,
@@ -154,80 +155,49 @@ class RuneBridgeUtil:
 
     # ASSERTION HELPERS
 
-    def assert_balances(
+    def snapshot_balances(
         self,
         *,
         rune: str,
-        user_ord_wallet: OrdWallet = None,
-        user_evm_wallet: EVMWallet = None,
-        expected_user_token_balance_decimal: Decimalish = None,
-        expected_user_rune_balance_decimal: Decimalish = None,
-        expected_token_total_supply_decimal: Decimalish = None,
-        expected_bridge_token_balance_decimal: Decimalish = None,
-        expected_bridge_rune_balance_decimal: Decimalish = None,
+        user_ord_wallet: OrdWallet,
+        user_evm_wallet: EVMWallet,
     ):
+        rune_response = self._ord.api_client.get_rune(rune)
+        if not rune_response:
+            raise ValueError(f"rune {rune} not found")
+        rune_divisor = 10 ** rune_response["entry"]["divisibility"]
         rune_token = self.get_rune_token(rune)
 
-        if expected_user_token_balance_decimal is not None:
-            if user_evm_wallet is None:
-                raise ValueError(
-                    "user_evm_wallet must be provided to if expected_user_token_balance_decimal is provided"
-                )
-            user_token_balance = from_wei(
+        return BalanceSnapshot(
+            rune=rune,
+            rune_entry=rune_response["entry"],
+            rune_token=rune_token,
+            user_ord_wallet=user_ord_wallet,
+            user_evm_wallet=user_evm_wallet,
+            user_token_balance_decimal=from_wei(
                 rune_token.functions.balanceOf(user_evm_wallet.address).call()
-            )
-            self._assert_decimals_equal(
-                user_token_balance,
-                expected_user_token_balance_decimal,
-                "user_token_balance",
-            )
-
-        if expected_user_rune_balance_decimal is not None:
-            if user_ord_wallet is None:
-                raise ValueError(
-                    "user_ord_wallet must be provided to if expected_user_rune_balance_decimal is provided"
-                )
-            user_rune_balance = user_ord_wallet.get_rune_balance_decimal(rune)
-            self._assert_decimals_equal(
-                user_rune_balance,
-                expected_user_rune_balance_decimal,
-                "user_rune_balance",
-            )
-
-        if expected_token_total_supply_decimal is not None:
-            token_total_supply = from_wei(rune_token.functions.totalSupply().call())
-            self._assert_decimals_equal(
-                token_total_supply,
-                expected_token_total_supply_decimal,
-                "token_total_supply",
-            )
-
-        if expected_bridge_token_balance_decimal is not None:
-            bridge_token_balance = from_wei(
+            ),
+            user_rune_balance_decimal=user_ord_wallet.get_rune_balance_decimal(rune),
+            token_total_supply_decimal=from_wei(rune_token.functions.totalSupply().call()),
+            bridge_token_balance_decimal=from_wei(
                 rune_token.functions.balanceOf(self._rune_bridge_contract.address).call()
-            )
-            self._assert_decimals_equal(
-                bridge_token_balance,
-                expected_bridge_token_balance_decimal,
-                "bridge_token_balance",
-            )
+            ),
+            bridge_rune_balance_decimal=self._bridge_ord_multisig.get_rune_balance(rune)
+            / rune_divisor,
+        )
 
-        if expected_bridge_rune_balance_decimal is not None:
-            rune_response = self._ord.api_client.get_rune(rune)
-            if not rune_response:
-                raise ValueError(f"rune {rune} not found")
-            bridge_rune_balance = self._bridge_ord_multisig.get_rune_balance(rune)
-            bridge_rune_balance = Decimal(bridge_rune_balance) / (
-                10 ** rune_response["entry"]["divisibility"]
-            )
-            self._assert_decimals_equal(
-                bridge_rune_balance,
-                expected_bridge_rune_balance_decimal,
-                "bridge_rune_balance",
-            )
+    def snapshot_balances_again(self, snapshot: BalanceSnapshot) -> BalanceSnapshot:
+        return self.snapshot_balances(
+            rune=snapshot.rune,
+            user_ord_wallet=snapshot.user_ord_wallet,
+            user_evm_wallet=snapshot.user_evm_wallet,
+        )
 
-    def _assert_equal(self, a, b, context: str = ""):
-        assert a == b, f"{context}: {a} != {b}"
-
-    def _assert_decimals_equal(self, a: Decimalish, b: Decimalish, context: str = ""):
-        self._assert_equal(Decimal(a), Decimal(b), context=context)
+    def snapshot_balance_changes(
+        self, snapshot: BalanceSnapshot
+    ) -> tuple[BalanceSnapshot, BalanceSnapshot]:
+        """
+        Get a tuple of (current_snapshot, changes)
+        """
+        new_snapshot = self.snapshot_balances_again(snapshot)
+        return new_snapshot - snapshot, new_snapshot
