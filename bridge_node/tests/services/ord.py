@@ -262,7 +262,7 @@ class OrdWallet:
             #           'location': 'acc173689c4351943725c417c574ac12cdad34c5f4088b469879cefde0741ee1:1',
             #           'rune': 'RUNETESTNRHPWVFMTTQP'}
             process_output = json.load(process.stdout)
-            logger.info("ord output: %s", process_output)
+            logger.debug("ord output: %s", process_output)
         finally:
             if process.poll() is None:
                 process.terminate()

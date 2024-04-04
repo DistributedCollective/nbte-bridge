@@ -170,7 +170,9 @@ services:
       - BRIDGE_RUNES_EVM_DEFAULT_START_BLOCK=1
       - BRIDGE_RUNES_ORD_API_URL=http://ord:80
       - BRIDGE_RUNES_EVM_RPC_URL=http://hardhat:8545
-      - BRIDGE_RUNES_BTC_NUM_REQUIRED_SIGNERS=2
+      # TODO: change to 2-of-3
+      - BRIDGE_RUNES_BTC_NUM_REQUIRED_SIGNERS=1
+      - BRIDGE_RUNES_BTC_BASE_DERIVATION_PATH=m/13/0/0
       - BRIDGE_SECRET_RUNES_BTC_MASTER_XPUBS=tpubD6NzVbkrYhZ4WokHnVXX8CVBt1S88jkmeG78yWbLxn7Wd89nkNDe2J8b6opP4K38mRwXf9d9VVN5uA58epPKjj584R1rnDDbk6oHUD1MoWD,tpubD6NzVbkrYhZ4WpZfRZip3ALqLpXhHUbe6UyG8iiTzVDuvNUyysyiUJWejtbszZYrDaUM8UZpjLmHyvtV7r1QQNFmTqciAz1fYSYkw28Ux6y,tpubD6NzVbkrYhZ4WQZnWqU8ieBsujhoZKZLF6wMvTApJ4ZiGmipk481DyM2su3y5BDeB9fFLwSmmmsGDGJum79he2fnuQMnpWhe3bGir7Mf4uS
       # RUNES NODE-SPECIFIC
       - BRIDGE_RUNES_BTC_RPC_WALLET_URL=http://polaruser:polarpass@bitcoind:18443/wallet/alice-runes
@@ -218,7 +220,9 @@ services:
       - BRIDGE_RUNES_EVM_DEFAULT_START_BLOCK=1
       - BRIDGE_RUNES_ORD_API_URL=http://ord:80
       - BRIDGE_RUNES_EVM_RPC_URL=http://hardhat:8545
-      - BRIDGE_RUNES_BTC_NUM_REQUIRED_SIGNERS=2
+      # TODO: change to 2-of-3
+      - BRIDGE_RUNES_BTC_NUM_REQUIRED_SIGNERS=1
+      - BRIDGE_RUNES_BTC_BASE_DERIVATION_PATH=m/13/0/0
       - BRIDGE_SECRET_RUNES_BTC_MASTER_XPUBS=tpubD6NzVbkrYhZ4WokHnVXX8CVBt1S88jkmeG78yWbLxn7Wd89nkNDe2J8b6opP4K38mRwXf9d9VVN5uA58epPKjj584R1rnDDbk6oHUD1MoWD,tpubD6NzVbkrYhZ4WpZfRZip3ALqLpXhHUbe6UyG8iiTzVDuvNUyysyiUJWejtbszZYrDaUM8UZpjLmHyvtV7r1QQNFmTqciAz1fYSYkw28Ux6y,tpubD6NzVbkrYhZ4WQZnWqU8ieBsujhoZKZLF6wMvTApJ4ZiGmipk481DyM2su3y5BDeB9fFLwSmmmsGDGJum79he2fnuQMnpWhe3bGir7Mf4uS
       # RUNES NODE-SPECIFIC
       - BRIDGE_RUNES_BTC_RPC_WALLET_URL=http://polaruser:polarpass@bitcoind:18443/wallet/bob-runes
@@ -481,7 +485,7 @@ services:
     image: traefik:v2.11
     command: --providers.docker --providers.docker.exposedbydefault=false
     ports:
-      - "127.0.0.1:80:80"
+      - "127.0.0.1:8081:80"
       - "127.0.0.1:8080:8080"
     volumes:
       # So that Traefik can listen to the Docker events

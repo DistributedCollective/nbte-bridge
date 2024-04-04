@@ -104,8 +104,10 @@ class RuneBridgeService:
             last_bitcoin_block = key_value_store.get_value(last_block_key, default_value=None)
 
         if not last_bitcoin_block:
+            logger.info("Scanning Rune deposits from the beginning")
             resp = self.bitcoin_rpc.call("listsinceblock")
         else:
+            logger.info("Scanning Rune deposits from block %s", last_bitcoin_block)
             resp = self.bitcoin_rpc.call("listsinceblock", last_bitcoin_block)
 
         transfers = []

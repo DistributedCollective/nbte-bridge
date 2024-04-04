@@ -1851,6 +1851,7 @@ description = ""
 optional = false
 python-versions = ">=3.8"
 files = [
+    {file = "pyord-0.2.0-cp38-abi3-manylinux_2_17_x86_64.manylinux2014_x86_64.whl", hash = "sha256:28a9247364e3ac583ef164d0465e802ca036418e370b1d42fb9f6a5224dd6365"},
     {file = "pyord-0.2.0-cp38-abi3-macosx_10_12_x86_64.whl", hash = "sha256:10380d8a4ebbc135a0a729e5d7fe5c0afefd619e5d2e22a3d869461fb437b350"},
     {file = "pyord-0.2.0.tar.gz", hash = "sha256:ee2ee60687fbda6f9d4988e47b9a6e3c45c8ed12f5bf7a45fcab26a7e9107711"},
 ]

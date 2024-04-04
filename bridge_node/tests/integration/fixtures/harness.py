@@ -16,9 +16,10 @@ logger = logging.getLogger(__name__)
 
 NO_START_HARNESS = os.environ.get("NO_START_HARNESS") == "1"
 HARNESS_VERBOSE = os.environ.get("HARNESS_VERBOSE") == "1"
+SKIP_TAP_BRIDGE = os.environ.get("HARNESS_SKIP_TAP_BRIDGE") == "1"
+SKIP_RUNE_BRIDGE = os.environ.get("HARNESS_SKIP_RUNE_BRIDGE") == "1"
 INTEGRATION_TEST_ENV_FILE = PROJECT_BASE_DIR / "env.integrationtest"
 assert INTEGRATION_TEST_ENV_FILE.exists(), f"Missing {INTEGRATION_TEST_ENV_FILE}"
-
 
 DOCKER_COMPOSE_BASE_ARGS = (
     "docker",
@@ -45,6 +46,19 @@ class IntegrationTestHarness:
         "user-lnd",
     ]
     VOLUMES_PATH = PROJECT_BASE_DIR / "volumes"
+    # 1 of 3 wallet based on values in docker-compose.dev.yml. Needs to be changed when the
+    # number of signers, or the keys, change
+    RUNE_BRIDGE_MULTISIG_DESCRIPTOR = (
+        "wsh(sortedmulti(1,"
+        "tpubD6NzVbkrYhZ4WokHnVXX8CVBt1S88jkmeG78yWbLxn7Wd89nkNDe2J8b6opP4K38mRwXf9d9VVN5uA58epPKjj584R1rnDDbk6oHUD1MoWD/13/0/0/*,"
+        "tpubD6NzVbkrYhZ4WpZfRZip3ALqLpXhHUbe6UyG8iiTzVDuvNUyysyiUJWejtbszZYrDaUM8UZpjLmHyvtV7r1QQNFmTqciAz1fYSYkw28Ux6y/13/0/0/*,"
+        "tpubD6NzVbkrYhZ4WQZnWqU8ieBsujhoZKZLF6wMvTApJ4ZiGmipk481DyM2su3y5BDeB9fFLwSmmmsGDGJum79he2fnuQMnpWhe3bGir7Mf4uS/13/0/0/*"
+        "))#jyn3fuhd"
+    )
+    # this also needs changing when the above changes
+    RUNE_BRIDGE_MULTISIG_CHANGE_ADDRESS = (
+        "bcrt1qh3j9z0tsxpqc07caeehn3j0q7mfmq0stcfacudlcndpssv48lnaqs0vfw8"
+    )
 
     bitcoind: BitcoindService
 
@@ -65,7 +79,7 @@ class IntegrationTestHarness:
         logger.info("Starting docker compose")
         self._run_docker_compose_command("up", "--build", "--detach")
 
-        self._bitcoind_lnd_init()
+        self._init_environment()
 
         logger.info("Waiting for bridge node to start")
         start_time = time.time()
@@ -103,12 +117,34 @@ class IntegrationTestHarness:
                 logger.info("Cleaning volume directory %s", volume_dir.absolute())
                 shutil.rmtree(volume_dir)
 
-    def _bitcoind_lnd_init(self):
-        logger.info("bitcoind/lnd init")
+    def _init_environment(self):
+        """
+        Does environment initialization, such as creating wallets and mining initial bitcoin blocks
+        """
+        logger.info("Initializing the environment")
+
         logger.info("Waiting for bitcoin rpc startup")
         self.bitcoind.wait()
         logger.info("Mining initial btc block (tapd/lnd won't start before)")
         self.bitcoind.mine()
+
+        if SKIP_TAP_BRIDGE:
+            logger.info("Skipping tap bridge initialization because HARNESS_SKIP_TAP_BRIDGE=1")
+        else:
+            self._init_tap_bridge()
+        if SKIP_RUNE_BRIDGE:
+            logger.info("Skipping rune bridge initialization because HARNESS_SKIP_RUNE_BRIDGE=1")
+        else:
+            self._init_rune_bridge()
+
+        # BTC initial blocks
+        logger.info("Mining 100 blocks to a random address to see mining rewards")
+        self.bitcoind.mine(100)
+
+        logger.info("Environment initialization done")
+
+    def _init_tap_bridge(self):
+        logger.info("Initializing the tap bridge")
         logger.info("Giving some time for LND nodes to start and connect to bitcoind.")
         time.sleep(2)
         lnd_containers = [f"{f}-lnd" for f in self.FEDERATORS]
@@ -145,17 +181,6 @@ class IntegrationTestHarness:
             self.bitcoind.mine(2, address=addr)
             logger.info("Mined.")
 
-        # Rune bridge wallets
-        for wallet_name in ["alice-runes", "bob-runes"]:
-            wallet, created = self.bitcoind.load_or_create_wallet(wallet_name)
-            if created:
-                logger.info("Mining 2 blocks to %s", wallet_name)
-                self.bitcoind.mine(2, address=wallet.get_receiving_address())
-
-        # BTC initial blocks
-        logger.info("Mining 100 blocks to a random address to see mining rewards")
-        self.bitcoind.mine(100)
-
         logger.info("Waiting for macaroons to be available (start of tapd)")
         for _ in range(20):
             ok = True
@@ -182,7 +207,37 @@ class IntegrationTestHarness:
         else:
             raise TimeoutError("Macaroons not available after waiting")
 
-        logger.info("bitcoind/lnd init done")
+    def _init_rune_bridge(self):
+        # Rune bridge wallets
+        any_created = False
+        for federator in self.FEDERATORS:
+            wallet_name = f"{federator}-runes"
+            wallet, created = self.bitcoind.load_or_create_wallet(
+                wallet_name,
+                blank=True,
+                disable_private_keys=True,
+            )
+            if created:
+                logger.info("Created wallet %s, importing descriptors", wallet_name)
+                any_created = True
+                wallet.rpc.call(
+                    "importdescriptors",
+                    [
+                        {
+                            "desc": self.RUNE_BRIDGE_MULTISIG_DESCRIPTOR,
+                            "timestamp": "now",
+                            "range": 10000,
+                        },
+                    ],
+                )
+            else:
+                logger.info("Wallet %s already created", wallet_name)
+        if any_created:
+            logger.info(
+                "Funding rune multisig wallet (address %s)",
+                self.RUNE_BRIDGE_MULTISIG_CHANGE_ADDRESS,
+            )
+            self.bitcoind.mine(2, address=self.RUNE_BRIDGE_MULTISIG_CHANGE_ADDRESS)
 
     def _run_docker_compose_command(self, *args, verbose=None):
         if verbose is None:

@@ -58,9 +58,11 @@ def bitcoind():
 
 
 @pytest.fixture()
-def ord():
+def ord(bitcoind):
     # Overrides default ord fixture
-    service = services.OrdService()
+    service = services.OrdService(
+        bitcoind=bitcoind,
+    )
     assert service.is_started()
     return service
 
@@ -88,13 +90,6 @@ def alice_ord_wallet(ord, bitcoind):
         bitcoind.mine()
 
     return wallet
-
-
-@pytest.fixture(autouse=True)
-def bridge_wallet(bitcoind):
-    wallet_name = "alice-ord"
-    wallet, created = bitcoind.load_or_create_wallet(wallet_name)
-    bitcoind.fund_wallets(wallet)
 
 
 @pytest.fixture()
