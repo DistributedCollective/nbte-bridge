@@ -57,6 +57,10 @@ def main():
         python_dir=BRIDGE_NODE_DIR / "bridge" / "bridges" / "runes" / "abi",
         hardhat_dir=BRIDGE_CONTRACTS_DIR / "artifacts" / "contracts" / "runes",
     )
+    # copy_abis_from_dir(
+    #     python_dir=BRIDGE_NODE_DIR / "bridge" / "common" / "evm" / "abi" / "shared",
+    #     hardhat_dir=BRIDGE_CONTRACTS_DIR / "artifacts" / "contracts" / "shared",
+    # )
 
 
 if __name__ == "__main__":
