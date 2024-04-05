@@ -45,7 +45,7 @@ contract BTCAddressValidator is IBTCAddressValidator, NBTEBridgeAccessControllab
     }
 
     /// @dev Is the given string is a valid Bitcoin address?
-    /// @dev Additional off-chain validation is recommended
+    /// @dev Additional off-chain validation is recommended -- this doesn't check everything, especially for non-bech32.
     /// @param _btcAddress  A (possibly invalid) Bitcoin address.
     /// @return The validity of the address, as boolean.
     function isValidBtcAddress(
@@ -65,6 +65,7 @@ contract BTCAddressValidator is IBTCAddressValidator, NBTEBridgeAccessControllab
     }
 
     /// @dev Is the given address a valid bech32 Bitcoin address?
+    /// @dev This also validates the checksum and version.
     function validateBech32Address(
         string calldata _btcAddress
     )
@@ -118,6 +119,7 @@ contract BTCAddressValidator is IBTCAddressValidator, NBTEBridgeAccessControllab
     }
 
     /// @dev Is the given address a valid non-bech32 Bitcoin address?
+    /// @dev This only checks the address length, prefix and allowed characters. Off-chain validation is recommended!
     function validateNonBech32Address(
         string calldata _btcAddress
     )
