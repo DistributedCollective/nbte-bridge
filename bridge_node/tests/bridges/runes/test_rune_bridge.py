@@ -90,3 +90,37 @@ def test_round_trip_happy_case(
     bridge_util.snapshot_balances_again(initial_balances).assert_values(
         user_rune_balance_decimal=1000,
     )
+
+
+def test_multiple_runes_can_be_transferred(
+    bridge_util,
+    user_ord_wallet,
+    user_evm_wallet,
+):
+    rune_a = bridge_util.etch_and_register_test_rune(
+        prefix="MULTIAAA",
+        fund=(user_ord_wallet, 1000),
+    )
+    rune_b = bridge_util.etch_and_register_test_rune(
+        prefix="MULTIBBB",
+        fund=(user_ord_wallet, 1000),
+    )
+
+    deposit_address = bridge_util.get_deposit_address(user_evm_wallet.address)
+    transfer_a = bridge_util.transfer_runes_to_evm(
+        wallet=user_ord_wallet,
+        amount_decimal=400,
+        deposit_address=deposit_address,
+        rune=rune_a,
+    )
+    transfer_b = bridge_util.transfer_runes_to_evm(
+        wallet=user_ord_wallet,
+        amount_decimal=600,
+        deposit_address=deposit_address,
+        rune=rune_b,
+    )
+
+    bridge_util.run_bridge_iteration()
+
+    bridge_util.assert_runes_transferred_to_evm(transfer_a)
+    bridge_util.assert_runes_transferred_to_evm(transfer_b)
