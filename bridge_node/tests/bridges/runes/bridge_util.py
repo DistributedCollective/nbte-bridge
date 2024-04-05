@@ -1,8 +1,8 @@
 from dataclasses import dataclass
 from decimal import Decimal
 
-from hexbytes import HexBytes
 import sqlalchemy as sa
+from hexbytes import HexBytes
 from sqlalchemy.orm import (
     Session,
 )
@@ -11,11 +11,11 @@ from web3.types import EventData
 
 from bridge.bridges.runes.bridge import RuneBridge
 from bridge.bridges.runes.evm import load_rune_bridge_abi
-from bridge.bridges.runes.service import RuneBridgeService
 from bridge.bridges.runes.models import (
     DepositAddress,
     User,
 )
+from bridge.bridges.runes.service import RuneBridgeService
 from bridge.common.evm.utils import (
     from_wei,
     is_zero_address,
@@ -32,6 +32,9 @@ from ...services import (
 from ...services.hardhat import EVMWallet
 from ...utils.timing import measure_time
 from ...utils.types import Decimalish
+
+# Use hardhat #0 as default owner, since it's the default deployer
+DEFAULT_DEPLOYER_ADDRESS = "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266"
 
 
 @dataclass
@@ -60,8 +63,7 @@ class RuneBridgeUtil:
         root_ord_wallet: OrdWallet,
         bridge_ord_multisig: OrdMultisig,
         dbsession: Session,
-        # Use hardhat #0 as default owner, since it's the default deployer
-        bridge_owner_address: str = "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266",
+        bridge_owner_address: str = DEFAULT_DEPLOYER_ADDRESS,
     ):
         self._ord = ord
         self._hardhat = hardhat
@@ -97,7 +99,7 @@ class RuneBridgeUtil:
         verify_registered: bool = True,
     ) -> Contract:
         address = self._rune_bridge_contract.functions.getTokenByRune(rune).call()
-        if is_zero_address(address):
+        if verify_registered and is_zero_address(address):
             raise LookupError(f"Rune {rune} not registered on the bridge")
         return self._web3.eth.contract(
             address=address,

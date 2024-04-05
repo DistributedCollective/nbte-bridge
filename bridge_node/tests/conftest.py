@@ -1,6 +1,7 @@
 import os
 import pathlib
 import logging
+import dataclasses
 
 import pytest
 from sqlalchemy import create_engine
@@ -23,6 +24,11 @@ logger = logging.getLogger(__name__)
 bitcointx.select_chain_params("bitcoin/regtest")
 
 
+@dataclasses.dataclass
+class Flags:
+    keep_containers: bool
+
+
 def pytest_addoption(parser):
     parser.addoption(
         "--keep-containers",
@@ -37,6 +43,13 @@ def pytest_collection_modifyitems(config, items):
         # Mark tests in the integration/ dir as integration tests
         if item_path.is_relative_to(INTEGRATION_TEST_DIR):
             item.add_marker(pytest.mark.integration)
+
+
+@pytest.fixture(scope="session")
+def flags(request) -> Flags:
+    return Flags(
+        keep_containers=request.config.getoption("--keep-containers"),
+    )
 
 
 @pytest.fixture(scope="session")

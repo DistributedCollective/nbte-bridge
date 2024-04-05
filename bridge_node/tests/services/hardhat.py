@@ -50,8 +50,11 @@ class HardhatService(compose.ComposeService):
     def snapshot(self):
         return self.make_request("evm_snapshot", [])
 
-    def revert(self, snapshot_id: str):
-        return self.make_request("evm_revert", [snapshot_id])
+    def revert(self, snapshot_id: str, *, check: bool = True) -> bool:
+        result = self.make_request("evm_revert", [snapshot_id])
+        if check and not result:
+            raise ValueError("Failed to revert")
+        return result
 
     def create_test_wallet(
         self,
@@ -75,14 +78,12 @@ class HardhatService(compose.ComposeService):
             )
         return EVMWallet(
             name=name,
-            web3=create_web3(self.rpc_url, account=account),
             account=account,
         )
 
 
 @dataclasses.dataclass
 class EVMWallet:
-    web3: Web3
     account: LocalAccount
     name: Optional[str] = None
 
