@@ -48,12 +48,17 @@ class CachedModuleSetup:
     alice_evm_private_key: str
     user_evm_private_key: str
     rune_bridge_contract_address: str
+    root_ord_wallet_name: str
+    root_ord_wallet_address: str
+    user_ord_wallet_name: str
+    user_ord_wallet_address: str
     snapshot_id: str
 
 
 @pytest.fixture(scope="module")
 def runes_module_setup(
     hardhat,
+    ord,
     request,
     flags,
 ):
@@ -69,8 +74,10 @@ def runes_module_setup(
             try:
                 cached_setup = CachedModuleSetup(**cached_setup_dict)
             except Exception:
-                logger.exception(
-                    "Failed to load cached setup dataclass -- falling back to re-deploying everything"
+                logger.exception("Failed to load cached setup dataclass")
+                logger.info(
+                    "The above exception is here only for debug purposes and can be ignored. "
+                    "Falling back to re-deploying everything"
                 )
 
         if cached_setup:
@@ -102,6 +109,17 @@ def runes_module_setup(
             name="alice",
         )
         rune_bridge_address = cached_setup.rune_bridge_contract_address
+
+        root_ord_wallet = OrdWallet(
+            ord=ord,
+            name=cached_setup.root_ord_wallet_name,
+            addresses=[cached_setup.root_ord_wallet_address],
+        )
+        user_ord_wallet = OrdWallet(
+            ord=ord,
+            name=cached_setup.user_ord_wallet_name,
+            addresses=[cached_setup.user_ord_wallet_address],
+        )
     else:
         # This only needs to be done once, after which we can use EVM snapshots etc
         with measure_time("create-evm-wallets"):
@@ -136,28 +154,39 @@ def runes_module_setup(
             )
         rune_bridge_address = deployment["addresses"]["RuneBridge"]
 
+        with measure_time("create ord wallets"):
+            root_ord_wallet = ord.create_test_wallet("root-ord")  # used for funding other wallets
+            root_ord_wallet.get_receiving_address()  # will cache it
+            user_ord_wallet = ord.create_test_wallet("user-ord")  # used by the "end user"
+            user_ord_wallet.get_receiving_address()  # will cache it
+
     rune_bridge_contract = hardhat.web3.eth.contract(
         address=rune_bridge_address,
         abi=load_rune_bridge_abi("RuneBridge"),
     )
 
     if cache and flags.keep_containers:
-        if not cached_setup:
-            cached_setup = CachedModuleSetup(
-                alice_evm_private_key=alice_evm_wallet.account.key.hex(),
-                user_evm_private_key=user_evm_wallet.account.key.hex(),
-                rune_bridge_contract_address=rune_bridge_address,
-                snapshot_id="",  # will be set later
-            )
-        logger.info("Snapshotting runes_module_setup and storing return value in cache")
+        logger.info("Snapshotting runes_module_setup and storing the setup in cache")
         with measure_time("snapshotting runes_module_setup"):
-            cached_setup.snapshot_id = hardhat.snapshot()
+            snapshot_id = hardhat.snapshot()
+        cached_setup = CachedModuleSetup(
+            alice_evm_private_key=alice_evm_wallet.account.key.hex(),
+            user_evm_private_key=user_evm_wallet.account.key.hex(),
+            rune_bridge_contract_address=rune_bridge_address,
+            root_ord_wallet_name=root_ord_wallet.name,
+            root_ord_wallet_address=root_ord_wallet.get_receiving_address(),
+            user_ord_wallet_name=user_ord_wallet.name,
+            user_ord_wallet_address=user_ord_wallet.get_receiving_address(),
+            snapshot_id=snapshot_id,
+        )
         cache.set(MODULE_SETUP_CACHE_KEY, dataclasses.asdict(cached_setup))
 
     return SimpleNamespace(
         alice_evm_wallet=alice_evm_wallet,
         user_evm_wallet=user_evm_wallet,
         rune_bridge_contract=rune_bridge_contract,
+        root_ord_wallet=root_ord_wallet,
+        user_ord_wallet=user_ord_wallet,
     )
 
 
@@ -172,15 +201,16 @@ def runes_setup(
     start = time.time()
     snapshot_id = hardhat.snapshot()
 
-    with measure_time("create ord wallets"):
-        root_ord_wallet = ord.create_test_wallet("root-ord")  # used for funding other wallets
-        user_ord_wallet = ord.create_test_wallet("user-ord")  # used by the "end user"
-    with measure_time("fund ord wallets"):
-        bitcoind.fund_wallets(root_ord_wallet, user_ord_wallet)
-
+    # Use data that's slow to create from the module setup
+    root_ord_wallet = runes_module_setup.root_ord_wallet
+    user_ord_wallet = runes_module_setup.user_ord_wallet
     alice_evm_wallet = runes_module_setup.alice_evm_wallet
     user_evm_wallet = runes_module_setup.user_evm_wallet
     rune_bridge_contract = runes_module_setup.rune_bridge_contract
+
+    # Fund ord wallets every time
+    with measure_time("fund ord wallets"):
+        bitcoind.fund_wallets(root_ord_wallet, user_ord_wallet)
 
     # NETWORK
 

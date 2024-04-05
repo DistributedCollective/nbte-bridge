@@ -91,45 +91,27 @@ class BitcoindService(compose.ComposeService):
     def fund_wallets(
         self,
         *wallets: FundableWallet,
-        wanted_balance_btc: Decimal = Decimal(1),
+        amount_to_send: Decimal = Decimal(1),
     ):
         """
         Fund wallets, but instead of mining to them, use the root wallet to send btc to them
 
         This should offer non-trivial test speedups especially if containers are kept after each test
         """
-
         self._mine_initial_blocks()
 
-        required_amounts = [
-            max(wanted_balance_btc - wallet.get_balance_btc(), Decimal(0)) for wallet in wallets
-        ]
-        if not any(required_amounts):
-            logger.info("All wallets properly funded")
-            return
-
-        # The sending will fail if amount too small
-        min_send_amount = Decimal("0.01")
-        required_amounts = [
-            amount if amount == 0 else max(amount, min_send_amount) for amount in required_amounts
-        ]
-        total_required_amount = sum(required_amounts, start=Decimal(0))
-
         # Ensure root wallet is funded
-        self._ensure_root_wallet_balance(total_required_amount)
+        self._ensure_root_wallet_balance(amount_to_send * len(wallets))
 
-        for wallet, required_amount in zip(wallets, required_amounts):
-            if not required_amount:
-                logger.info("Skipping funding of wallet %s, already funded", wallet.name)
-                continue
-
+        for wallet in wallets:
             address = wallet.get_receiving_address()
-            self.root_wallet.send(amount_btc=required_amount, receiver=address)
-            logger.info("Funded wallet %s with %s BTC", wallet.name, required_amount)
+            self.root_wallet.send(amount_btc=amount_to_send, receiver=address)
+            logger.info("Funded wallet %s with %s BTC", wallet.name, amount_to_send)
 
         self.mine(1)
 
     def fund_addresses(self, *addresses: str, amount_to_send: Decimal = Decimal(1)):
+        assert amount_to_send >= Decimal("0.01"), "Sending too little, transactions might fail"
         self._mine_initial_blocks()
         self._ensure_root_wallet_balance(amount_to_send * len(addresses))
         for address in addresses:

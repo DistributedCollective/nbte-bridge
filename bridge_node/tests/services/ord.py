@@ -138,10 +138,14 @@ class OrdWallet:
         ord: OrdService,
         *,
         name: str = "ord",
+        addresses: list[str] = None,
     ):
         self.ord = ord
         self.name = name
-        self.addresses = []
+        if addresses:
+            self.addresses = list(addresses)
+        else:
+            self.addresses = []
 
     def cli(self, *args):
         return self.ord.cli(*self.cli_args(*args))
