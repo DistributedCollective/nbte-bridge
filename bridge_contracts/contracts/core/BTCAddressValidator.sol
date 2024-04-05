@@ -17,15 +17,15 @@ contract BTCAddressValidator is IBTCAddressValidator, NBTEBridgeAccessControllab
     uint256 public bech32MaxLength = 64; // 62 for others, 64 for regtest
     uint256 public nonBech32MinLength = 26;
     uint256 public nonBech32MaxLength = 35;
-    uint8 public maxSegwitVersion = 1; // 0 = segwit v0 (p2wsh/p2wpkh), 1 = taproot, previous versions implicitly supported
-    uint256 precomputedBech32ChecksumStart;
 
-    uint8 constant BECH32_FIRST_ORD = 48;
-    uint8 constant BECH32_LAST_ORD = 122;
-    uint8 constant BECH32_MAX_VALID_MAPPED = 0x1f;
-    bytes constant BECH32_ALPHABET_MAP = hex"0fff0a1115141a1e0705ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff1dff180d19090817ff12161f1b13ff010003100b1c0c0e060402";
-    uint256 constant SEGWIT_V0_BECH32_CHECKSUM_CONSTANT = 1;  // bech32 original
-    uint256 constant SEGWIT_V1_BECH32_CHECKSUM_CONSTANT = 0x2bc830a3;  // bech32m
+    uint8 public maxSegwitVersion = 1; // 0 = segwit v0 (p2wsh/p2wpkh), 1 = taproot, previous versions implicitly supported
+    uint256 precomputedBech32ChecksumStart; // pre-computed checksum start for bech32 addresses, for gas savings
+
+    // @dev Map each uint8 to it's bech32 value. Generated using generate_bech32_alphabet_map.py
+    // @dev Values are 0xff for invalid characters, 0x00-0x1f for valid characters
+    bytes constant BECH32_ALPHABET_MAP = hex"ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff0fff0a1115141a1e0705ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff1dff180d19090817ff12161f1b13ff010003100b1c0c0e060402ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff";
+    uint256 constant SEGWIT_V0_BECH32_CHECKSUM_CONSTANT = 1;  // bech32 (segwit v0)
+    uint256 constant SEGWIT_V1_BECH32_CHECKSUM_CONSTANT = 0x2bc830a3;  // bech32m (segwit v1+)
 
     /// @dev The constructor.
     /// @param _accessControl       Address of the FastBTCAccessControl contract.
@@ -77,16 +77,17 @@ contract BTCAddressValidator is IBTCAddressValidator, NBTEBridgeAccessControllab
             return false;
         }
 
+        // Read the alphabet here once to avoid repeated storage read. Saves around ~4000 gas for a P2WSH address.
+        bytes memory bech32AlphabetMap = BECH32_ALPHABET_MAP;
+
         uint256 chk = precomputedBech32ChecksumStart;
 
         uint256 checksumConstant = SEGWIT_V0_BECH32_CHECKSUM_CONSTANT;
         unchecked {
             bytes1 versionUnmapped = _btcAddressBytes[bytes(bech32Prefix).length];
-            if (uint8(versionUnmapped) < BECH32_FIRST_ORD) {
-                return false;
-            }
-            uint8 version = uint8(BECH32_ALPHABET_MAP[uint8(versionUnmapped) - BECH32_FIRST_ORD]);
+            uint8 version = uint8(bech32AlphabetMap[uint8(versionUnmapped)]);
             if (version > maxSegwitVersion) {
+                // no need to check version > 0x1f here, maxSegwitVersion must 0x1f or less
                 return false;
             }
             if (version >= 1) {
@@ -94,22 +95,19 @@ contract BTCAddressValidator is IBTCAddressValidator, NBTEBridgeAccessControllab
             }
 
             // micro-optimization: compute polymod for version here
-            chk = polymodStep(chk) ^ uint8(version);
+            chk = polymodStep(chk) ^ version;
         }
 
         unchecked {
             for (uint256 i = bytes(bech32Prefix).length + 1; i < _btcAddressBytes.length; i++) {
-                bytes1 c = _btcAddressBytes[i];
-                uint8 ord = uint8(c);
-                if (ord < BECH32_FIRST_ORD || ord > BECH32_LAST_ORD) {
-                    return false;
-                }
-                bytes1 mapped = BECH32_ALPHABET_MAP[ord - BECH32_FIRST_ORD];
-                if (uint8(mapped) > BECH32_MAX_VALID_MAPPED) {
+                uint8 mapped = uint8(bech32AlphabetMap[uint8(_btcAddressBytes[i])]);
+                if (mapped > 0x1f) {
+                    // not a valid bech32 character
+                    // checking == 0xff would save a bit of gas but this is safer
                     return false;
                 }
 
-                chk = polymodStep(chk) ^ uint8(mapped);
+                chk = polymodStep(chk) ^ mapped;
             }
         }
 
@@ -203,23 +201,44 @@ contract BTCAddressValidator is IBTCAddressValidator, NBTEBridgeAccessControllab
     private
     pure
     returns (uint256) {
-        uint256 b = pre >> 25;
-
-        pre = (pre & 0x1ffffff) << 5;
-        if ((b >> 0) & 1 != 0) {
-            pre ^= 0x3b6a57b2;
-        }
-        if ((b >> 1) & 1 != 0) {
-            pre ^= 0x26508e6d;
-        }
-        if ((b >> 2) & 1 != 0) {
-            pre ^= 0x1ea119fa;
-        }
-        if ((b >> 3) & 1 != 0) {
-            pre ^= 0x3d4233dd;
-        }
-        if ((b >> 4) & 1 != 0) {
-            pre ^= 0x2a1462b3;
+        // This is implemented in assembly for gas savings (saves around 3000 gas during the execution of
+        // validateBech32Address for a P2WSH address)
+        // Non-assembly version commented out below.
+        // uint256 b = pre >> 25;
+        // pre = (pre & 0x1ffffff) << 5;
+        // if ((b >> 0) & 1 != 0) {
+        //     pre ^= 0x3b6a57b2;
+        // }
+        // if ((b >> 1) & 1 != 0) {
+        //     pre ^= 0x26508e6d;
+        // }
+        // if ((b >> 2) & 1 != 0) {
+        //     pre ^= 0x1ea119fa;
+        // }
+        // if ((b >> 3) & 1 != 0) {
+        //     pre ^= 0x3d4233dd;
+        // }
+        // if ((b >> 4) & 1 != 0) {
+        //     pre ^= 0x2a1462b3;
+        // }
+        assembly {
+            let b := shr(25, pre)
+            pre := shl(5, and(pre, 0x1ffffff))
+            if and(b, 0x01) {
+                pre := xor(pre, 0x3b6a57b2)
+            }
+            if and(b, 0x02) {
+                pre := xor(pre, 0x26508e6d)
+            }
+            if and(b, 0x04) {
+                pre := xor(pre, 0x1ea119fa)
+            }
+            if and(b, 0x08) {
+                pre := xor(pre, 0x3d4233dd)
+            }
+            if and(b, 0x10) {
+                pre := xor(pre, 0x2a1462b3)
+            }
         }
         return pre;
     }
@@ -311,6 +330,7 @@ contract BTCAddressValidator is IBTCAddressValidator, NBTEBridgeAccessControllab
     external
     onlyAdmin
     {
+        require(_version <= 0x1f, "version must be less than 0x1f to fit in bech32 alphabet");
         maxSegwitVersion = _version;
     }
 }

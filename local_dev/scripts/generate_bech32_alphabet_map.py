@@ -35,14 +35,14 @@ ALPHABET_MAP = {
     "a": 29,
     "l": 31,
 }
-FIRST_ORD = 48
-LAST_ORD = 122
 MAX_MAPPED = 0x1F
-ALPHABET_MAP_BYTES = bytearray(0xFE for _ in range(LAST_ORD - FIRST_ORD + 1))
-for i in range(FIRST_ORD, LAST_ORD + 1):
+ALPHABET_MAP_BYTES = bytearray(0xFE for _ in range(256))
+for i in range(256):
     c = chr(i)
     mapped = ALPHABET_MAP.get(c)
     if mapped is None:
         mapped = 0xFF
-    ALPHABET_MAP_BYTES[i - FIRST_ORD] = mapped
+    else:
+        assert mapped <= MAX_MAPPED
+    ALPHABET_MAP_BYTES[i] = mapped
 print(ALPHABET_MAP_BYTES.hex())

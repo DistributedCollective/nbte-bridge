@@ -99,7 +99,7 @@ describe("BTCAddressValidator", function() {
 
         it('has reasonable gas costs', async () => {
             const estimate = await btcAddressValidator.isValidBtcAddress.estimateGas("bc1qw508d6qejxtdg4y5r3zarvary0c5xw7kv8f3t4");
-            expect(estimate).to.be.lessThanOrEqual(65000n);
+            expect(estimate).to.be.lessThanOrEqual(55000n);
         });
     })
 
