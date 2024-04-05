@@ -25,6 +25,7 @@ from bridge.bridges.runes.wiring import wire_rune_bridge
 from bridge.common.ord.multisig import OrdMultisig
 from bridge.common.services.key_value_store import KeyValueStore
 from bridge.common.services.transactions import TransactionManager
+from bridge.common.models.meta import Base
 from .bridge_util import RuneBridgeUtil
 from ...mock_network import MockNetwork
 from ...services import (
@@ -106,7 +107,7 @@ def runes_module_setup(
         )
         user_evm_wallet = EVMWallet(
             account=hardhat.web3.eth.account.from_key(cached_setup.user_evm_private_key),
-            name="alice",
+            name="user",
         )
         rune_bridge_address = cached_setup.rune_bridge_contract_address
 
@@ -281,9 +282,9 @@ def runes_setup(
         alice_wiring.multisig.import_descriptors_to_bitcoind(
             range=100,
         )
-    # Fund the multisig wallet
-    with measure_time("fund multisig"):
-        bitcoind.fund_addresses(alice_wiring.multisig.change_address)
+
+    # Fund the multisig wallet, only needs to be done once (not for each multisig)
+    bitcoind.fund_addresses(alice_wiring.multisig.change_address)
 
     logger.info("Rune Bridge setup took %s seconds", time.time() - start)
 
@@ -299,6 +300,13 @@ def runes_setup(
 
     logger.info("Restoring EVM snapshot %s", snapshot_id)
     hardhat.revert(snapshot_id)
+
+    # We need to either drop/recreate the DB or randomize bridge_id. Otherwise, DB state will leak
+    # We opt for drop/recreate here.
+    with measure_time("dropping/recreating db"):
+        logger.info("Dropping/recreating db")
+        Base.metadata.drop_all(dbengine)
+        Base.metadata.create_all(dbengine)
 
 
 @pytest.fixture()

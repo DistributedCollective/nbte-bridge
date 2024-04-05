@@ -1,5 +1,6 @@
 from dataclasses import dataclass
 from decimal import Decimal
+import logging
 
 import sqlalchemy as sa
 from hexbytes import HexBytes
@@ -33,6 +34,8 @@ from ...services.hardhat import EVMWallet
 from ...utils.timing import measure_time
 from ...utils.types import Decimalish
 
+
+logger = logging.getLogger(__name__)
 # Use hardhat #0 as default owner, since it's the default deployer
 DEFAULT_DEPLOYER_ADDRESS = "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266"
 
@@ -132,6 +135,12 @@ class RuneBridgeUtil:
         mine: bool = True,
     ) -> RunesToEVMTransfer:
         evm_block_number = self._web3.eth.block_number
+        logger.info(
+            "Runes-to-EVM transfer: %s %s at EVM block %s",
+            amount_decimal,
+            rune,
+            evm_block_number,
+        )
         info = wallet.send_runes(
             rune=rune,
             amount_decimal=amount_decimal,
@@ -324,7 +333,7 @@ class RuneBridgeUtil:
                     User.bridge_id == self._rune_bridge.bridge_id,
                     DepositAddress.btc_address == deposit_address,
                 )
-            ).first()
+            ).one_or_none()
             if not obj:
                 return None
             return obj.user.evm_address
