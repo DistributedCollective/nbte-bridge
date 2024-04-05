@@ -84,12 +84,14 @@ def dbengine(postgres):
 
     dsn = postgres.get_db_dsn(DEV_DB_NAME)
     engine = create_engine(dsn, echo=False)
-    logger.info("Creating all models from metadata")
-    Base.metadata.create_all(engine)
     yield engine
     engine.dispose()
 
 
-@pytest.fixture(scope="module")
+@pytest.fixture()  # NOTE: scope is "test" here to start each test with a fresh DB
 def dbsession(dbengine):
-    return Session(bind=dbengine, autobegin=False)
+    logger.info("Creating all models from metadata")
+    Base.metadata.create_all(dbengine)
+    yield Session(bind=dbengine, autobegin=False)
+    logger.info("Dropping all models from metadata")
+    Base.metadata.drop_all(dbengine)
