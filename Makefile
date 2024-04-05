@@ -53,3 +53,7 @@ migrate:
 .PHONY: build-python
 build-python:
 	cd bridge_node && poetry install && poetry build
+
+.PHONY: copy-abi
+copy-abi:
+	python local_dev/scripts/copy_abi.py --no-compile
