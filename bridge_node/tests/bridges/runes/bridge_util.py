@@ -22,6 +22,7 @@ from ...services import (
     OrdWallet,
 )
 from ...services.hardhat import EVMWallet
+from ...services.ord import EtchingInfo
 from ...utils.types import Decimalish
 
 
@@ -74,6 +75,26 @@ class RuneBridgeUtil:
             abi=load_rune_bridge_abi("RuneSideToken"),
         )
 
+    def register_rune(
+        self,
+        *,
+        rune: str,
+        symbol: str = None,
+    ) -> Contract:
+        if not symbol:
+            symbol = rune[0]
+        # TODO: use the smart contract directly
+        self._hardhat.run_json_command(
+            "runes-register-rune",
+            "--bridge-address",
+            self._rune_bridge_contract.address,
+            "--rune-name",
+            rune,
+            "--rune-symbol",
+            symbol,
+        )
+        return self.get_rune_token(rune)
+
     def transfer_runes_to_evm(
         self,
         *,
@@ -99,14 +120,8 @@ class RuneBridgeUtil:
         receiver_address: str,
         rune_token_address: str = None,
         rune: str = None,
-        mine: bool = True,
-        verify: bool = None,
+        verify: bool = True,
     ) -> HexBytes:
-        if verify is None:
-            verify = mine
-        if verify and not mine:
-            raise ValueError("mine must be true if verify is true")
-
         if not rune and not rune_token_address:
             raise ValueError("either rune or rune_token_address must be provided")
         if rune and rune_token_address:
@@ -129,9 +144,8 @@ class RuneBridgeUtil:
                 "from": sender,
             }
         )
-        if mine:
-            self._hardhat.mine()
         if verify:
+            # Automining is on, no need to mine
             receipt = self._hardhat.web3.eth.get_transaction_receipt(tx_hash)
             assert receipt.status
         return HexBytes(tx_hash)
@@ -153,7 +167,29 @@ class RuneBridgeUtil:
         )
         self._ord.mine_and_sync()
 
-    # ASSERTION HELPERS
+    def etch_test_rune(
+        self,
+        prefix: str,
+        **kwargs,
+    ) -> EtchingInfo:
+        return self._root_ord_wallet.etch_test_rune(prefix, **kwargs)
+
+    def etch_and_register_test_rune(
+        self,
+        prefix: str,
+        fund: tuple[OrdWallet, Decimalish] = None,
+        **kwargs,
+    ) -> str:
+        etching = self.etch_test_rune(prefix, **kwargs)
+        if fund:
+            wallet, amount_decimal = fund
+            self.fund_wallet_with_runes(
+                wallet=wallet, amount_decimal=amount_decimal, rune=etching.rune
+            )
+        self.register_rune(rune=etching.rune, symbol=etching.rune_symbol)
+        return etching.rune
+
+    # BALANCE HELPERS
 
     def snapshot_balances(
         self,
@@ -201,3 +237,13 @@ class RuneBridgeUtil:
         """
         new_snapshot = self.snapshot_balances_again(snapshot)
         return new_snapshot - snapshot, new_snapshot
+
+    # ASSERTION HELPERS
+
+    def assert_runes_to_evm_transfer_happened(
+        self,
+        *,
+        amount_decimal: str,
+        rune: str,
+    ):
+        pass

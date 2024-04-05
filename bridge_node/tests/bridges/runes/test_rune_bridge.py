@@ -31,12 +31,10 @@ def test_round_trip_happy_case(
     bridge_util,
     user_ord_wallet,
     user_evm_wallet,
-    rune_name,
 ):
-    bridge_util.fund_wallet_with_runes(
-        wallet=user_ord_wallet,
-        amount_decimal=1000,
-        rune=rune_name,
+    rune = bridge_util.etch_and_register_test_rune(
+        prefix="ROUNDTRIP",
+        fund=(user_ord_wallet, 1000),
     )
 
     # Test runes to evm
@@ -46,13 +44,13 @@ def test_round_trip_happy_case(
         wallet=user_ord_wallet,
         amount_decimal=1000,
         deposit_address=deposit_address,
-        rune=rune_name,
+        rune=rune,
     )
 
     initial_balances = bridge_util.snapshot_balances(
         user_ord_wallet=user_ord_wallet,
         user_evm_wallet=user_evm_wallet,
-        rune=rune_name,
+        rune=rune,
     )
     initial_balances.assert_values(
         bridge_rune_balance_decimal=1000,
@@ -69,7 +67,7 @@ def test_round_trip_happy_case(
 
     # Test EVM to Runes
 
-    rune_token = bridge_util.get_rune_token(rune_name)
+    rune_token = bridge_util.get_rune_token(rune)
     user_btc_address = user_ord_wallet.get_new_address()
     bridge_util.transfer_rune_tokens_to_bitcoin(
         sender=user_evm_wallet,

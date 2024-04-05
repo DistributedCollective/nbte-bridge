@@ -99,27 +99,9 @@ def runes_setup(
     user_ord_wallet = ord.create_test_wallet("user-ord")  # used by the "end user"
     bitcoind.fund_wallets(root_ord_wallet, user_ord_wallet)
 
-    etching = root_ord_wallet.etch_test_rune("RUNETEST")
-
     alice_evm_wallet = runes_module_setup.alice_evm_wallet
     user_evm_wallet = runes_module_setup.user_evm_wallet
     rune_bridge_contract = runes_module_setup.rune_bridge_contract
-
-    with measure_time("runes-register-rune"):
-        hardhat.run_json_command(
-            "runes-register-rune",
-            "--bridge-address",
-            rune_bridge_contract.address,
-            "--rune-name",
-            etching.rune,
-            "--rune-symbol",
-            "R",
-        )
-
-    rune_side_token_contract = hardhat.web3.eth.contract(
-        address=rune_bridge_contract.functions.getTokenByRune(etching.rune).call(),
-        abi=load_rune_bridge_abi("RuneSideToken"),
-    )
 
     # NETWORK
 
@@ -192,22 +174,15 @@ def runes_setup(
     yield SimpleNamespace(
         rune_bridge=alice_wiring.bridge,
         rune_bridge_service=alice_wiring.service,
-        rune_name=etching.rune,
         user_ord_wallet=user_ord_wallet,
         user_evm_wallet=user_evm_wallet,
         root_ord_wallet=root_ord_wallet,
         bridge_ord_multisig=alice_wiring.multisig,
         rune_bridge_contract=rune_bridge_contract,
-        rune_side_token_contract=rune_side_token_contract,
     )
 
     logger.info("Restoring EVM snapshot %s", snapshot_id)
     hardhat.revert(snapshot_id)
-
-
-@pytest.fixture()
-def rune_name(runes_setup) -> str:
-    return runes_setup.rune_name
 
 
 @pytest.fixture()
@@ -228,11 +203,6 @@ def user_evm_wallet(runes_setup) -> EVMWallet:
 @pytest.fixture()
 def rune_bridge_contract(runes_setup) -> Contract:
     return runes_setup.rune_bridge_contract
-
-
-@pytest.fixture()
-def rune_side_token_contract(runes_setup) -> Contract:
-    return runes_setup.rune_side_token_contract
 
 
 @pytest.fixture()

@@ -115,6 +115,7 @@ class EtchingInfo:
     commit: str
     reveal: str
     rune: str
+    rune_symbol: str
     rune_destination: str
     rune_location: str
     rune_destination: str
@@ -275,6 +276,7 @@ class OrdWallet:
             commit=process_output["commit"],
             reveal=process_output["reveal"],
             rune=process_output["rune"]["rune"],
+            rune_symbol=symbol,
             rune_destination=process_output["rune"]["destination"],
             rune_location=process_output["rune"]["location"],
         )
