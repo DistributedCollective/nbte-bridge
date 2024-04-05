@@ -1,16 +1,24 @@
+from dataclasses import dataclass
 from decimal import Decimal
 
 from hexbytes import HexBytes
+import sqlalchemy as sa
 from sqlalchemy.orm import (
     Session,
 )
 from web3.contract import Contract
+from web3.types import EventData
 
 from bridge.bridges.runes.bridge import RuneBridge
 from bridge.bridges.runes.evm import load_rune_bridge_abi
 from bridge.bridges.runes.service import RuneBridgeService
+from bridge.bridges.runes.models import (
+    DepositAddress,
+    User,
+)
 from bridge.common.evm.utils import (
     from_wei,
+    is_zero_address,
     to_wei,
 )
 from bridge.common.ord.multisig import OrdMultisig
@@ -22,8 +30,17 @@ from ...services import (
     OrdWallet,
 )
 from ...services.hardhat import EVMWallet
-from ...services.ord import EtchingInfo
+from ...utils.timing import measure_time
 from ...utils.types import Decimalish
+
+
+@dataclass
+class RunesToEVMTransfer:
+    rune: str
+    deposit_address: str
+    amount_decimal: Decimal
+    txid: str
+    evm_block_number: int
 
 
 class RuneBridgeUtil:
@@ -43,6 +60,8 @@ class RuneBridgeUtil:
         root_ord_wallet: OrdWallet,
         bridge_ord_multisig: OrdMultisig,
         dbsession: Session,
+        # Use hardhat #0 as default owner, since it's the default deployer
+        bridge_owner_address: str = "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266",
     ):
         self._ord = ord
         self._hardhat = hardhat
@@ -53,6 +72,9 @@ class RuneBridgeUtil:
         self._root_ord_wallet = root_ord_wallet
         self._bridge_ord_multisig = bridge_ord_multisig
         self._dbsession = dbsession
+        self._bridge_owner_address = bridge_owner_address
+
+        self._web3 = hardhat.web3
 
     # USE CASES
 
@@ -68,9 +90,16 @@ class RuneBridgeUtil:
                 dbsession=self._dbsession,
             )
 
-    def get_rune_token(self, rune: str) -> Contract:
+    def get_rune_token(
+        self,
+        rune: str,
+        *,
+        verify_registered: bool = True,
+    ) -> Contract:
         address = self._rune_bridge_contract.functions.getTokenByRune(rune).call()
-        return self._hardhat.web3.eth.contract(
+        if is_zero_address(address):
+            raise LookupError(f"Rune {rune} not registered on the bridge")
+        return self._web3.eth.contract(
             address=address,
             abi=load_rune_bridge_abi("RuneSideToken"),
         )
@@ -83,34 +112,38 @@ class RuneBridgeUtil:
     ) -> Contract:
         if not symbol:
             symbol = rune[0]
-        # TODO: use the smart contract directly
-        self._hardhat.run_json_command(
-            "runes-register-rune",
-            "--bridge-address",
-            self._rune_bridge_contract.address,
-            "--rune-name",
-            rune,
-            "--rune-symbol",
-            symbol,
-        )
+        with measure_time("register rune"):
+            self._rune_bridge_contract.functions.registerRune(rune, symbol).transact(
+                {
+                    "from": self._bridge_owner_address,
+                }
+            )
         return self.get_rune_token(rune)
 
     def transfer_runes_to_evm(
         self,
         *,
         wallet: OrdWallet,
-        amount_decimal: int,
+        amount_decimal: Decimalish,
         deposit_address: str,
         rune: str,
         mine: bool = True,
-    ):
-        wallet.send_runes(
+    ) -> RunesToEVMTransfer:
+        evm_block_number = self._web3.eth.block_number
+        info = wallet.send_runes(
             rune=rune,
             amount_decimal=amount_decimal,
             receiver=deposit_address,
         )
         if mine:
             self._ord.mine_and_sync()
+        return RunesToEVMTransfer(
+            rune=rune,
+            deposit_address=deposit_address,
+            amount_decimal=Decimal(amount_decimal),
+            txid=info.txid,
+            evm_block_number=evm_block_number,
+        )
 
     def transfer_rune_tokens_to_bitcoin(
         self,
@@ -146,7 +179,7 @@ class RuneBridgeUtil:
         )
         if verify:
             # Automining is on, no need to mine
-            receipt = self._hardhat.web3.eth.get_transaction_receipt(tx_hash)
+            receipt = self._web3.eth.get_transaction_receipt(tx_hash)
             assert receipt.status
         return HexBytes(tx_hash)
 
@@ -167,20 +200,13 @@ class RuneBridgeUtil:
         )
         self._ord.mine_and_sync()
 
-    def etch_test_rune(
-        self,
-        prefix: str,
-        **kwargs,
-    ) -> EtchingInfo:
-        return self._root_ord_wallet.etch_test_rune(prefix, **kwargs)
-
     def etch_and_register_test_rune(
         self,
         prefix: str,
         fund: tuple[OrdWallet, Decimalish] = None,
         **kwargs,
     ) -> str:
-        etching = self.etch_test_rune(prefix, **kwargs)
+        etching = self._root_ord_wallet.etch_test_rune(prefix, **kwargs)
         if fund:
             wallet, amount_decimal = fund
             self.fund_wallet_with_runes(
@@ -240,10 +266,63 @@ class RuneBridgeUtil:
 
     # ASSERTION HELPERS
 
-    def assert_runes_to_evm_transfer_happened(
-        self,
-        *,
-        amount_decimal: str,
-        rune: str,
-    ):
-        pass
+    def assert_runes_transferred_to_evm(self, transfer: RunesToEVMTransfer):
+        """
+        Assert that the user received the RuneTokens they should based on runes-to-evm transfer
+        """
+        events = self._get_rune_token_transfer_events(transfer)
+        assert len(events) == 1, f"Expected 1 Transfer event, got {len(events)}"
+        event = events[-1]
+        expected_amount_wei = to_wei(transfer.amount_decimal)
+        assert (
+            event["args"]["value"] == expected_amount_wei
+        ), f"Incorrect amount, got {from_wei(event['args']['value'])}, expected {transfer.amount_decimal}"
+        evm_address = self._get_evm_address_from_deposit_address(transfer.deposit_address)
+        balance_wei_before = (
+            self.get_rune_token(transfer.rune)
+            .functions.balanceOf(evm_address)
+            .call(
+                block_identifier=transfer.evm_block_number,
+            )
+        )
+        balance_wei = self.get_rune_token(transfer.rune).functions.balanceOf(evm_address).call()
+        balance_change_wei = balance_wei - balance_wei_before
+        assert (
+            balance_change_wei == expected_amount_wei
+        ), f"Balance change {from_wei(balance_wei)} doesn't match transfer amount {transfer.amount_decimal}"
+
+    def assert_runes_not_transferred_to_evm(self, transfer: RunesToEVMTransfer):
+        events = self._get_rune_token_transfer_events(transfer)
+        assert len(events) == 0, f"Expected no Transfer events, got {len(events)}"
+
+    def _get_rune_token_transfer_events(self, transfer: RunesToEVMTransfer) -> list[EventData]:
+        evm_address = self._get_evm_address_from_deposit_address(transfer.deposit_address)
+        assert evm_address, f"Deposit address {transfer.deposit_address} not registered"
+        rune_token = self.get_rune_token(transfer.rune, verify_registered=False)
+        assert not is_zero_address(
+            rune_token.address
+        ), f"Rune {transfer.rune} not registered on the bridge"
+        # For now, the tokens are minted out of thin air and the "from" address is 0
+        # from_address = self._rune_bridge_contract.address
+        from_address = "0x0000000000000000000000000000000000000000"
+        return rune_token.events.Transfer().get_logs(
+            fromBlock=transfer.evm_block_number,
+            argument_filters={
+                "from": from_address,
+                "to": evm_address,
+            },
+        )
+
+    def _get_evm_address_from_deposit_address(self, deposit_address: str) -> str | None:
+        with self._dbsession.begin():
+            obj = self._dbsession.scalars(
+                sa.select(DepositAddress)
+                .join(User)
+                .filter(
+                    User.bridge_id == self._rune_bridge.bridge_id,
+                    DepositAddress.btc_address == deposit_address,
+                )
+            ).first()
+            if not obj:
+                return None
+            return obj.user.evm_address

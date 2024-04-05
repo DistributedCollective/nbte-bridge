@@ -121,6 +121,17 @@ class EtchingInfo:
     rune_destination: str
 
 
+@dataclass
+class TransferInfo:
+    txid: str
+    psbt: str
+    outgoing: str
+    fee: int
+    rune: str
+    receiver: str
+    amount_decimal: Decimal
+
+
 class OrdWallet:
     def __init__(
         self,
@@ -164,8 +175,8 @@ class OrdWallet:
         receiver: str,
         amount_decimal: Decimalish,
         fee_rate: Decimalish = 1,
-    ):
-        amount_decimal = str(Decimal(amount_decimal))  # Test that it can be converted to decimal
+    ) -> TransferInfo:
+        amount_decimal = Decimal(amount_decimal)  # Test that it can be converted to decimal
         ret = self.cli(
             "send",
             "--fee-rate",
@@ -173,7 +184,15 @@ class OrdWallet:
             receiver,
             f"{amount_decimal}:{rune}",
         )
-        return ret
+        return TransferInfo(
+            txid=ret["txid"],
+            psbt=ret["psbt"],
+            outgoing=ret["outgoing"],
+            fee=ret["fee"],
+            rune=rune,
+            receiver=receiver,
+            amount_decimal=amount_decimal,
+        )
 
     def etch_rune(
         self,

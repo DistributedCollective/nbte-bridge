@@ -4,6 +4,7 @@ import os
 import pathlib
 import time
 from typing import Any, Optional
+import eth_utils
 from eth_account import Account as EthAccount
 from web3 import Web3
 from web3.contract.contract import ContractEvent
@@ -130,3 +131,8 @@ def recover_message(content, signature):
         content,
         signature=signature,
     )
+
+
+def is_zero_address(address) -> bool:
+    canonical = eth_utils.to_canonical_address(address)
+    return not any(canonical)
