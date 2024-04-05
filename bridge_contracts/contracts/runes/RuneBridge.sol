@@ -1,15 +1,12 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.19;
 
-import "@openzeppelin/contracts/access/Ownable.sol";
-import "@openzeppelin/contracts/security/ReentrancyGuard.sol";
-import "@openzeppelin/contracts/utils/cryptography/ECDSA.sol";
-import "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
-import "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
+import "../shared/NBTEBridgeAccessControllable.sol";
+import "../shared/IBTCAddressValidator.sol";
 import "./RuneSideToken.sol";
 
 
-contract RuneBridge is Ownable, ReentrancyGuard {
+contract RuneBridge is NBTEBridgeAccessControllable {
     event RuneTransferToBtc(
         uint256 indexed counter,
         address indexed from,
@@ -29,6 +26,8 @@ contract RuneBridge is Ownable, ReentrancyGuard {
         uint256 btcTxVout
     );
 
+    IBTCAddressValidator public btcAddressValidator;
+
     uint256 public numTransfersTotal;
 
     // TODO: support for multiple tokens
@@ -38,7 +37,12 @@ contract RuneBridge is Ownable, ReentrancyGuard {
 
 
     constructor(
-    ) {
+        address _accessControl,
+        address _btcAddressValidator
+    )
+    NBTEBridgeAccessControllable(_accessControl)
+    {
+        btcAddressValidator = IBTCAddressValidator(_btcAddressValidator);
         _runeSideToken = new RuneSideToken("MYRUNEISGOODER", "R");
     }
 
@@ -51,8 +55,8 @@ contract RuneBridge is Ownable, ReentrancyGuard {
         string calldata receiverBtcAddress
     )
     external
-    nonReentrant
     {
+        require(btcAddressValidator.isValidBtcAddress(receiverBtcAddress), "invalid BTC address");
         require(token == address(_runeSideToken), "token not registered");
         require(amountWei > 0, "amount must be greater than 0");
 
@@ -90,9 +94,6 @@ contract RuneBridge is Ownable, ReentrancyGuard {
     // Federator API
     // -------------
 
-    // TODO: this needs a proper API
-    // - signatures
-    // - federation
     function acceptTransferFromBtc(
         address to,
         string memory rune,
@@ -102,11 +103,14 @@ contract RuneBridge is Ownable, ReentrancyGuard {
         bytes[] memory signatures
     )
     external
-    onlyOwner
-    nonReentrant
     {
+        // validate signatures. this also checks that the sender is a federator
+        accessControl.checkFederatorSignaturesWithImplicitSelfSign(
+            keccak256("foo"), // TODO
+            signatures,
+            msg.sender
+        );
 
-        // TODO: validate signatures
         // TODO: validate not processed
 
         address token = getTokenByRune(rune);
@@ -135,7 +139,7 @@ contract RuneBridge is Ownable, ReentrancyGuard {
         string memory symbol
     )
     external
-    onlyOwner
+    onlyAdmin
     {
         _rune = rune;
         _runeHash = keccak256(abi.encodePacked(rune));

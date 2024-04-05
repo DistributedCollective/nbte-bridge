@@ -5,22 +5,23 @@ import {jsonAction} from '../base';
 const PREFIX = 'runes-'
 
 task(`${PREFIX}deploy-regtest`)
-    .addParam("federators", "Federator addresses, comma separated")
+    .addParam('accessControl', 'NBTEBridgeAccessControl address')
+    .addParam('addressValidator', 'BTCAddressValidator address')
     .addOptionalParam("runeName", "Rune name to register")
     .addOptionalParam("runeSymbol", "Rune symbol to register")
-    .addOptionalParam("owner", "Owner address")
     .setAction(jsonAction(async ({
-        federators,
+        accessControl,
+        addressValidator,
         runeName,
         runeSymbol,
-        owner
     }, hre) => {
         const ethers = hre.ethers;
 
         const bridge = await ethers.deployContract(
             "RuneBridge",
             [
-                federators.split(','),
+                accessControl,
+                addressValidator,
             ],
             {}
         );
@@ -39,13 +40,6 @@ task(`${PREFIX}deploy-regtest`)
                 runeName,
                 runeSymbol
             );
-            console.log('tx hash:', tx.hash, 'waiting for tx...');
-            await tx.wait();
-        }
-
-        if (owner) {
-            console.log(`Setting owner to ${owner}`);
-            const tx = await bridge.transferOwnership(owner);
             console.log('tx hash:', tx.hash, 'waiting for tx...');
             await tx.wait();
         }

@@ -34,8 +34,54 @@ from ...services import (
 )
 from ...services.hardhat import EVMWallet
 from ...utils.bitcoin import generate_extended_keypair
+from ...utils.timing import measure_time
 
 logger = logging.getLogger(__name__)
+
+
+@pytest.fixture(scope="module")
+def runes_module_setup(
+    hardhat,
+):
+    # This only needs to be done once, after which we can use EVM snapshots etc
+    with measure_time("create-evm-wallets"):
+        alice_evm_wallet = hardhat.create_test_wallet("alice", impersonate=False)
+        user_evm_wallet = hardhat.create_test_wallet("user")
+
+    with measure_time("deploy-access-control"):
+        access_control_deployment = hardhat.run_json_command(
+            "deploy-access-control", "--federators", ",".join([alice_evm_wallet.account.address])
+        )
+
+    with measure_time("deploy-btc-address-validator"):
+        address_validator_deployment = hardhat.run_json_command(
+            "deploy-btc-address-validator",
+            "--access-control",
+            access_control_deployment["address"],
+            "--bech32-prefix",
+            "bcrt1",
+            "--non-bech32-prefixes",
+            "m,n,2",
+        )
+
+    with measure_time("runes-deploy-regtest"):
+        deployment = hardhat.run_json_command(
+            "runes-deploy-regtest",
+            "--access-control",
+            access_control_deployment["address"],
+            "--address-validator",
+            address_validator_deployment["address"],
+        )
+
+    rune_bridge_contract = hardhat.web3.eth.contract(
+        address=deployment["addresses"]["RuneBridge"],
+        abi=load_rune_bridge_abi("RuneBridge"),
+    )
+    return SimpleNamespace(
+        alice_evm_wallet=alice_evm_wallet,
+        user_evm_wallet=user_evm_wallet,
+        rune_bridge_contract=rune_bridge_contract,
+    )
 
 
 @pytest.fixture()
@@ -44,8 +90,10 @@ def runes_setup(
     bitcoind: BitcoindService,
     ord: OrdService,
     dbengine,
+    runes_module_setup,
 ):
     start = time.time()
+    snapshot_id = hardhat.snapshot()
 
     root_ord_wallet = ord.create_test_wallet("root-ord")  # used for funding other wallets
     user_ord_wallet = ord.create_test_wallet("user-ord")  # used by the "end user"
@@ -53,21 +101,20 @@ def runes_setup(
 
     etching = root_ord_wallet.etch_test_rune("RUNETEST")
 
-    alice_evm_wallet = hardhat.create_test_wallet("alice", impersonate=False)
-    user_evm_wallet = hardhat.create_test_wallet("user")
+    alice_evm_wallet = runes_module_setup.alice_evm_wallet
+    user_evm_wallet = runes_module_setup.user_evm_wallet
+    rune_bridge_contract = runes_module_setup.rune_bridge_contract
 
-    deployment = hardhat.run_json_command(
-        "runes-deploy-regtest",
-        "--rune-name",
-        etching.rune,
-        "--owner",
-        alice_evm_wallet.address,
-    )
-
-    rune_bridge_contract = hardhat.web3.eth.contract(
-        address=deployment["addresses"]["RuneBridge"],
-        abi=load_rune_bridge_abi("RuneBridge"),
-    )
+    with measure_time("runes-register-rune"):
+        hardhat.run_json_command(
+            "runes-register-rune",
+            "--bridge-address",
+            rune_bridge_contract.address,
+            "--rune-name",
+            etching.rune,
+            "--rune-symbol",
+            "R",
+        )
 
     rune_side_token_contract = hardhat.web3.eth.contract(
         address=rune_bridge_contract.functions.getTokenByRune(etching.rune).call(),
@@ -142,7 +189,7 @@ def runes_setup(
 
     logger.info("Rune Bridge setup took %s seconds", time.time() - start)
 
-    return SimpleNamespace(
+    yield SimpleNamespace(
         rune_bridge=alice_wiring.bridge,
         rune_bridge_service=alice_wiring.service,
         rune_name=etching.rune,
@@ -153,6 +200,9 @@ def runes_setup(
         rune_bridge_contract=rune_bridge_contract,
         rune_side_token_contract=rune_side_token_contract,
     )
+
+    logger.info("Restoring EVM snapshot %s", snapshot_id)
+    hardhat.revert(snapshot_id)
 
 
 @pytest.fixture()

@@ -38,20 +38,77 @@ const config: HardhatUserConfig = {
 // DEPLOYMENT
 // ==========
 
+task('deploy-access-control')
+    .addOptionalParam('admins', 'Admin addresses, comma separated')
+    .addOptionalParam('federators', 'Federator addresses, comma separated')
+    .setAction(jsonAction(async ({ admins, federators }, hre) => {
+        const ethers = hre.ethers;
+        const accessControl = await ethers.deployContract(
+            "NBTEBridgeAccessControl",
+            [],
+            {}
+        );
+        console.log("NBTEBridgeAccessControl deployed at %s", accessControl.target)
+        await accessControl.waitForDeployment();
+        if (admins) {
+            for (const admin of admins.split(',')) {
+                console.log("Adding admin %s", admin)
+                const tx = await accessControl.addAdmin(admin);
+                await tx.wait();
+            }
+        }
+        if (federators) {
+            for (const federator of federators.split(',')) {
+                console.log("Adding federator %s", federator)
+                const tx = await accessControl.addFederator(federator);
+                await tx.wait();
+            }
+        }
+        return {
+            address: accessControl.target
+        };
+    }));
+
+task('deploy-btc-address-validator')
+    .addParam('accessControl', 'Access control address')
+    .addParam('bech32Prefix', 'Bech32 prefix')
+    .addParam('nonBech32Prefixes', 'Non-bech32 prefixes (comma separated)')
+    .setAction(jsonAction(async ({ accessControl, bech32Prefix, nonBech32Prefixes }, hre) => {
+        const ethers = hre.ethers;
+        const deployment = await ethers.deployContract(
+            "BTCAddressValidator",
+            [accessControl, bech32Prefix, nonBech32Prefixes.split(',')],
+            {}
+        );
+        console.log("BTCAddressValidator deployed at %s", deployment.target)
+        await deployment.waitForDeployment();
+        return {
+            address: deployment.target
+        };
+    }));
+
 task("deploy-regtest")
     .setAction(async ({}, hre) => {
         console.log("Deploying regtest");
 
         console.log("Deploying tap bridge");
+        // TODO: use access control and btc address validator for tap bridge
         await hre.run("tap-deploy-regtest");
+
+        const accessControlResult = await hre.run("deploy-access-control", {
+            federators: '0x4091663B0a7a14e35Ff1d6d9d0593cE15cE7710a,0x09dcD91DF9300a81a4b9C85FDd04345C3De58F48,0x0000000000000000000000000000000000000123',
+            admins: '0x4091663B0a7a14e35Ff1d6d9d0593cE15cE7710a',
+        });
+        const btcAddressValidatorResult = await hre.run("deploy-btc-address-validator", {
+            accessControl: accessControlResult.address,
+        });
 
         console.log("Deploying rune bridge");
         await hre.run("runes-deploy-regtest", {
-            federators: '0x4091663B0a7a14e35Ff1d6d9d0593cE15cE7710a',
-            owner: '0x4091663B0a7a14e35Ff1d6d9d0593cE15cE7710a',
+            accessControl: accessControlResult.address,
+            addressValidator: btcAddressValidatorResult.address,
         });
     });
-
 
 
 // ============

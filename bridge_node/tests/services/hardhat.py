@@ -54,7 +54,11 @@ class HardhatService(compose.ComposeService):
         return self.make_request("evm_revert", [snapshot_id])
 
     def create_test_wallet(
-        self, name=None, *, fund: bool = True, impersonate: bool = True
+        self,
+        name=None,
+        *,
+        fund: bool = True,
+        impersonate: bool = True,
     ) -> EVMWallet:
         logger.info("Creating test evm wallet %s", name or "")
         account = Account.create()

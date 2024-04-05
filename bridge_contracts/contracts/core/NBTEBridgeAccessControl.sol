@@ -28,7 +28,7 @@ contract NBTEBridgeAccessControl is INBTEBridgeAccessControl, AccessControlEnume
 
     /// @dev The constructor.
     constructor() {
-        _setupRole(DEFAULT_ADMIN_ROLE, msg.sender);
+        _setupRole(ROLE_ADMIN, msg.sender);
     }
 
     /// @dev Make sure that the given address is an admin, else revert.
@@ -50,7 +50,7 @@ contract NBTEBridgeAccessControl is INBTEBridgeAccessControl, AccessControlEnume
     external
     view
     {
-        if (!hasRole(DEFAULT_ADMIN_ROLE, addressToCheck)) {
+        if (!hasRole(ROLE_ADMIN, addressToCheck)) {
             _checkRole(ROLE_PAUSER, addressToCheck);
         }
     }
@@ -63,7 +63,7 @@ contract NBTEBridgeAccessControl is INBTEBridgeAccessControl, AccessControlEnume
     external
     view
     {
-        if (!hasRole(DEFAULT_ADMIN_ROLE, addressToCheck)) {
+        if (!hasRole(ROLE_ADMIN, addressToCheck)) {
             _checkRole(ROLE_GUARD, addressToCheck);
         }
     }
@@ -76,7 +76,7 @@ contract NBTEBridgeAccessControl is INBTEBridgeAccessControl, AccessControlEnume
     external
     view
     {
-        if (!hasRole(DEFAULT_ADMIN_ROLE, addressToCheck)) {
+        if (!hasRole(ROLE_ADMIN, addressToCheck)) {
             _checkRole(ROLE_CONFIG_ADMIN, addressToCheck);
         }
     }
@@ -206,6 +206,28 @@ contract NBTEBridgeAccessControl is INBTEBridgeAccessControl, AccessControlEnume
     {
         require(account != address(0), "Cannot grant role to zero address");
         super.grantRole(role, account);  // enforces onlyAdmin
+    }
+
+    /// @dev Add a new admin to the system. Can only be called by admins.
+    /// @param account  the address to grant the admin role to.
+    function addAdmin(
+        address account
+    )
+    external
+    {
+        grantRole(ROLE_ADMIN, account); // enforces onlyAdmin
+    }
+
+    /// @dev Remove an admin from the system. Can only be called by admins.
+    /// @dev Removing the only admin is not supported
+    /// @param account  The address to revoke the admin role from.
+    function removeAdmin(
+        address account
+    )
+    external
+    {
+        require(getRoleMemberCount(ROLE_ADMIN) > 1, "Cannot remove the only admin");
+        revokeRole(ROLE_ADMIN, account); // enforces onlyAdmin
     }
 
     /// @dev Add a new federator to the system. Can only be called by admins.

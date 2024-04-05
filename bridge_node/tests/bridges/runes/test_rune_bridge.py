@@ -1,24 +1,7 @@
 import logging
-from typing import Callable
 
-import pytest
 
 logger = logging.getLogger(__name__)
-
-
-@pytest.fixture(name="get_deposit_address")
-def get_deposit_address_fixture(
-    dbsession,
-    rune_bridge_service,
-) -> Callable[[str], str]:
-    def get_deposit_address(evm_address: str):
-        with dbsession.begin():
-            return rune_bridge_service.generate_deposit_address(
-                evm_address=evm_address,
-                dbsession=dbsession,
-            )
-
-    return get_deposit_address
 
 
 def test_sanity_checks(
