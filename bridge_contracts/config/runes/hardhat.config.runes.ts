@@ -106,7 +106,7 @@ task(`${PREFIX}check-token-balances`)
         const userBalancesByToken: Record<string, bigint> = {};
         console.log("Balances of user %s", user);
         for (const tokenAddress of tokenAddresses) {
-            const token = await ethers.getContractAt("RuneSideToken", tokenAddress);
+            const token = await ethers.getContractAt("RuneToken", tokenAddress);
             const symbol = await token.symbol();
             const name = await token.name();
             const decimals = await token.decimals();

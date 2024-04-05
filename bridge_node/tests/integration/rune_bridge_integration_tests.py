@@ -45,7 +45,7 @@ def user_evm_token(
 ):
     return user_web3.eth.contract(
         address=user_rune_bridge_contract.functions.getTokenByRune(RUNE_NAME).call(),
-        abi=load_rune_bridge_abi("RuneSideToken"),
+        abi=load_rune_bridge_abi("RuneToken"),
     )
 
 

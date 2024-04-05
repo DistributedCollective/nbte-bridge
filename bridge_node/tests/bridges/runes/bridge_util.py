@@ -103,7 +103,7 @@ class RuneBridgeUtil:
             raise LookupError(f"Rune {rune} not registered on the bridge")
         return self._web3.eth.contract(
             address=address,
-            abi=load_rune_bridge_abi("RuneSideToken"),
+            abi=load_rune_bridge_abi("RuneToken"),
         )
 
     def register_rune(

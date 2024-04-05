@@ -3,7 +3,7 @@ pragma solidity 0.8.19;
 
 import "../shared/NBTEBridgeAccessControllable.sol";
 import "../shared/IBTCAddressValidator.sol";
-import "./RuneSideToken.sol";
+import {RuneToken} from "./RuneToken.sol";
 
 
 contract RuneBridge is NBTEBridgeAccessControllable {
@@ -31,7 +31,7 @@ contract RuneBridge is NBTEBridgeAccessControllable {
     uint256 public numTransfersTotal;
 
     // TODO: support for multiple tokens
-    RuneSideToken private _runeSideToken;
+    RuneToken private _runeSideToken;
     string private _rune = "MYRUNEISGOODER";
     bytes32 private _runeHash = keccak256(abi.encodePacked("MYRUNEISGOODER"));
 
@@ -43,7 +43,7 @@ contract RuneBridge is NBTEBridgeAccessControllable {
     NBTEBridgeAccessControllable(_accessControl)
     {
         btcAddressValidator = IBTCAddressValidator(_btcAddressValidator);
-        _runeSideToken = new RuneSideToken("MYRUNEISGOODER", "R");
+        _runeSideToken = new RuneToken("MYRUNEISGOODER", "R");
     }
 
     // Public API
@@ -62,7 +62,7 @@ contract RuneBridge is NBTEBridgeAccessControllable {
 
         string memory rune = getRuneByToken(token);
 
-        RuneSideToken(token).burn(msg.sender, amountWei);
+        RuneToken(token).burn(msg.sender, amountWei);
 
         numTransfersTotal++;
         emit RuneTransferToBtc(
@@ -116,7 +116,7 @@ contract RuneBridge is NBTEBridgeAccessControllable {
         address token = getTokenByRune(rune);
         require(token != address(0), "token not found");
 
-        RuneSideToken(token).mint(to, amountWei);
+        RuneToken(token).mint(to, amountWei);
 
         numTransfersTotal++;
         emit RuneTransferFromBtc(
@@ -143,6 +143,6 @@ contract RuneBridge is NBTEBridgeAccessControllable {
     {
         _rune = rune;
         _runeHash = keccak256(abi.encodePacked(rune));
-        _runeSideToken = new RuneSideToken(rune, symbol);
+        _runeSideToken = new RuneToken(rune, symbol);
     }
 }

@@ -3,7 +3,7 @@ pragma solidity 0.8.19;
 import "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 
 
-contract RuneSideToken is ERC20 {
+contract RuneToken is ERC20 {
     address public deployer;
 
     modifier onlyDeployer() {
