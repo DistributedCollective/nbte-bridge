@@ -5,7 +5,7 @@ class MockNetwork(Network):
     def __init__(self, *, node_id, leader: bool = False):
         self.node_id = node_id
         self._is_leader = leader
-        self.listeners = []
+        self._listeners = []
         self._answer_callbacks = {}
         self._peers = {}
 
@@ -42,7 +42,7 @@ class MockNetwork(Network):
             listener.receive_message(msg)
 
     def send(self, to, msg):
-        self.peers[to].receive_message(msg)
+        self._peers[to].receive_message(msg)
 
     def add_listener(self, listener):
-        self.peers.append(listener)
+        self._listeners.append(listener)

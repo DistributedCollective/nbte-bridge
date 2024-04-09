@@ -16,6 +16,8 @@ BASE_DIR = os.path.join(os.path.dirname(__file__), "..")
 THIS_DIR = pathlib.Path(__file__).parent
 INTEGRATION_TEST_DIR = THIS_DIR / "integration"
 DEV_DB_NAME = "nbte_tmp_test"
+DEV_DB_2_NAME = "nbte_tmp_test_2"
+DEV_DB_3_NAME = "nbte_tmp_test_3"
 
 logger = logging.getLogger(__name__)
 
@@ -75,23 +77,57 @@ def ord(request, bitcoind):
     return services.OrdService(bitcoind=bitcoind, request=request)
 
 
-@pytest.fixture(scope="module")
-def dbengine(postgres):
+def dbengine_fixture(*, postgres, db_name):
     load_models()
-    logger.info("Dropping and recreating test database %s", DEV_DB_NAME)
-    postgres.cli(f"DROP DATABASE IF EXISTS {DEV_DB_NAME}")
-    postgres.cli(f"CREATE DATABASE {DEV_DB_NAME}")
+    logger.info("Dropping and recreating test database %s", db_name)
+    postgres.cli(f"DROP DATABASE IF EXISTS {db_name}")
+    postgres.cli(f"CREATE DATABASE {db_name}")
 
-    dsn = postgres.get_db_dsn(DEV_DB_NAME)
+    dsn = postgres.get_db_dsn(db_name)
     engine = create_engine(dsn, echo=False)
     yield engine
     engine.dispose()
 
 
-@pytest.fixture()  # NOTE: scope is "test" here to start each test with a fresh DB
-def dbsession(dbengine):
-    logger.info("Creating all models from metadata")
+def dbsession_fixture(dbengine):
+    logger.info("Creating all models from metadata for engine %s", dbengine.url)
     Base.metadata.create_all(dbengine)
     yield Session(bind=dbengine, autobegin=False)
-    logger.info("Dropping all models from metadata")
+    logger.info("Dropping all models for engine %s", dbengine.url)
     Base.metadata.drop_all(dbengine)
+
+
+@pytest.fixture(scope="module")
+def dbengine(postgres):
+    yield from dbengine_fixture(postgres=postgres, db_name=DEV_DB_NAME)
+
+
+# NOTE: sessions are scoped as test to start each test from a pristine db
+
+
+@pytest.fixture()
+def dbsession(dbengine):
+    yield from dbsession_fixture(dbengine)
+
+
+# Have more dbengines and dbsessions to test federation
+
+
+@pytest.fixture(scope="module")
+def dbengine2(postgres):
+    yield from dbengine_fixture(postgres=postgres, db_name=DEV_DB_3_NAME)
+
+
+@pytest.fixture()
+def dbsession2(dbengine2):
+    yield from dbsession_fixture(dbengine2)
+
+
+@pytest.fixture(scope="module")
+def dbengine3(postgres):
+    yield from dbengine_fixture(postgres=postgres, db_name=DEV_DB_3_NAME)
+
+
+@pytest.fixture()
+def dbsession3(dbengine3):
+    yield from dbsession_fixture(dbengine3)

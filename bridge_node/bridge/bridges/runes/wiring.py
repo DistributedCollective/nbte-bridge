@@ -58,6 +58,7 @@ def wire_rune_bridge(
         ord_multisig=ord_multisig,
         web3=web3,
         rune_bridge_contract=rune_bridge_contract,
+        evm_account=evm_account,
     )
 
     bridge = RuneBridge(

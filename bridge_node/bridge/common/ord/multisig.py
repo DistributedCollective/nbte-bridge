@@ -86,6 +86,10 @@ class OrdMultisig:
     def change_address(self):
         return self._multisig_address
 
+    @property
+    def num_required_signers(self) -> int:
+        return self._num_required_signers
+
     def get_descriptor(self):
         return self._get_descriptor(self._master_xpubs)
 
@@ -140,6 +144,12 @@ class OrdMultisig:
             ).get_rune_balance(rune_name)
             for utxo in utxos
         )
+
+    def get_rune_balance_at_output(self, *, txid: str, vout: int, rune_name: str) -> int:
+        return self._ord_output_cache.get_ord_output(
+            txid=txid,
+            vout=vout,
+        ).get_rune_balance(rune_name)
 
     def send_runes(self, transfers: list[RuneTransfer]):
         if self._num_required_signers != 1:

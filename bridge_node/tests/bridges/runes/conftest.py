@@ -8,6 +8,7 @@ from anemic.ioc import (
     Container,
     FactoryRegistry,
 )
+from eth_typing import ChecksumAddress
 from sqlalchemy.orm import (
     Session,
 )
@@ -20,7 +21,10 @@ from bridge.bridges.runes.config import (
 )
 from bridge.bridges.runes.evm import load_rune_bridge_abi
 from bridge.bridges.runes.service import RuneBridgeService
-from bridge.bridges.runes.wiring import wire_rune_bridge
+from bridge.bridges.runes.wiring import (
+    RuneBridgeWiring,
+    wire_rune_bridge,
+)
 from bridge.common.ord.multisig import OrdMultisig
 from bridge.common.services.key_value_store import KeyValueStore
 from bridge.common.services.transactions import TransactionManager
@@ -40,11 +44,13 @@ logger = logging.getLogger(__name__)
 
 
 MODULE_SETUP_CACHE_KEY = "runes_module_setup"
+FEDERATORS = ["alice", "bob", "carol"]
 
 
 @dataclasses.dataclass
 class CachedModuleSetup:
-    alice_evm_private_key: str
+    federator_names: list[str]
+    federator_evm_private_keys: list[str]
     user_evm_private_key: str
     rune_bridge_contract_address: str
     root_ord_wallet_name: str
@@ -83,26 +89,36 @@ def runes_module_setup(
             cache.set(
                 MODULE_SETUP_CACHE_KEY, None
             )  # remove it, so that it's not accidentally used again
-            logger.info(
-                "Found cached setup, attempting to restore snapshot %r", cached_setup.snapshot_id
-            )
-            try:
-                hardhat.revert(cached_setup.snapshot_id)
-            except Exception:
-                logger.info(
-                    "Restoring snapshot %r failed (hardhat probably restarted), falling back to re-deploying everything",
-                    cached_setup.snapshot_id,
-                )
+            if cached_setup.federator_names != FEDERATORS:
+                logger.info("Federators have changed, falling back to re-deploying everything")
                 cached_setup = None
             else:
-                logger.info("Restored snapshot successfully")
+                logger.info(
+                    "Found cached setup, attempting to restore snapshot %r",
+                    cached_setup.snapshot_id,
+                )
+                try:
+                    hardhat.revert(cached_setup.snapshot_id)
+                except Exception:
+                    logger.info(
+                        "Restoring snapshot %r failed (hardhat probably restarted), falling back to re-deploying everything",
+                        cached_setup.snapshot_id,
+                    )
+                    cached_setup = None
+                else:
+                    logger.info("Restored snapshot successfully")
 
     if cached_setup:
         logger.info("Reusing cached setup")
-        alice_evm_wallet = EVMWallet(
-            account=hardhat.web3.eth.account.from_key(cached_setup.alice_evm_private_key),
-            name="alice",
-        )
+        federator_evm_wallets = [
+            EVMWallet(
+                account=hardhat.web3.eth.account.from_key(evm_private_key),
+                name=federator,
+            )
+            for (federator, evm_private_key) in zip(
+                FEDERATORS, cached_setup.federator_evm_private_keys
+            )
+        ]
         user_evm_wallet = EVMWallet(
             account=hardhat.web3.eth.account.from_key(cached_setup.user_evm_private_key),
             name="user",
@@ -122,14 +138,16 @@ def runes_module_setup(
     else:
         # This only needs to be done once, after which we can use EVM snapshots etc
         with measure_time("create-evm-wallets"):
-            alice_evm_wallet = hardhat.create_test_wallet("alice", impersonate=False)
+            federator_evm_wallets = [
+                hardhat.create_test_wallet(federator, impersonate=False) for federator in FEDERATORS
+            ]
             user_evm_wallet = hardhat.create_test_wallet("user")
 
         with measure_time("deploy-access-control"):
             access_control_deployment = hardhat.run_json_command(
                 "deploy-access-control",
                 "--federators",
-                ",".join([alice_evm_wallet.account.address]),
+                ",".join(evm_wallet.account.address for evm_wallet in federator_evm_wallets),
             )
 
         with measure_time("deploy-btc-address-validator"):
@@ -169,7 +187,10 @@ def runes_module_setup(
         with measure_time("snapshotting runes_module_setup"):
             snapshot_id = hardhat.snapshot()
         cached_setup = CachedModuleSetup(
-            alice_evm_private_key=alice_evm_wallet.account.key.hex(),
+            federator_names=FEDERATORS.copy(),
+            federator_evm_private_keys=[
+                wallet.account.key.hex() for wallet in federator_evm_wallets
+            ],
             user_evm_private_key=user_evm_wallet.account.key.hex(),
             rune_bridge_contract_address=rune_bridge_address,
             root_ord_wallet_name=root_ord_wallet.name,
@@ -181,7 +202,7 @@ def runes_module_setup(
         cache.set(MODULE_SETUP_CACHE_KEY, dataclasses.asdict(cached_setup))
 
     return SimpleNamespace(
-        alice_evm_wallet=alice_evm_wallet,
+        federator_evm_wallets=federator_evm_wallets,
         user_evm_wallet=user_evm_wallet,
         rune_bridge_contract=rune_bridge_contract,
         root_ord_wallet=root_ord_wallet,
@@ -195,6 +216,8 @@ def runes_setup(
     bitcoind: BitcoindService,
     ord: OrdService,
     dbsession,
+    dbsession2,
+    dbsession3,
     runes_module_setup,
 ):
     start = time.time()
@@ -203,7 +226,7 @@ def runes_setup(
     # Use data that's slow to create from the module setup
     root_ord_wallet = runes_module_setup.root_ord_wallet
     user_ord_wallet = runes_module_setup.user_ord_wallet
-    alice_evm_wallet = runes_module_setup.alice_evm_wallet
+    federator_evm_wallets = runes_module_setup.federator_evm_wallets
     user_evm_wallet = runes_module_setup.user_evm_wallet
     rune_bridge_contract = runes_module_setup.rune_bridge_contract
 
@@ -211,92 +234,144 @@ def runes_setup(
     with measure_time("fund ord wallets"):
         bitcoind.fund_wallets(root_ord_wallet, user_ord_wallet)
 
-    # NETWORK
+    # Multisig wallets
 
-    with measure_time("create network"):
-        alice_network = MockNetwork(node_id="alice", leader=True)
-        bob_network = MockNetwork(node_id="bob")
-        carol_network = MockNetwork(node_id="carol")
+    with measure_time("create multisigs"):
+        federator_multisigs = [
+            bitcoind.create_test_wallet(
+                f"{federator}-runebridge-multisig",
+                blank=True,
+                disable_private_keys=True,
+            )
+            for federator in FEDERATORS
+        ]
 
-        alice_network.add_peers([bob_network, carol_network])
-        bob_network.add_peers([alice_network, carol_network])
-        carol_network.add_peers([alice_network, bob_network])
-
-    with measure_time("create transaction manager"):
-        transaction_registry = FactoryRegistry("transaction")
-        transaction_registry.register(
-            interface=KeyValueStore,
-            factory=KeyValueStore,
-        )
-        transaction_registry.register(
-            interface=Session,
-            factory=lambda _: dbsession,
-        )
-        transaction_manager = TransactionManager(
-            global_container=Container(FactoryRegistry("global")),
-            transaction_registry=transaction_registry,
-        )
-
-    # TODO: make the wallet 2-of-3
-    with measure_time("create multisig"):
-        bridge_multisig_wallet = bitcoind.create_test_wallet(
-            "runebridge-multisig",
-            blank=True,
-            disable_private_keys=True,
-        )
     with measure_time("create keypairs"):
-        alice_xprv, alice_xpub = generate_extended_keypair()
-        bob_xprv, bob_xpub = generate_extended_keypair()
+        federator_btc_keypairs = [generate_extended_keypair() for _ in federator_evm_wallets]
+        master_xpubs = [pair[1] for pair in federator_btc_keypairs]
 
+    num_required_signers = 1  # TODO: make it 2!
+
+    # Network
+    federator_networks = [
+        MockNetwork(node_id=federator_name, leader=(i == 0))
+        for i, federator_name in enumerate(FEDERATORS)
+    ]
+    for federator_name, network in zip(FEDERATORS, federator_networks):
+        network.add_peers(n for n in federator_networks if n.node_id != federator_name)
+
+    federator_dbsessions = [dbsession, dbsession2, dbsession3]
+
+    with measure_time("wiring"):
+        federator_wirings = [
+            wire_rune_bridge_for_federator(
+                rune_bridge_contract_address=rune_bridge_contract.address,
+                evm_rpc_url=hardhat.rpc_url,
+                btc_rpc_wallet_url=bitcoind.get_wallet_rpc_url(multisig.name),
+                btc_num_required_signers=num_required_signers,
+                ord_api_url=ord.api_url,
+                evm_private_key=evm_wallet.account.key,
+                btc_master_xpriv=keypair[0],
+                btc_master_xpubs=master_xpubs,
+                network=network,
+                dbsession=federator_dbsession,
+            )
+            for federator_dbsession, multisig, evm_wallet, keypair, network in zip(
+                federator_dbsessions,
+                federator_multisigs,
+                federator_evm_wallets,
+                federator_btc_keypairs,
+                federator_networks,
+            )
+        ]
+
+    # Ensure bitcoind sees the wallet
+    with measure_time("import descriptors"):
+        for wiring in federator_wirings:
+            wiring.multisig.import_descriptors_to_bitcoind(
+                range=100,
+            )
+
+    leader_wiring = federator_wirings[0]
+
+    # Fund the multisig wallet, only needs to be done once (not for each multisig)
+    bitcoind.fund_addresses(leader_wiring.multisig.change_address)
+
+    # Sync ord, hopefully preventing "output in ord but not in bitcoind" errors
+    ord.sync_with_bitcoind()
+
+    # Init bridges, necessary for networking
+    with measure_time("init bridges"):
+        for wiring in federator_wirings:
+            wiring.bridge.init()
+
+    logger.info("Rune Bridge setup took %s seconds", time.time() - start)
+
+    yield SimpleNamespace(
+        rune_bridge=leader_wiring.bridge,
+        rune_bridge_service=leader_wiring.service,
+        user_ord_wallet=user_ord_wallet,
+        user_evm_wallet=user_evm_wallet,
+        root_ord_wallet=root_ord_wallet,
+        bridge_ord_multisig=leader_wiring.multisig,
+        rune_bridge_contract=rune_bridge_contract,
+        federator_wirings=federator_wirings,
+    )
+
+    logger.info("Restoring EVM snapshot %s", snapshot_id)
+    hardhat.revert(snapshot_id)
+
+
+def wire_rune_bridge_for_federator(
+    *,
+    dbsession: Session,
+    evm_rpc_url: str,
+    btc_rpc_wallet_url: str,
+    ord_api_url: str,
+    rune_bridge_contract_address: ChecksumAddress,
+    btc_num_required_signers: int,
+    evm_private_key: str | bytes,
+    btc_master_xpriv: str | bytes,
+    btc_master_xpubs: list[str | bytes],
+    network: MockNetwork,
+) -> RuneBridgeWiring:
     # TODO: not sure if we should use wire_rune_bridge
     # or directly instantiate it. Directly instantiating is more explicit and suits
     # test, but on the other hand, with wire_rune_bridge we don't have to care
     # about the internals so much, and we're actually testing how it's wired
     # in real life
-    with measure_time("wiring"):
-        alice_wiring = wire_rune_bridge(
-            config=RuneBridgeConfig(
-                bridge_id="test-runebridge",
-                rune_bridge_contract_address=rune_bridge_contract.address,
-                evm_rpc_url=hardhat.rpc_url,
-                btc_rpc_wallet_url=bitcoind.get_wallet_rpc_url(bridge_multisig_wallet.name),
-                btc_num_required_signers=1,
-                ord_api_url=ord.api_url,
-                evm_block_safety_margin=0,
-                evm_default_start_block=1,
-            ),
-            secrets=RuneBridgeSecrets(
-                evm_private_key=alice_evm_wallet.account.key,
-                btc_master_xpriv=str(alice_xprv),
-                btc_master_xpubs=[str(alice_xpub), str(bob_xpub)],
-            ),
-            network=alice_network,
-            transaction_manager=transaction_manager,
-        )
-
-    # Ensure bitcoind sees the wallet
-    with measure_time("import descriptors"):
-        alice_wiring.multisig.import_descriptors_to_bitcoind(
-            range=100,
-        )
-
-    # Fund the multisig wallet, only needs to be done once (not for each multisig)
-    bitcoind.fund_addresses(alice_wiring.multisig.change_address)
-
-    logger.info("Rune Bridge setup took %s seconds", time.time() - start)
-
-    yield SimpleNamespace(
-        rune_bridge=alice_wiring.bridge,
-        rune_bridge_service=alice_wiring.service,
-        user_ord_wallet=user_ord_wallet,
-        user_evm_wallet=user_evm_wallet,
-        root_ord_wallet=root_ord_wallet,
-        bridge_ord_multisig=alice_wiring.multisig,
-        rune_bridge_contract=rune_bridge_contract,
+    transaction_registry = FactoryRegistry("transaction")
+    transaction_registry.register(
+        interface=KeyValueStore,
+        factory=KeyValueStore,
     )
-
-    logger.info("Restoring EVM snapshot %s", snapshot_id)
-    hardhat.revert(snapshot_id)
+    transaction_registry.register(
+        interface=Session,
+        factory=lambda _: dbsession,
+    )
+    alice_transaction_manager = TransactionManager(
+        global_container=Container(FactoryRegistry("global")),
+        transaction_registry=transaction_registry,
+    )
+    return wire_rune_bridge(
+        config=RuneBridgeConfig(
+            bridge_id="test-runebridge",
+            rune_bridge_contract_address=rune_bridge_contract_address,
+            evm_rpc_url=evm_rpc_url,
+            btc_rpc_wallet_url=btc_rpc_wallet_url,
+            btc_num_required_signers=btc_num_required_signers,
+            ord_api_url=ord_api_url,
+            evm_block_safety_margin=0,
+            evm_default_start_block=1,
+        ),
+        secrets=RuneBridgeSecrets(
+            evm_private_key=evm_private_key,
+            btc_master_xpriv=str(btc_master_xpriv),
+            btc_master_xpubs=[str(key) for key in btc_master_xpubs],
+        ),
+        network=network,
+        transaction_manager=alice_transaction_manager,
+    )
 
 
 @pytest.fixture()
@@ -332,6 +407,16 @@ def rune_bridge_service(runes_setup) -> RuneBridgeService:
 @pytest.fixture()
 def bridge_ord_multisig(runes_setup) -> OrdMultisig:
     return runes_setup.bridge_ord_multisig
+
+
+@pytest.fixture()
+def bob_service(runes_setup) -> RuneBridgeService:
+    return runes_setup.federator_wirings[1].service
+
+
+@pytest.fixture()
+def carol_service(runes_setup) -> RuneBridgeService:
+    return runes_setup.federator_wirings[2].service
 
 
 @pytest.fixture()

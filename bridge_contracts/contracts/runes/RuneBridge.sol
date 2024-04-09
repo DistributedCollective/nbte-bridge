@@ -127,8 +127,9 @@ contract RuneBridge is NBTEBridgeAccessControllable {
     external
     {
         // validate signatures. this also checks that the sender is a federator
+        bytes32 messageHash = getAcceptTransferFromBtcMessageHash(to, rune, amountWei, btcTxId, btcTxVout);
         accessControl.checkFederatorSignaturesWithImplicitSelfSign(
-            keccak256("foo"), // TODO
+            messageHash,
             signatures,
             msg.sender
         );
@@ -149,6 +150,38 @@ contract RuneBridge is NBTEBridgeAccessControllable {
             btcTxId,
             btcTxVout
         );
+    }
+
+    function getAcceptTransferFromBtcMessageHash(
+        address to,
+        string memory rune,
+        uint256 amountWei,
+        bytes32 btcTxId,
+        uint256 btcTxVout
+    )
+    public
+    view
+    returns (bytes32)
+    {
+        return keccak256(abi.encodePacked(
+            "acceptTransferFromBtc:",
+            address(this),
+            ":",
+            to,
+            ":",
+            rune,
+            ":",
+            amountWei,
+            ":",
+            btcTxId,
+            ":",
+            btcTxVout
+        ));
+    }
+
+
+    function numRequiredFederators() public view returns (uint256) {
+        return accessControl.numRequiredFederators();
     }
 
     // Owner API

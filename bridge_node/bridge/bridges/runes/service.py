@@ -1,9 +1,11 @@
 import logging
-from dataclasses import dataclass
 from decimal import Decimal
 from typing import Protocol
 
 import eth_utils
+from eth_account.account import LocalAccount
+from eth_account.messages import encode_defunct
+import sqlalchemy as sa
 from sqlalchemy.orm import (
     Session,
 )
@@ -14,30 +16,14 @@ from web3.types import EventData
 from bridge.common.btc.rpc import BitcoinRPC
 from .models import User, DepositAddress
 from ...common.evm.scanner import EvmEventScanner
+from ...common.evm.utils import to_wei
 from ...common.ord.client import OrdApiClient
 from ...common.ord.multisig import OrdMultisig, RuneTransfer
 from ...common.services.key_value_store import KeyValueStore
 from ...common.services.transactions import TransactionManager
+from . import messages
 
 logger = logging.getLogger(__name__)
-
-
-@dataclass
-class RuneToEvmTransfer:
-    evm_address: str
-    amount_raw: int
-    amount_decimal: Decimal
-    txid: str
-    vout: int
-    rune_name: str
-
-
-@dataclass
-class TokenToBtcTransfer:
-    receiver_address: str
-    amount_wei: int
-    token_address: str
-    rune_name: str
 
 
 class RuneBridgeServiceConfig(Protocol):
@@ -55,6 +41,7 @@ class RuneBridgeService:
         bitcoin_rpc: BitcoinRPC,
         ord_client: OrdApiClient,
         ord_multisig: OrdMultisig,
+        evm_account: LocalAccount,
         web3: Web3,
         rune_bridge_contract: Contract,
     ):
@@ -64,6 +51,7 @@ class RuneBridgeService:
         self.ord_client = ord_client
         self.ord_multisig = ord_multisig
         self.transaction_manager = transaction_manager
+        self.evm_account = evm_account
         self.web3 = web3
 
     def generate_deposit_address(self, *, evm_address: str, dbsession: Session) -> str:
@@ -97,7 +85,7 @@ class RuneBridgeService:
 
         return deposit_address.btc_address
 
-    def scan_rune_deposits(self) -> list[RuneToEvmTransfer]:
+    def scan_rune_deposits(self) -> list[messages.RuneToEvmTransfer]:
         last_block_key = f"{self.config.bridge_id}:btc:deposits:last_scanned_block"
         with self.transaction_manager.transaction() as tx:
             key_value_store = tx.find_service(KeyValueStore)
@@ -158,7 +146,7 @@ class RuneBridgeService:
                     vout,
                 )
 
-                transfer = RuneToEvmTransfer(
+                transfer = messages.RuneToEvmTransfer(
                     evm_address=evm_address,
                     amount_raw=amount_raw,
                     amount_decimal=amount_decimal,
@@ -174,7 +162,7 @@ class RuneBridgeService:
             key_value_store.set_value(last_block_key, resp["lastblock"])
         return transfers
 
-    def send_rune_to_evm(self, transfer: RuneToEvmTransfer):
+    def send_rune_to_evm(self, transfer: messages.RuneToEvmTransfer, signatures: list[str]):
         logger.info("Executing Rune-to-EVM transfer %s", transfer)
         tx_hash = self.rune_bridge_contract.functions.acceptTransferFromBtc(
             transfer.evm_address,
@@ -182,7 +170,7 @@ class RuneBridgeService:
             transfer.amount_raw,
             eth_utils.add_0x_prefix(transfer.txid),
             transfer.vout,
-            [],
+            signatures,
         ).transact(
             {
                 "gas": 500_000,
@@ -197,14 +185,64 @@ class RuneBridgeService:
         assert receipt["status"]
         logger.info("Rune-to-EVM transfer %s confirmed", tx_hash.hex())
 
-    def scan_token_deposits(self) -> list[TokenToBtcTransfer]:
-        events: list[TokenToBtcTransfer] = []
+    def answer_sign_rune_to_evm_transfer_question(
+        self, message: messages.SignRuneToEvmTransferQuestion
+    ) -> messages.SignRuneToEvmTransferAnswer:
+        transfer = message.transfer
+        rune = self.ord_client.get_rune(transfer.rune_name)
+        if not rune:
+            raise ValueError(f"Rune {transfer.rune_name} not found (transfer {transfer})")
+
+        # TODO: rather validate by reading from the DB
+        rune_response = self.ord_client.get_rune(transfer.rune_name)
+        if not rune_response:
+            raise ValueError(f"Rune {transfer.rune_name} not found")
+        divisibility = rune_response["entry"]["divisibility"]
+        if transfer.amount_decimal != Decimal(transfer.amount_raw) / (10**divisibility):
+            raise ValueError(
+                f"Amount mismatch: {transfer.amount_decimal} != {transfer.amount_raw} / 10^{divisibility}"
+            )
+
+        balance_at_output = self.ord_multisig.get_rune_balance_at_output(
+            txid=transfer.txid,
+            vout=transfer.vout,
+            rune_name=transfer.rune_name,
+        )
+        if balance_at_output != transfer.amount_raw:
+            raise ValueError(
+                f"Balance at output {transfer.txid}:{transfer.vout} is {balance_at_output}, "
+                f"expected {transfer.amount_raw}"
+            )
+
+        # TODO: validate the deposit address
+        # user = self.get_user_by_deposit_address(deposit_address=transfer.evm_address)
+        # if not user:
+        #     raise ValueError(f"User not found for deposit address {transfer.evm_address}")
+        # if not user.evm_address == transfer.evm_address:
+        #     raise ValueError(f"User EVM address mismatch: {user.evm_address} != {transfer.evm_address}")
+
+        message_hash = self.rune_bridge_contract.functions.getAcceptTransferFromBtcMessageHash(
+            transfer.evm_address,
+            transfer.rune_name,
+            to_wei(transfer.amount_decimal),
+            eth_utils.add_0x_prefix(transfer.txid),
+            transfer.vout,
+        ).call()
+        signable_message = encode_defunct(primitive=message_hash)
+        signed_message = self.evm_account.sign_message(signable_message)
+        return messages.SignRuneToEvmTransferAnswer(
+            signature=signed_message.signature.hex(),
+            signer=self.evm_account.address,
+        )
+
+    def scan_token_deposits(self) -> list[messages.TokenToBtcTransfer]:
+        events: list[messages.TokenToBtcTransfer] = []
 
         def callback(batch: list[EventData]):
             for event in batch:
                 if event["event"] == "RuneTransferToBtc":
                     events.append(
-                        TokenToBtcTransfer(
+                        messages.TokenToBtcTransfer(
                             receiver_address=event["args"]["receiverBtcAddress"],
                             rune_name=event["args"]["rune"],
                             token_address=event["args"]["token"],
@@ -232,7 +270,7 @@ class RuneBridgeService:
             scanner.scan_new_events()
         return events
 
-    def send_token_to_btc(self, deposit: TokenToBtcTransfer):
+    def send_token_to_btc(self, deposit: messages.TokenToBtcTransfer):
         logger.info("Sending to BTC: %s", deposit)
         # TODO: multisig transfers
         self.ord_multisig.send_runes(
@@ -245,3 +283,24 @@ class RuneBridgeService:
                 )
             ]
         )
+
+    def get_user_by_deposit_address(self, deposit_address: str) -> User | None:
+        with self.transaction_manager.transaction() as tx:
+            dbsession = tx.find_service(Session)
+            obj = dbsession.scalars(
+                sa.select(DepositAddress)
+                .join(User)
+                .filter(
+                    User.bridge_id == self.config.bridge_id,
+                    DepositAddress.btc_address == deposit_address,
+                )
+            ).one_or_none()
+            if not obj:
+                return None
+            return obj.user
+
+    def get_runes_to_evm_num_required_signers(self) -> int:
+        return self.rune_bridge_contract.functions.numRequiredFederators().call()
+
+    def get_evm_to_runes_num_required_signers(self) -> int:
+        return self.ord_multisig.num_required_signers
