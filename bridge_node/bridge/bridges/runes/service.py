@@ -17,6 +17,7 @@ from web3.types import EventData
 from bridge.common.btc.rpc import BitcoinRPC
 from ...common.evm.scanner import EvmEventScanner
 from ...common.evm.utils import from_wei
+from ...common.models.key_value_store import KeyValuePair
 from ...common.ord.client import OrdApiClient
 from ...common.ord.simple_wallet import SimpleOrdWallet
 from ...common.services.key_value_store import KeyValueStore
@@ -125,11 +126,65 @@ class RuneBridgeService:
                 )
                 logger.info("Transfer: %s", transfer)
                 transfers.append(transfer)
+                # TODO: temporary code, remove
+                with self.transaction_manager.transaction() as tx:
+                    key = f"{self.config.bridge_id}:btc:deposit_data_for_evm_address:{evm_address}"
+                    key_value_store = tx.find_service(KeyValueStore)
+                    value = key_value_store.get_value(
+                        key,
+                        default_value={
+                            "processed": [],
+                        },
+                    )
+                    value["lastblock"] = resp["lastblock"]
+                    value["processed"].append(f"{txid}:{vout}")
+                    key_value_store.set_value(
+                        key,
+                        {
+                            "lastblock": resp["lastblock"],
+                        },
+                    )
 
         with self.transaction_manager.transaction() as tx:
             key_value_store = tx.find_service(KeyValueStore)
             key_value_store.set_value(last_block_key, resp["lastblock"])
         return transfers
+
+    def get_last_scanned_bitcoin_block(self, dbsession: Session) -> str | None:
+        # TODO: temporary code, remove
+        last_block_key = f"{self.config.bridge_id}:btc:deposits:last_scanned_block"
+        val = dbsession.query(KeyValuePair).filter_by(key=last_block_key).one_or_none()
+        return val.value if val else None
+
+    def get_pending_deposits_for_evm_address(self, evm_address: str, last_block: int) -> list[dict]:
+        # TODO: temporary code, remove
+        evm_address = to_checksum_address(evm_address)
+        resp = self.bitcoin_rpc.call("listsinceblock", [last_block])
+        deposits = []
+        expected_label = f"runes:deposit:{evm_address}"
+        for tx in resp["transactions"]:
+            if tx["category"] != "receive":
+                continue
+            if "label" not in tx:
+                continue
+            if not tx["label"] != expected_label:
+                continue
+            txid = tx["txid"]
+            vout = tx["vout"]
+            output = self.ord_client.get_output(txid, vout)
+            logger.info("Received %s runes in outpoint %s:%s", len(output["runes"]), txid, vout)
+            for rune_name, balance_entry in output["runes"]:
+                amount_raw = balance_entry["amount"]
+                amount_decimal = Decimal(amount_raw) / 10 ** balance_entry["divisibility"]
+                deposits.append(
+                    {
+                        "deposit_tx_id": txid,
+                        "deposit_tx_vout": vout,
+                        "rune": rune_name,
+                        "rune_amount_decimal": str(amount_decimal),
+                    }
+                )
+        return deposits
 
     def send_rune_to_evm(self, transfer: RuneToEvmTransfer):
         logger.info("Executing Rune-to-EVM transfer %s", transfer)

@@ -4,6 +4,7 @@ from anemic.ioc import auto, autowired
 from pyramid.config import Configurator
 from pyramid.request import Request
 from pyramid.view import view_config, view_defaults
+from sqlalchemy.orm.session import Session
 
 from bridge.common.evm.provider import Web3
 from bridge.api.exceptions import ApiException
@@ -17,6 +18,7 @@ class RuneBridgeApiViews:
     request: Request
     web3: Web3 = autowired(auto)
     service: RuneBridgeService = autowired(auto)
+    dbsession: Session = autowired(auto)
 
     def __init__(self, request):
         self.request = request
@@ -31,6 +33,29 @@ class RuneBridgeApiViews:
         deposit_address = self.service.generate_deposit_address(evm_address=evm_address)
         return {"deposit_address": deposit_address}
 
+    @view_config(route_name="runes_get_last_scanned_bitcoin_block", request_method="GET")
+    def get_last_scanned_bitcoin_block(self):
+        last_scanned_block = self.service.get_last_scanned_bitcoin_block(self.dbsession)
+        return {"last_scanned_block": last_scanned_block}
+
+    @view_config(
+        route_name="runes_get_rune_deposits_since_block_for_evm_address", request_method="GET"
+    )
+    def get_rune_deposits_since_block_for_evm_address(self):
+        evm_address = self.request.matchdict["evm_address"]
+        lastblock = self.request.matchdict["lastblock"]
+        deposits = self.service.get_pending_deposits_for_evm_address(
+            evm_address=evm_address,
+            last_block=lastblock,
+        )
+        return {
+            "deposits": deposits,
+        }
+
 
 def includeme(config: Configurator):
     config.add_route("runes_generate_deposit_address", "/deposit-addresses/")
+    config.add_route("runes_get_last_scanned_bitcoin_block", "/last-scanned-btc-block/")
+    config.add_route(
+        "runes_get_deposits_since_block_for_evm_address", "/deposits/:evm_address/:lastblock"
+    )
