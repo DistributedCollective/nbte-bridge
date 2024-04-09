@@ -153,7 +153,7 @@ class RuneBridgeService:
                 continue
             if "label" not in tx:
                 continue
-            if not tx["label"] != expected_label:
+            if tx["label"] != expected_label:
                 continue
             txid = tx["txid"]
             vout = tx["vout"]
