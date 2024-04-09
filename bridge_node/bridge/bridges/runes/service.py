@@ -173,12 +173,12 @@ class RuneBridgeService:
                 )
                 deposits.append(
                     {
-                        "txid": txid,
-                        "vout": vout,
+                        "btc_deposit_txid": txid,
+                        "btc_deposit_vout": vout,
                         "rune_name": rune_name,
-                        "amount": amount_decimal,
+                        "amount_decimal": str(amount_decimal),
                         "status": data.get("status", "seen"),
-                        "transfer_tx_hash": data.get("transfer_tx_hash", None),
+                        "evm_transfer_tx_hash": data.get("transfer_tx_hash", None),
                     }
                 )
         return deposits
