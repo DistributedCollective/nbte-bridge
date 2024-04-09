@@ -126,24 +126,6 @@ class RuneBridgeService:
                 )
                 logger.info("Transfer: %s", transfer)
                 transfers.append(transfer)
-                # TODO: temporary code, remove
-                with self.transaction_manager.transaction() as tx:
-                    key = f"{self.config.bridge_id}:btc:deposit_data_for_evm_address:{evm_address}"
-                    key_value_store = tx.find_service(KeyValueStore)
-                    value = key_value_store.get_value(
-                        key,
-                        default_value={
-                            "processed": [],
-                        },
-                    )
-                    value["lastblock"] = resp["lastblock"]
-                    value["processed"].append(f"{txid}:{vout}")
-                    key_value_store.set_value(
-                        key,
-                        {
-                            "lastblock": resp["lastblock"],
-                        },
-                    )
 
         with self.transaction_manager.transaction() as tx:
             key_value_store = tx.find_service(KeyValueStore)
@@ -156,7 +138,9 @@ class RuneBridgeService:
         val = dbsession.query(KeyValuePair).filter_by(key=last_block_key).one_or_none()
         return val.value if val else None
 
-    def get_pending_deposits_for_evm_address(self, evm_address: str, last_block: int) -> list[dict]:
+    def get_pending_deposits_for_evm_address(
+        self, evm_address: str, last_block: int, dbsession: Session
+    ) -> list[dict]:
         # TODO: temporary code, remove
         evm_address = to_checksum_address(evm_address)
         resp = self.bitcoin_rpc.call("listsinceblock", [last_block])
@@ -176,12 +160,25 @@ class RuneBridgeService:
             for rune_name, balance_entry in output["runes"]:
                 amount_raw = balance_entry["amount"]
                 amount_decimal = Decimal(amount_raw) / 10 ** balance_entry["divisibility"]
+                transfer = RuneToEvmTransfer(
+                    evm_address=evm_address,
+                    amount_raw=amount_raw,
+                    amount_decimal=amount_decimal,
+                    txid=txid,
+                    vout=vout,
+                    rune_name=rune_name,
+                )
+                data = self._read_rune_to_evm_transfer_key_value_store_data(
+                    transfer, dbsession=dbsession
+                )
                 deposits.append(
                     {
-                        "deposit_tx_id": txid,
-                        "deposit_tx_vout": vout,
-                        "rune": rune_name,
-                        "rune_amount_decimal": str(amount_decimal),
+                        "txid": txid,
+                        "vout": vout,
+                        "rune_name": rune_name,
+                        "amount": amount_decimal,
+                        "status": data.get("status", "seen"),
+                        "transfer_tx_hash": data.get("transfer_tx_hash", None),
                     }
                 )
         return deposits
@@ -201,13 +198,60 @@ class RuneBridgeService:
             }
         )
         logger.info("Sent Rune-to-EVM transfer %s, waiting...", tx_hash.hex())
+
+        # TODO: temporary code, remove
+        self._update_rune_to_evm_transfer_key_value_store_data(
+            transfer,
+            {
+                "status": "sent_to_evm",
+                "transfer_tx_hash": tx_hash.hex(),
+            },
+        )
+
         receipt = self.web3.eth.wait_for_transaction_receipt(
             tx_hash,
             timeout=120,
             poll_latency=2.0,
         )
+        self._update_rune_to_evm_transfer_key_value_store_data(
+            transfer,
+            {
+                "status": "confirmed",
+            },
+        )
         assert receipt["status"]
         logger.info("Rune-to-EVM transfer %s confirmed", tx_hash.hex())
+
+    def _get_rune_to_evm_transfer_key_value_store_key(self, transfer: RuneToEvmTransfer) -> str:
+        return f"{self.config.bridge_id}:rune-to-evm-transfer:{transfer.txid}:{transfer.vout}:{transfer.rune_name}"
+
+    def _update_rune_to_evm_transfer_key_value_store_data(
+        self, transfer: RuneToEvmTransfer, data: dict
+    ):
+        with self.transaction_manager.transaction() as tx:
+            key = self._get_rune_to_evm_transfer_key_value_store_key(transfer)
+            key_value_store = tx.find_service(KeyValueStore)
+            existing_data = key_value_store.get_value(
+                key,
+                default_value={},
+            )
+            data = existing_data.update(data)
+            key_value_store.set_value(
+                key,
+                data,
+            )
+
+    def _read_rune_to_evm_transfer_key_value_store_data(
+        self, transfer: RuneToEvmTransfer, dbsession: Session
+    ):
+        val = (
+            dbsession.query(KeyValuePair)
+            .filter_by(
+                key=self._get_rune_to_evm_transfer_key_value_store_key(transfer),
+            )
+            .one_or_none()
+        )
+        return val.value if val else {}
 
     def scan_token_deposits(self) -> list[TokenToBtcTransfer]:
         events: list[TokenToBtcTransfer] = []
