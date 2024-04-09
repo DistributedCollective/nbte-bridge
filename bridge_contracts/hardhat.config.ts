@@ -88,12 +88,12 @@ task('deploy-btc-address-validator')
     }));
 
 task("deploy-regtest")
-    .setAction(async ({}, hre) => {
+    .setAction(jsonAction(async ({}, hre) => {
         console.log("Deploying regtest");
 
         console.log("Deploying tap bridge");
         // TODO: use access control and btc address validator for tap bridge
-        await hre.run("tap-deploy-regtest");
+        const tapBridgeResult = await hre.run("tap-deploy-regtest");
 
         const accessControlResult = await hre.run("deploy-access-control", {
             federators: '0x4091663B0a7a14e35Ff1d6d9d0593cE15cE7710a,0x09dcD91DF9300a81a4b9C85FDd04345C3De58F48,0x0000000000000000000000000000000000000123',
@@ -101,14 +101,24 @@ task("deploy-regtest")
         });
         const btcAddressValidatorResult = await hre.run("deploy-btc-address-validator", {
             accessControl: accessControlResult.address,
+            bech32Prefix: 'bcrt1',
+            nonBech32Prefixes: 'm',
         });
 
         console.log("Deploying rune bridge");
-        await hre.run("runes-deploy-regtest", {
+        const runesResult = await hre.run("runes-deploy-regtest", {
             accessControl: accessControlResult.address,
             addressValidator: btcAddressValidatorResult.address,
         });
-    });
+        return {
+            addresses: {
+                'TapBridge': tapBridgeResult.addresses.TapBridge,
+                'RuneBridge': runesResult.addresses.RuneBridge,
+                NBTEBridgeAccessControl: accessControlResult.address,
+                BTCAddressValidator: btcAddressValidatorResult.address,
+            }
+        }
+    }));
 
 
 // ============

@@ -7,6 +7,7 @@ import sys
 import time
 
 from bridge.common.btc.rpc import BitcoinRPC
+from tests.services import BitcoindService
 
 sys.path.extend("bridge_node")
 from tests.integration.fixtures.harness import IntegrationTestHarness  # noqa
@@ -25,8 +26,8 @@ BTC_SLEEP_TIME = 5
 BTC_BLOCK_INTERVAL = 15
 
 
-def create_ord():
-    service = services.OrdService()
+def create_ord(bitcoind):
+    service = services.OrdService(bitcoind=bitcoind)
     assert service.is_started()
     return service
 
@@ -44,24 +45,12 @@ def create_alice_ord_wallet(alice_ord, bitcoin_rpc):
     balances = wallet.cli("balance")
     if balances["cardinal"] < 100:
         logger.info("Funding alice-ord-test wallet")
-        address = wallet.cli("receive")["address"]
+        address = wallet.cli("receive")["addresses"][0]
         logger.info("ALICE ORD ADDRESS: %s", address)
         bitcoin_rpc.mine_blocks(101, address, sleep=BTC_SLEEP_TIME)
 
     if RUNE_NAME not in balances["runes"]:
-        wallet.cli(
-            "etch",
-            "--divisibility",
-            "18",
-            "--fee-rate",
-            "1",
-            "--rune",
-            RUNE_NAME,
-            "--supply",
-            "10000000000",
-            "--symbol",
-            "R",
-        )
+        wallet.etch_test_rune(RUNE_NAME)
         bitcoin_rpc.mine_blocks(1, sleep=BTC_SLEEP_TIME)
 
     return wallet
@@ -81,7 +70,7 @@ def create_user_ord_wallet(user_ord, bitcoin_rpc, alice_ord_wallet):
     balances = wallet.cli("balance")
     if balances["cardinal"] < 1000:
         logger.info("Funding user-ord-test wallet")
-        address = wallet.cli("receive")["address"]
+        address = wallet.cli("receive")["addresses"][0]
         logger.info("USER ORD ADDRESS: %s", address)
         bitcoin_rpc.mine_blocks(101, address, sleep=BTC_SLEEP_TIME)
 
@@ -94,7 +83,7 @@ def create_user_ord_wallet(user_ord, bitcoin_rpc, alice_ord_wallet):
             "--fee-rate",
             "1",
             address,
-            f"100000 {RUNE_NAME}",
+            f"100000:{RUNE_NAME}",
         )
         bitcoin_rpc.mine_blocks(1, sleep=BTC_SLEEP_TIME)
 
@@ -102,7 +91,9 @@ def create_user_ord_wallet(user_ord, bitcoin_rpc, alice_ord_wallet):
 
 
 def init_runes(bitcoin_rpc: BitcoinRPC):
-    ord = create_ord()
+    bitcoind = BitcoindService()
+    assert bitcoind.is_started()
+    ord = create_ord(bitcoind=bitcoind)
     alice_ord_wallet = create_alice_ord_wallet(ord, bitcoin_rpc)
     create_user_ord_wallet(ord, bitcoin_rpc, alice_ord_wallet)
     # harness takes care of the bridge wallets

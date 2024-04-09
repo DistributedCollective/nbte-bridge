@@ -1,10 +1,11 @@
 import {task} from "hardhat/config";
 import "@nomicfoundation/hardhat-toolbox";
+import {jsonAction} from '../base';
 
 const PREFIX = 'tap-'
 
 task(`${PREFIX}deploy-regtest`)
-    .setAction(async ({}, hre) => {
+    .setAction(jsonAction(async ({}, hre) => {
         const ethers = hre.ethers;
 
         const bridge = await ethers.deployContract(
@@ -48,4 +49,10 @@ task(`${PREFIX}deploy-regtest`)
             console.log('tx hash:', tx.hash, 'waiting for tx...');
             await tx.wait();
         }
-    });
+
+        return {
+            addresses: {
+                TapBridge: bridge.target,
+            }
+        }
+    }));
