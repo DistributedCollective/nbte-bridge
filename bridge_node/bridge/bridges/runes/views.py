@@ -40,7 +40,7 @@ class RuneBridgeApiViews:
         return {"last_scanned_block": last_scanned_block}
 
     @view_config(
-        route_name="runes_get_rune_deposits_since_block_for_evm_address",
+        route_name="runes_get_deposits_since_block_for_evm_address",
         request_method="GET",
     )
     def get_rune_deposits_since_block_for_evm_address(self):
