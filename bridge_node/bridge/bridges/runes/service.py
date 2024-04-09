@@ -143,7 +143,7 @@ class RuneBridgeService:
     ) -> list[dict]:
         # TODO: temporary code, remove
         evm_address = to_checksum_address(evm_address)
-        resp = self.bitcoin_rpc.call("listsinceblock", [last_block])
+        resp = self.bitcoin_rpc.call("listsinceblock", last_block)
         deposits = []
         expected_label = f"runes:deposit:{evm_address}"
         for tx in resp["transactions"]:
