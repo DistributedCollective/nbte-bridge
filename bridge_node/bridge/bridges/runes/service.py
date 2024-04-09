@@ -272,7 +272,11 @@ class RuneBridgeService:
             )
             .one_or_none()
         )
-        return val.value if val else {}
+        if val:
+            val = val.value
+        if not val:
+            return {}
+        return val
 
     def scan_token_deposits(self) -> list[TokenToBtcTransfer]:
         events: list[TokenToBtcTransfer] = []
