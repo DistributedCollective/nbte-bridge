@@ -250,7 +250,7 @@ def runes_setup(
         federator_btc_keypairs = [generate_extended_keypair() for _ in federator_evm_wallets]
         master_xpubs = [pair[1] for pair in federator_btc_keypairs]
 
-    num_required_signers = 1  # TODO: make it 2!
+    num_required_signers = 2
 
     # Network
     federator_networks = [

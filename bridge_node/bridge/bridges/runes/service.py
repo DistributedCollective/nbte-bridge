@@ -186,7 +186,8 @@ class RuneBridgeService:
         logger.info("Rune-to-EVM transfer %s confirmed", tx_hash.hex())
 
     def answer_sign_rune_to_evm_transfer_question(
-        self, message: messages.SignRuneToEvmTransferQuestion
+        self,
+        message: messages.SignRuneToEvmTransferQuestion,
     ) -> messages.SignRuneToEvmTransferAnswer:
         transfer = message.transfer
         rune = self.ord_client.get_rune(transfer.rune_name)
@@ -235,14 +236,26 @@ class RuneBridgeService:
             signer=self.evm_account.address,
         )
 
-    def scan_token_deposits(self) -> list[messages.TokenToBtcTransfer]:
-        events: list[messages.TokenToBtcTransfer] = []
+    def answer_sign_rune_token_to_btc_transfer_question(
+        self,
+        message: messages.SignRuneTokenToBtcTransferQuestion,
+    ) -> messages.SignRuneTokenToBtcTransferAnswer:
+        unsigned_psbt = self.ord_multisig.deserialize_psbt(message.unsigned_psbt_serialized)
+        # TODO: validation
+        signed_psbt = self.ord_multisig.sign_psbt(unsigned_psbt)
+        return messages.SignRuneTokenToBtcTransferAnswer(
+            signed_psbt_serialized=self.ord_multisig.serialize_psbt(signed_psbt),
+            signer_xpub=self.ord_multisig.signer_xpub,
+        )
+
+    def scan_rune_token_deposits(self) -> list[messages.RuneTokenToBtcTransfer]:
+        events: list[messages.RuneTokenToBtcTransfer] = []
 
         def callback(batch: list[EventData]):
             for event in batch:
                 if event["event"] == "RuneTransferToBtc":
                     events.append(
-                        messages.TokenToBtcTransfer(
+                        messages.RuneTokenToBtcTransfer(
                             receiver_address=event["args"]["receiverBtcAddress"],
                             rune_name=event["args"]["rune"],
                             token_address=event["args"]["token"],
@@ -270,7 +283,7 @@ class RuneBridgeService:
             scanner.scan_new_events()
         return events
 
-    def send_token_to_btc(self, deposit: messages.TokenToBtcTransfer):
+    def send_rune_token_to_btc(self, deposit: messages.RuneTokenToBtcTransfer):
         logger.info("Sending to BTC: %s", deposit)
         # TODO: multisig transfers
         self.ord_multisig.send_runes(

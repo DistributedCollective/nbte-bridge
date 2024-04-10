@@ -1,8 +1,11 @@
+import contextlib
 from dataclasses import dataclass
 from decimal import Decimal
 import logging
 
 import sqlalchemy as sa
+import eth_utils
+import web3
 from hexbytes import HexBytes
 from sqlalchemy.orm import (
     Session,
@@ -17,6 +20,7 @@ from bridge.bridges.runes.models import (
     User,
 )
 from bridge.bridges.runes.service import RuneBridgeService
+from bridge.common.btc.rpc import BitcoinRPC
 from bridge.common.evm.utils import (
     from_wei,
     is_zero_address,
@@ -47,6 +51,16 @@ class RunesToEVMTransfer:
     amount_decimal: Decimal
     txid: str
     evm_block_number: int
+
+
+@dataclass
+class RuneTokensToBTCTransfer:
+    tx_hash: HexBytes
+    receiver_btc_address: str
+    receiver_wallet: OrdWallet
+    rune: str
+    amount_decimal: Decimal
+    btc_block_hash: str
 
 
 class RuneBridgeUtil:
@@ -156,25 +170,33 @@ class RuneBridgeUtil:
             evm_block_number=evm_block_number,
         )
 
-    def transfer_rune_tokens_to_bitcoin(
+    def transfer_rune_tokens_to_btc(
         self,
         *,
         sender: str | EVMWallet,
         amount_decimal: Decimalish,
-        receiver_address: str,
+        receiver_wallet: OrdWallet,
+        receiver_address: str = None,
         rune_token_address: str = None,
         rune: str = None,
         verify: bool = True,
-    ) -> HexBytes:
+    ) -> RuneTokensToBTCTransfer:
         if not rune and not rune_token_address:
             raise ValueError("either rune or rune_token_address must be provided")
         if rune and rune_token_address:
             raise ValueError("only one of rune or rune_token_address must be provided")
         if rune:
             rune_token_address = self.get_rune_token(rune).address
+        else:
+            rune = self._rune_bridge_contract.functions.getRuneByToken(rune_token_address).call()
 
         if isinstance(sender, EVMWallet):
             sender = sender.address
+
+        if not receiver_address:
+            logger.info("Generating deposit address for wallet")
+            receiver_address = receiver_wallet.get_receiving_address()
+        bitcoin_block_hash = self._bitcoind.rpc.call("getbestblockhash")
 
         amount_decimal = Decimal(amount_decimal)
 
@@ -192,7 +214,14 @@ class RuneBridgeUtil:
             # Automining is on, no need to mine
             receipt = self._web3.eth.get_transaction_receipt(tx_hash)
             assert receipt.status
-        return HexBytes(tx_hash)
+        return RuneTokensToBTCTransfer(
+            tx_hash=HexBytes(tx_hash),
+            receiver_btc_address=receiver_address,
+            receiver_wallet=receiver_wallet,
+            rune=rune,
+            amount_decimal=amount_decimal,
+            btc_block_hash=bitcoin_block_hash,
+        )
 
     # GENERIC HELPERS
 
@@ -203,11 +232,17 @@ class RuneBridgeUtil:
         if evm_blocks:
             self._hardhat.mine(evm_blocks)
 
-    def fund_wallet_with_runes(self, *, wallet: OrdWallet, amount_decimal: Decimalish, rune: str):
+    def fund_wallet_with_runes(
+        self, *, wallet: OrdWallet | str, amount_decimal: Decimalish, rune: str
+    ):
+        if hasattr(wallet, "get_receiving_address"):
+            address = wallet.get_receiving_address()
+        else:
+            address = wallet
         self._root_ord_wallet.send_runes(
             rune=rune,
             amount_decimal=amount_decimal,
-            receiver=wallet.get_receiving_address(),
+            receiver=address,
         )
         self._ord.mine_and_sync()
 
@@ -225,6 +260,45 @@ class RuneBridgeUtil:
             )
         self.register_rune(rune=etching.rune, symbol=etching.rune_symbol)
         return etching.rune
+
+    def mint_rune_tokens(self, rune: str, amount_decimal: Decimalish, receiver: str) -> Contract:
+        """
+        Mints rune tokens without bridging runes over the bridge.
+        The rune must be registered on the bridge before calling this. The bridge also needs to have
+        sufficient rune balances for transferring them back to work.
+
+        Return the rune token contract instance
+        """
+        rune_token = self.get_rune_token(rune)
+
+        with self.impersonate_bridge_contract() as bridge_address:
+            tx_hash = rune_token.functions.mint(
+                receiver,
+                to_wei(amount_decimal),
+            ).transact({"from": bridge_address})
+        receipt = self._web3.eth.get_transaction_receipt(tx_hash)
+        assert receipt.status, f"Mint did not succeed: {receipt}"
+        return rune_token
+
+    @contextlib.contextmanager
+    def impersonate_bridge_contract(self) -> web3.Web3:
+        """
+        Contextlib for impersonating the Bridge contract directly
+        Yields the bridge address which can be used as the "form" parameter in web3 transactions
+        """
+        bridge_address = self._rune_bridge_contract.address
+        previous_balance = self._web3.eth.get_balance(bridge_address)
+        self._hardhat.make_request("hardhat_impersonateAccount", [bridge_address])
+        self._hardhat.make_request(
+            "hardhat_setBalance", [bridge_address, eth_utils.to_hex(to_wei(1))]
+        )
+        try:
+            yield bridge_address
+        finally:
+            self._hardhat.make_request("hardhat_stopImpersonatingAccount", [bridge_address])
+            self._hardhat.make_request(
+                "hardhat_setBalance", [bridge_address, eth_utils.to_hex(previous_balance)]
+            )
 
     # BALANCE HELPERS
 
@@ -323,6 +397,57 @@ class RuneBridgeUtil:
                 "to": evm_address,
             },
         )
+
+    def assert_rune_tokens_transferred_to_btc(self, transfer: RuneTokensToBTCTransfer):
+        receipt = self._web3.eth.get_transaction_receipt(transfer.tx_hash)
+        assert receipt.status, f"EVM Transfer not successful: {receipt} "
+
+        bitcoin_rpc = BitcoinRPC(
+            url=self._bitcoind.get_wallet_rpc_url(transfer.receiver_wallet.name),
+        )
+
+        response = bitcoin_rpc.call("listsinceblock", transfer.btc_block_hash)
+        transactions = [
+            t
+            for t in response["transactions"]
+            if t["category"] == "receive" and t.get("address") == transfer.receiver_btc_address
+        ]
+        assert transactions, f"No transactions received at {transfer.receiver_btc_address}"
+        assert len(transactions) == 1, f"Expected 1 transaction, got {len(transactions)}"
+        ord_output = self._ord.api_client.get_output(
+            txid=transactions[0]["txid"],
+            vout=transactions[0]["vout"],
+        )
+        assert (
+            ord_output
+        ), f"Output not found for transaction {transactions[0]['txid']}:{transactions[0]['vout']}"
+        assert len(ord_output["runes"]) == 1, f"Expected 1 rune, got {len(ord_output['runes'])}"
+        assert (
+            ord_output["runes"][0][0] == transfer.rune
+        ), f"Expected rune {transfer.rune}, got {ord_output['runes'][0][0]}"
+        amount_decimal = (
+            Decimal(ord_output["runes"][0][1]["amount"])
+            / 10 ** ord_output["runes"][0][1]["divisibility"]
+        )
+        assert (
+            amount_decimal == transfer.amount_decimal
+        ), f"Expected amount {transfer.amount_decimal}, got {amount_decimal}"
+
+    def assert_rune_tokens_not_transferred_to_btc(self, transfer: RuneTokensToBTCTransfer):
+        receipt = self._web3.eth.get_transaction_receipt(transfer.tx_hash)
+        assert receipt.status, f"EVM Transfer not successful (expected success even if testing tokens not transferred): {receipt} "
+
+        bitcoin_rpc = BitcoinRPC(
+            url=self._bitcoind.get_wallet_rpc_url(transfer.receiver_wallet.name),
+        )
+
+        response = bitcoin_rpc.call("listsinceblock", transfer.btc_block_hash)
+        transactions = [
+            t
+            for t in response["transactions"]
+            if t["category"] == "receive" and t.get("address") == transfer.receiver_btc_address
+        ]
+        assert len(transactions) == 0, f"Expected no transactions, got {len(transactions)}"
 
     def _get_evm_address_from_deposit_address(self, deposit_address: str) -> str | None:
         with self._dbsession.begin():

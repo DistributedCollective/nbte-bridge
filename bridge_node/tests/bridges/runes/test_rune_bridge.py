@@ -75,18 +75,23 @@ def test_round_trip_happy_case(
 
     rune_token = bridge_util.get_rune_token(rune)
     user_btc_address = user_ord_wallet.get_new_address()
-    bridge_util.transfer_rune_tokens_to_bitcoin(
+    transfer = bridge_util.transfer_rune_tokens_to_btc(
         sender=user_evm_wallet,
         rune_token_address=rune_token.address,
         amount_decimal=1000,
         receiver_address=user_btc_address,
+        receiver_wallet=user_ord_wallet,
     )
+
+    bridge_util.assert_rune_tokens_not_transferred_to_btc(transfer)  # not yet!
 
     bridge_util.snapshot_balances_again(initial_balances).assert_values(
         bridge_rune_balance_decimal=1000,
     )
 
     bridge_util.run_bridge_iteration()
+
+    bridge_util.assert_rune_tokens_transferred_to_btc(transfer)  # not yet!
 
     bridge_util.snapshot_balances_again(initial_balances).assert_values(
         user_rune_balance_decimal=1000,
@@ -159,14 +164,11 @@ def test_runes_to_evm_transfers_require_signatures_from_the_majority_of_nodes(
         rune=rune,
     )
 
-    if not enable_bob:
-        monkeypatch.setattr(
-            bob_service, "answer_sign_rune_to_evm_transfer_question", lambda *args, **kwargs: None
-        )
-    if not enable_carol:
-        monkeypatch.setattr(
-            carol_service, "answer_sign_rune_to_evm_transfer_question", lambda *args, **kwargs: None
-        )
+    for enable, service in [(enable_bob, bob_service), (enable_carol, carol_service)]:
+        if not enable:
+            monkeypatch.setattr(
+                service, "answer_sign_rune_to_evm_transfer_question", lambda *args, **kwargs: None
+            )
 
     bridge_util.run_bridge_iteration()
 
@@ -174,6 +176,63 @@ def test_runes_to_evm_transfers_require_signatures_from_the_majority_of_nodes(
         bridge_util.assert_runes_transferred_to_evm(transfer)
     else:
         bridge_util.assert_runes_not_transferred_to_evm(transfer)
+
+
+@pytest.mark.parametrize(
+    "enable_bob,enable_carol,expected_transfer_happened",
+    [
+        (True, True, True),
+        (True, False, True),
+        (False, True, True),
+        (False, False, False),
+    ],
+)
+def test_rune_tokens_to_btc_transfers_require_signatures_from_the_majority_of_nodes(
+    enable_bob,
+    enable_carol,
+    expected_transfer_happened,
+    bridge_util,
+    bridge_ord_multisig,
+    user_ord_wallet,
+    user_evm_wallet,
+    bob_service,
+    carol_service,
+    monkeypatch,
+    hardhat,
+):
+    rune = bridge_util.etch_and_register_test_rune(
+        prefix="ORDMULTISIG",
+        fund=(bridge_ord_multisig.change_address, 1000),
+    )
+    rune_token = bridge_util.mint_rune_tokens(
+        rune,
+        amount_decimal=1000,
+        receiver=user_evm_wallet.address,
+    )
+
+    user_btc_address = user_ord_wallet.get_receiving_address()
+    transfer = bridge_util.transfer_rune_tokens_to_btc(
+        sender=user_evm_wallet,
+        rune_token_address=rune_token.address,
+        amount_decimal=1000,
+        receiver_address=user_btc_address,
+        receiver_wallet=user_ord_wallet,
+    )
+
+    for enable, service in [(enable_bob, bob_service), (enable_carol, carol_service)]:
+        if not enable:
+            monkeypatch.setattr(
+                service,
+                "answer_sign_rune_token_to_btc_transfer_question",
+                lambda *args, **kwargs: None,
+            )
+
+    bridge_util.run_bridge_iteration()
+
+    if expected_transfer_happened:
+        bridge_util.assert_rune_tokens_transferred_to_btc(transfer)
+    else:
+        bridge_util.assert_rune_tokens_not_transferred_to_btc(transfer)
 
 
 # TODO: test that nodes won't validate invalid transfers

@@ -47,6 +47,8 @@ logger = logging.getLogger(__name__)
 
 
 class OrdMultisig:
+    signer_xpub: str
+
     def __init__(
         self,
         *,
@@ -62,6 +64,7 @@ class OrdMultisig:
         self._master_xpubs = [CCoinExtPubKey(xpub) for xpub in master_xpubs]
         if _xprv.neuter() not in self._master_xpubs:
             raise ValueError("master_xpriv not in master_xpubs")
+        self.signer_xpub = str(_xprv.neuter())
 
         self._num_required_signers = num_required_signers
 
@@ -428,6 +431,13 @@ class OrdMultisig:
         redeem_script = self._derive_redeem_script(index)
         p2wsh = P2WSHBitcoinAddress.from_redeemScript(redeem_script)
         return encode_segwit_address(p2wsh)
+
+    # Helpers for PSBT serialization
+    def serialize_psbt(self, psbt: PSBT) -> str:
+        return psbt.to_base64()
+
+    def deserialize_psbt(self, raw: str) -> PSBT:
+        return PSBT.from_base64(raw)
 
     def _derive_redeem_script(self, index: int) -> CScript:
         sorted_child_pubkeys = [

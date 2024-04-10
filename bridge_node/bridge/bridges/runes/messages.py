@@ -14,7 +14,7 @@ class RuneToEvmTransfer:
 
 
 @dataclasses.dataclass
-class TokenToBtcTransfer:
+class RuneTokenToBtcTransfer:
     receiver_address: str
     amount_wei: int
     token_address: str
@@ -30,3 +30,15 @@ class SignRuneToEvmTransferQuestion:
 class SignRuneToEvmTransferAnswer:
     signature: str
     signer: str
+
+
+@dataclasses.dataclass
+class SignRuneTokenToBtcTransferQuestion:
+    transfer: RuneTokenToBtcTransfer
+    unsigned_psbt_serialized: str
+
+
+@dataclasses.dataclass
+class SignRuneTokenToBtcTransferAnswer:
+    signed_psbt_serialized: str
+    signer_xpub: str
