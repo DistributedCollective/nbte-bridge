@@ -25,7 +25,7 @@ build-backend = "poetry.core.masonry.api"
 
 [tool.poetry.dependencies]
 anemic = { git = "https://github.com/tetframework/anemic.git", rev = "3a397a5" }
-python = "^3.10"
+python = "^3.11"
 transaction = "*"
 waitress = "*"
 "zope.sqlalchemy" = "*"

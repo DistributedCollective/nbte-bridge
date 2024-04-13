@@ -34,6 +34,10 @@ test-cov:
 unit-test:
 	cd bridge_node && poetry run python -m pytest -m "not integration" --no-cov --log-cli-level=info -s
 
+.PHONY: unit-test-verbose
+unit-test-verbose:
+	cd bridge_node && COMPOSE_VERBOSE=1 poetry run python -m pytest -s --log-cli-level=info -m "not integration" --keep-containers
+
 .PHONY: integration-test
 integration-test:
 	cd bridge_node && poetry run python -m pytest -m "integration" --no-cov --log-cli-level=info

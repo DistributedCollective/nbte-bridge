@@ -163,7 +163,7 @@ class OrdWallet:
             raise ValueError(f"Rune {rune} not found")
         balances = self.cli("balance")
         balance_dec = Decimal(balances["runes"].get(rune, 0))
-        return balance_dec / (10 ** rune_response["entry"]["divisibility"])
+        return balance_dec
 
     def get_balance_btc(self) -> Decimal:
         balances = self.cli("balance")
@@ -235,6 +235,7 @@ class OrdWallet:
                             "premine": str(supply_decimal),
                             "supply": str(supply_decimal),
                             "symbol": symbol,
+                            "turbo": False,
                         },
                     },
                     stream=f,
