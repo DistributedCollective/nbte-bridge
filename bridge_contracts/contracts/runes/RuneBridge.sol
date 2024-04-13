@@ -8,30 +8,37 @@ import {RuneToken} from "./RuneToken.sol";
 
 contract RuneBridge is NBTEBridgeAccessControllable {
     event RuneTransferToBtc(
-        uint256 indexed counter,
+        uint256 counter,
         address indexed from,
-        address token,
-        string rune,  // TODO: use uint256
-        uint256 amountWei,
+        address indexed token,
+        uint256 indexed rune,
+        uint256 transferredTokenAmount,
+        uint256 netRuneAmount,
         string receiverBtcAddress
     );
 
     event RuneTransferFromBtc(
-        uint256 indexed counter,
+        uint256 counter,
         address indexed to,
-        address token,
-        string rune,
+        address indexed token,
+        uint256 indexed rune,
         uint256 amountWei,
         bytes32 btcTxId,
         uint256 btcTxVout
+    );
+
+    event RuneRegistered(
+        uint256 counter,
+        uint256 rune,
+        address token
     );
 
     IBTCAddressValidator public btcAddressValidator;
 
     uint256 public numTransfersTotal;
 
-    mapping(string => address) public tokensByRune;
-    mapping(address => string) public runesByToken;
+    mapping(uint256 => address) public tokensByRune;
+    mapping(address => uint256) public runesByToken;
     address[] public runeTokens;
 
     constructor(
@@ -47,7 +54,7 @@ contract RuneBridge is NBTEBridgeAccessControllable {
     // ----------
 
     function transferToBtc(
-        address token,
+        RuneToken token,
         uint256 amountWei,
         string calldata receiverBtcAddress
     )
@@ -55,26 +62,31 @@ contract RuneBridge is NBTEBridgeAccessControllable {
     {
         require(amountWei > 0, "amount must be greater than 0");
 
-        string memory rune = getRuneByToken(token);  // this validates it too
+        uint256 rune = token.rune();
+        require(isRuneRegistered(rune), "rune not registered");
 
         require(btcAddressValidator.isValidBtcAddress(receiverBtcAddress), "invalid BTC address");
 
         // TODO: use an approve - transfer - burn pattern
         // burning from anyone is just fishy
-        RuneToken(token).burn(msg.sender, amountWei);
+        token.burn(msg.sender, amountWei);
+
+        // this validates that the amount is not too precise
+        uint256 netRuneAmount = token.getRuneAmount(amountWei);
 
         numTransfersTotal++;
         emit RuneTransferToBtc(
             numTransfersTotal,
             msg.sender,
-            token,
+            address(token),
             rune,
             amountWei,
+            netRuneAmount,
             receiverBtcAddress
         );
     }
 
-    function isRuneRegistered(string memory rune) public view returns (bool) {
+    function isRuneRegistered(uint256 rune) public view returns (bool) {
         return tokensByRune[rune] != address(0);
     }
 
@@ -82,16 +94,14 @@ contract RuneBridge is NBTEBridgeAccessControllable {
         return runeTokens.length;
     }
 
-    function getTokenByRune(string memory rune) public view returns (address) {
-        address token = tokensByRune[rune];
+    function getTokenByRune(uint256 rune) public view returns (address token) {
+        token = tokensByRune[rune];
         require(token != address(0), "rune not found");
-        return token;
     }
 
-    function getRuneByToken(address token) public view returns (string memory) {
-        string memory rune = runesByToken[token];
-        require(bytes(rune).length > 0, "token not found");
-        return rune;
+    function getRuneByToken(address token) public view returns (uint256 rune) {
+        rune = runesByToken[token];
+        require(rune != 0, "token not found");
     }
 
     function listTokens() public view returns (address[] memory) {
@@ -118,8 +128,8 @@ contract RuneBridge is NBTEBridgeAccessControllable {
 
     function acceptTransferFromBtc(
         address to,
-        string memory rune,
-        uint256 amountWei,
+        uint256 rune,
+        uint256 runeAmount,
         bytes32 btcTxId,
         uint256 btcTxVout,
         bytes[] memory signatures
@@ -127,7 +137,13 @@ contract RuneBridge is NBTEBridgeAccessControllable {
     external
     {
         // validate signatures. this also checks that the sender is a federator
-        bytes32 messageHash = getAcceptTransferFromBtcMessageHash(to, rune, amountWei, btcTxId, btcTxVout);
+        bytes32 messageHash = getAcceptTransferFromBtcMessageHash(
+            to,
+            rune,
+            runeAmount,
+            btcTxId,
+            btcTxVout
+        );
         accessControl.checkFederatorSignaturesWithImplicitSelfSign(
             messageHash,
             signatures,
@@ -136,17 +152,18 @@ contract RuneBridge is NBTEBridgeAccessControllable {
 
         // TODO: validate not processed
 
-        address token = getTokenByRune(rune);  // this validates that it exists
+        RuneToken token = RuneToken(getTokenByRune(rune));  // this validates that it's registered
 
-        RuneToken(token).mint(to, amountWei);
+        uint256 tokenAmount = token.getTokenAmount(runeAmount);
+        token.mint(to, tokenAmount);
 
         numTransfersTotal++;
         emit RuneTransferFromBtc(
             numTransfersTotal,
             to,
-            token,
+            address(token),
             rune,
-            amountWei,
+            tokenAmount,
             btcTxId,
             btcTxVout
         );
@@ -154,8 +171,8 @@ contract RuneBridge is NBTEBridgeAccessControllable {
 
     function getAcceptTransferFromBtcMessageHash(
         address to,
-        string memory rune,
-        uint256 amountWei,
+        uint256 rune,
+        uint256 runeAmount,
         bytes32 btcTxId,
         uint256 btcTxVout
     )
@@ -171,14 +188,13 @@ contract RuneBridge is NBTEBridgeAccessControllable {
             ":",
             rune,
             ":",
-            amountWei,
+            runeAmount,
             ":",
             btcTxId,
             ":",
             btcTxVout
         ));
     }
-
 
     function numRequiredFederators() public view returns (uint256) {
         return accessControl.numRequiredFederators();
@@ -188,17 +204,29 @@ contract RuneBridge is NBTEBridgeAccessControllable {
     // ---------
 
     function registerRune(
-        string memory rune,
-        string memory symbol
+        string memory name,
+        string memory symbol,
+        uint256 rune,
+        uint8 runeDivisibility
     )
     external
     onlyAdmin
     {
         require(!isRuneRegistered(rune), "rune already registered");
-        RuneToken token = new RuneToken(rune, symbol);
+        require(rune <= type(uint128).max, "rune number too large");
+        RuneToken token = new RuneToken(
+            name,
+            symbol,
+            rune,
+            runeDivisibility
+        );
         tokensByRune[rune] = address(token);
         runesByToken[address(token)] = rune;
         runeTokens.push(address(token));
-        // TODO: emit event, etc
+        emit RuneRegistered(
+            runeTokens.length,
+            rune,
+            address(token)
+        );
     }
 }

@@ -19,7 +19,32 @@
         "anonymous": false,
         "inputs": [
             {
-                "indexed": true,
+                "indexed": false,
+                "internalType": "uint256",
+                "name": "counter",
+                "type": "uint256"
+            },
+            {
+                "indexed": false,
+                "internalType": "uint256",
+                "name": "rune",
+                "type": "uint256"
+            },
+            {
+                "indexed": false,
+                "internalType": "address",
+                "name": "token",
+                "type": "address"
+            }
+        ],
+        "name": "RuneRegistered",
+        "type": "event"
+    },
+    {
+        "anonymous": false,
+        "inputs": [
+            {
+                "indexed": false,
                 "internalType": "uint256",
                 "name": "counter",
                 "type": "uint256"
@@ -31,16 +56,16 @@
                 "type": "address"
             },
             {
-                "indexed": false,
+                "indexed": true,
                 "internalType": "address",
                 "name": "token",
                 "type": "address"
             },
             {
-                "indexed": false,
-                "internalType": "string",
+                "indexed": true,
+                "internalType": "uint256",
                 "name": "rune",
-                "type": "string"
+                "type": "uint256"
             },
             {
                 "indexed": false,
@@ -68,7 +93,7 @@
         "anonymous": false,
         "inputs": [
             {
-                "indexed": true,
+                "indexed": false,
                 "internalType": "uint256",
                 "name": "counter",
                 "type": "uint256"
@@ -80,21 +105,27 @@
                 "type": "address"
             },
             {
-                "indexed": false,
+                "indexed": true,
                 "internalType": "address",
                 "name": "token",
                 "type": "address"
             },
             {
-                "indexed": false,
-                "internalType": "string",
+                "indexed": true,
+                "internalType": "uint256",
                 "name": "rune",
-                "type": "string"
+                "type": "uint256"
             },
             {
                 "indexed": false,
                 "internalType": "uint256",
-                "name": "amountWei",
+                "name": "transferredTokenAmount",
+                "type": "uint256"
+            },
+            {
+                "indexed": false,
+                "internalType": "uint256",
+                "name": "netRuneAmount",
                 "type": "uint256"
             },
             {
@@ -115,13 +146,13 @@
                 "type": "address"
             },
             {
-                "internalType": "string",
+                "internalType": "uint256",
                 "name": "rune",
-                "type": "string"
+                "type": "uint256"
             },
             {
                 "internalType": "uint256",
-                "name": "amountWei",
+                "name": "runeAmount",
                 "type": "uint256"
             },
             {
@@ -179,13 +210,13 @@
                 "type": "address"
             },
             {
-                "internalType": "string",
+                "internalType": "uint256",
                 "name": "rune",
-                "type": "string"
+                "type": "uint256"
             },
             {
                 "internalType": "uint256",
-                "name": "amountWei",
+                "name": "runeAmount",
                 "type": "uint256"
             },
             {
@@ -221,9 +252,9 @@
         "name": "getRuneByToken",
         "outputs": [
             {
-                "internalType": "string",
-                "name": "",
-                "type": "string"
+                "internalType": "uint256",
+                "name": "rune",
+                "type": "uint256"
             }
         ],
         "stateMutability": "view",
@@ -232,16 +263,16 @@
     {
         "inputs": [
             {
-                "internalType": "string",
+                "internalType": "uint256",
                 "name": "rune",
-                "type": "string"
+                "type": "uint256"
             }
         ],
         "name": "getTokenByRune",
         "outputs": [
             {
                 "internalType": "address",
-                "name": "",
+                "name": "token",
                 "type": "address"
             }
         ],
@@ -251,9 +282,9 @@
     {
         "inputs": [
             {
-                "internalType": "string",
+                "internalType": "uint256",
                 "name": "rune",
-                "type": "string"
+                "type": "uint256"
             }
         ],
         "name": "isRuneRegistered",
@@ -347,13 +378,23 @@
         "inputs": [
             {
                 "internalType": "string",
-                "name": "rune",
+                "name": "name",
                 "type": "string"
             },
             {
                 "internalType": "string",
                 "name": "symbol",
                 "type": "string"
+            },
+            {
+                "internalType": "uint256",
+                "name": "rune",
+                "type": "uint256"
+            },
+            {
+                "internalType": "uint8",
+                "name": "runeDivisibility",
+                "type": "uint8"
             }
         ],
         "name": "registerRune",
@@ -391,9 +432,9 @@
         "name": "runesByToken",
         "outputs": [
             {
-                "internalType": "string",
+                "internalType": "uint256",
                 "name": "",
-                "type": "string"
+                "type": "uint256"
             }
         ],
         "stateMutability": "view",
@@ -402,9 +443,9 @@
     {
         "inputs": [
             {
-                "internalType": "string",
+                "internalType": "uint256",
                 "name": "",
-                "type": "string"
+                "type": "uint256"
             }
         ],
         "name": "tokensByRune",
@@ -421,7 +462,7 @@
     {
         "inputs": [
             {
-                "internalType": "address",
+                "internalType": "contract RuneToken",
                 "name": "token",
                 "type": "address"
             },

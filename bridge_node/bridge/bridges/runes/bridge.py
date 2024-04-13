@@ -79,7 +79,7 @@ class RuneBridge(Bridge):
                         rune=deposit.rune_name,
                         receiver=deposit.receiver_address,
                         # TODO: handle divisibility
-                        amount=deposit.amount_wei,
+                        amount=deposit.net_rune_amount,
                     )
                 ]
             )

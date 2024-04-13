@@ -2,6 +2,7 @@ import logging
 from decimal import Decimal
 from typing import Protocol
 
+import pyord
 import eth_utils
 from eth_account.account import LocalAccount
 from eth_account.messages import encode_defunct
@@ -164,9 +165,10 @@ class RuneBridgeService:
 
     def send_rune_to_evm(self, transfer: messages.RuneToEvmTransfer, signatures: list[str]):
         logger.info("Executing Rune-to-EVM transfer %s", transfer)
+        rune = pyord.Rune.from_str(transfer.rune_name)
         tx_hash = self.rune_bridge_contract.functions.acceptTransferFromBtc(
             transfer.evm_address,
-            transfer.rune_name,
+            rune.n,
             transfer.amount_raw,
             eth_utils.add_0x_prefix(transfer.txid),
             transfer.vout,
@@ -222,9 +224,10 @@ class RuneBridgeService:
         # if not user.evm_address == transfer.evm_address:
         #     raise ValueError(f"User EVM address mismatch: {user.evm_address} != {transfer.evm_address}")
 
+        rune = pyord.Rune.from_str(transfer.rune_name)
         message_hash = self.rune_bridge_contract.functions.getAcceptTransferFromBtcMessageHash(
             transfer.evm_address,
-            transfer.rune_name,
+            rune.n,
             to_wei(transfer.amount_decimal),
             eth_utils.add_0x_prefix(transfer.txid),
             transfer.vout,
@@ -259,7 +262,7 @@ class RuneBridgeService:
                             receiver_address=event["args"]["receiverBtcAddress"],
                             rune_name=event["args"]["rune"],
                             token_address=event["args"]["token"],
-                            amount_wei=event["args"]["amountWei"],
+                            net_rune_amount=event["args"]["netRuneAmount"],
                         )
                     )
                 else:
@@ -292,7 +295,7 @@ class RuneBridgeService:
                     rune=deposit.rune_name,
                     receiver=deposit.receiver_address,
                     # TODO: handle divisibility etc, it might not always be the same as wei
-                    amount=deposit.amount_wei,
+                    amount=deposit.net_rune_amount,
                 )
             ]
         )

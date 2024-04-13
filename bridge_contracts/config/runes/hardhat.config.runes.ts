@@ -1,4 +1,4 @@
-import {task} from "hardhat/config";
+import {task, types} from "hardhat/config";
 import "@nomicfoundation/hardhat-toolbox";
 import {jsonAction} from '../base';
 
@@ -52,12 +52,19 @@ task(`${PREFIX}deploy-regtest`)
     }));
 
 task(`${PREFIX}deploy-testnet`)
-    .setAction(jsonAction(async ({}, hre) => {
+    .addParam('accessControl', 'NBTEBridgeAccessControl address')
+    .addParam('addressValidator', 'BTCAddressValidator address')
+    .setAction(jsonAction(async ({
+        accessControl,
+        addressValidator,
+    }, hre) => {
         const ethers = hre.ethers;
 
         const bridge = await ethers.deployContract(
             "RuneBridge",
             [
+                accessControl,
+                addressValidator,
             ],
             {}
         );
@@ -75,9 +82,17 @@ task(`${PREFIX}deploy-testnet`)
 
 task(`${PREFIX}register-rune`)
     .addParam("bridgeAddress", "RuneBridge contract address")
+    .addParam("runeNumber", "Rune number", undefined, types.int)
+    .addParam("runeDivisibility", "Rune number", undefined, types.int)
     .addParam("runeName", "Rune name")
     .addParam("runeSymbol", "Rune symbol")
-    .setAction(jsonAction(async ({runeName, runeSymbol, bridgeAddress}, hre) => {
+    .setAction(jsonAction(async ({
+        runeNumber,
+        runeDivisibility,
+        runeName,
+        runeSymbol,
+        bridgeAddress
+    }, hre) => {
         const ethers = hre.ethers;
 
         const bridge = await ethers.getContractAt("RuneBridge", bridgeAddress);
@@ -85,7 +100,9 @@ task(`${PREFIX}register-rune`)
         console.log(`Registering rune ${runeName} with symbol ${runeSymbol}`);
         const tx = await bridge.registerRune(
             runeName,
-            runeSymbol
+            runeSymbol,
+            runeNumber,
+            runeDivisibility
         );
         console.log('tx hash:', tx.hash, 'waiting for tx...');
         await tx.wait();

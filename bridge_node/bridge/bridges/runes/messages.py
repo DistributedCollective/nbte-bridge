@@ -16,7 +16,7 @@ class RuneToEvmTransfer:
 @dataclasses.dataclass
 class RuneTokenToBtcTransfer:
     receiver_address: str
-    amount_wei: int
+    net_rune_amount: int
     token_address: str
     rune_name: str
 

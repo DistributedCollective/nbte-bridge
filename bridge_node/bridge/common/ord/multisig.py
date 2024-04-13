@@ -181,7 +181,7 @@ class OrdMultisig:
         # Rune outputs and edicts
         for output_index, transfer in enumerate(transfers, start=first_rune_output_index):
             transfer.assert_valid()
-            rune_response = self._ord_client.get_rune(transfer.rune)
+            rune_response = self._ord_client.get_rune(transfer.rune.name)
             if not rune_response:
                 raise LookupError(f"Rune {transfer.rune} not found (transfer {transfer})")
             rune_id = pyord.RuneId.from_str(rune_response["id"])
@@ -198,7 +198,7 @@ class OrdMultisig:
                     scriptPubKey=transfer.get_receiver_script_pubkey(),
                 )
             )
-            required_rune_amounts[transfer.rune] += transfer.amount
+            required_rune_amounts[transfer.rune.name] += transfer.amount
 
         assert all(v > 0 for v in required_rune_amounts.values())
 

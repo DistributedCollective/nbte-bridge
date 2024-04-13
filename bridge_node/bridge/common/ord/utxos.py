@@ -1,6 +1,7 @@
 import functools
 from dataclasses import dataclass
 from .client import OrdApiClient
+from .types import Runish, coerce_rune
 
 
 @dataclass(frozen=True)
@@ -11,8 +12,8 @@ class OrdOutput:
     rune_balances: dict[str, int]
     inscriptions: list[str]
 
-    def get_rune_balance(self, rune: str):
-        rune = normalize_rune(rune)
+    def get_rune_balance(self, rune: Runish):
+        rune = normalize_rune_name(rune)
         return self.rune_balances.get(rune, 0)
 
     def has_ord_balances(self):
@@ -36,7 +37,7 @@ class OrdOutputCache:
         rune_balances = {}
         for rune_name, entry in output_response["runes"]:
             assert rune_name not in rune_balances  # not sure what to do if it is
-            rune_balances[normalize_rune(rune_name)] = entry["amount"]
+            rune_balances[normalize_rune_name(rune_name)] = entry["amount"]
         return OrdOutput(
             txid=txid,
             vout=vout,
@@ -46,10 +47,12 @@ class OrdOutputCache:
         )
 
 
-def normalize_rune(rune: str) -> str:
+def normalize_rune_name(rune: str) -> str:
     """
     Remove spacers from rune name
     """
+    if not isinstance(rune, str):
+        rune = coerce_rune(rune).name
     ret = "".join(c for c in rune if c not in (".", "•"))
     assert ret.isalpha()
     assert ret.isupper()

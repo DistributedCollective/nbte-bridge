@@ -3,6 +3,7 @@ from dataclasses import dataclass
 from decimal import Decimal
 import logging
 
+import pyord
 import sqlalchemy as sa
 import eth_utils
 import web3
@@ -115,7 +116,9 @@ class RuneBridgeUtil:
         *,
         verify_registered: bool = True,
     ) -> Contract:
-        address = self._rune_bridge_contract.functions.getTokenByRune(rune).call()
+        address = self._rune_bridge_contract.functions.getTokenByRune(
+            self._rune_name_to_number(rune)
+        ).call()
         if verify_registered and is_zero_address(address):
             raise LookupError(f"Rune {rune} not registered on the bridge")
         return self._web3.eth.contract(
@@ -131,8 +134,16 @@ class RuneBridgeUtil:
     ) -> Contract:
         if not symbol:
             symbol = rune[0]
+        rune_response = self._ord.api_client.get_rune(rune)
+        if not rune_response:
+            raise ValueError(f"rune {rune} not found")
         with measure_time("register rune"):
-            self._rune_bridge_contract.functions.registerRune(rune, symbol).transact(
+            self._rune_bridge_contract.functions.registerRune(
+                rune,
+                symbol,
+                self._rune_name_to_number(rune),
+                rune_response["entry"]["divisibility"],
+            ).transact(
                 {
                     "from": self._bridge_owner_address,
                 }
@@ -188,7 +199,10 @@ class RuneBridgeUtil:
         if rune:
             rune_token_address = self.get_rune_token(rune).address
         else:
-            rune = self._rune_bridge_contract.functions.getRuneByToken(rune_token_address).call()
+            rune_number = self._rune_bridge_contract.functions.getRuneByToken(
+                rune_token_address,
+            ).call()
+            rune = self._rune_number_to_name(rune_number)
 
         if isinstance(sender, EVMWallet):
             sender = sender.address
@@ -462,3 +476,9 @@ class RuneBridgeUtil:
             if not obj:
                 return None
             return obj.user.evm_address
+
+    def _rune_name_to_number(self, rune: str) -> int:
+        return pyord.Rune.from_str(rune).n
+
+    def _rune_number_to_name(self, number: int) -> str:
+        return pyord.Rune(number).name

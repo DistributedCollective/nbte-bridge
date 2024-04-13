@@ -1,4 +1,4 @@
-from dataclasses import dataclass
+import pyord
 from bitcointx.core.script import CScript
 from bitcointx.wallet import CCoinAddress
 
@@ -6,12 +6,30 @@ from bitcointx.wallet import CCoinAddress
 TARGET_POSTAGE_SAT = 10_000  # sat locked in rune outputs
 
 
-@dataclass
 class RuneTransfer:
-    rune: str
+    rune: pyord.Rune
     receiver: str
     amount: int
-    postage: int = TARGET_POSTAGE_SAT
+    postage: int
+
+    def __init__(
+        self,
+        *,
+        rune: pyord.Rune | str | int,
+        receiver: str,
+        amount: int,
+        postage: int = TARGET_POSTAGE_SAT,
+    ):
+        if isinstance(rune, int):
+            rune = pyord.Rune(rune)
+        elif isinstance(rune, str):
+            rune = pyord.Rune.from_str(rune)
+        if not isinstance(rune, pyord.Rune):
+            raise ValueError("rune must be a Rune instance, a str or an int")
+        self.rune = rune
+        self.receiver = receiver
+        self.amount = amount
+        self.postage = postage
 
     def parse_receiver_address(self) -> CCoinAddress:
         return CCoinAddress(self.receiver)
@@ -20,9 +38,6 @@ class RuneTransfer:
         return self.parse_receiver_address().to_scriptPubKey()
 
     def assert_valid(self):
-        # TODO: add libbitcoinconsensus validation!
-        if not self.rune.isupper() or not self.rune.isalpha():
-            raise ValueError("rune must be an uppercase alphabetic string withotu spacers")
         if not isinstance(self.postage, int) or self.postage <= 0:
             raise ValueError("postage must be a positive non-zero integer")
         parsed_address = self.parse_receiver_address()
