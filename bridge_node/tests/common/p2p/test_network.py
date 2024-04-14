@@ -1,4 +1,6 @@
+import dataclasses
 from collections import namedtuple
+from decimal import Decimal
 
 import pytest
 
@@ -9,8 +11,8 @@ from bridge.common.p2p.auth.bridge_ssl import PyroSecureContext
 from tests.mock_network import MockNetwork
 
 
-def create_test_pyro_network(node_id="test", host="localhost", port=8080):
-    return PyroNetwork(node_id=node_id, host=host, port=port, peers=[])
+def create_test_pyro_network(node_id="test", host="localhost", port=8080, peers=None):
+    return PyroNetwork(node_id=node_id, host=host, port=port, peers=peers or [])
 
 
 @pytest.fixture
@@ -250,3 +252,64 @@ def test_network_peer_statuses_can_be_listed(test_pyro_network):
             },
         },
     }
+
+
+@dataclasses.dataclass
+class SomeQuestion:
+    question: int
+
+
+@dataclasses.dataclass
+class NestedQuestion:
+    child: SomeQuestion
+
+
+@dataclasses.dataclass
+class SomeAnswer:
+    answer: int
+
+
+def test_ask_answer(mocker, request):
+    # PyroSecureContext does global stuff so let's just disable it for now
+    mocker.patch(
+        "Pyro5.config.SSL",
+        False,
+    )
+
+    # yeah, here we'll just start some servers
+    peer1 = create_test_pyro_network(
+        node_id="peer1", host="localhost", port=18081, peers=[("peer2", "localhost:18082")]
+    )
+    request.addfinalizer(peer1.stop)
+
+    peer2 = create_test_pyro_network(
+        node_id="peer2", host="localhost", port=18082, peers=[("peer1", "localhost:18081")]
+    )
+    request.addfinalizer(peer2.stop)
+
+    peer2.answer_with("test", lambda: "test answer")
+    answers = peer1.ask("test")
+    assert answers == ["test answer"]
+
+    # Test that it "supports" dataclasses (we actually get SimpleNamespaces for now)
+    peer2.answer_with("test_dataclass_1", lambda num: SomeAnswer(answer=num))
+    answers = peer1.ask("test_dataclass_1", num=123)
+    assert len(answers) == 1
+    assert answers[0].answer == 123
+
+    peer2.answer_with("test_dataclass_2", lambda dc: dc.question)
+    answers = peer1.ask("test_dataclass_2", dc=SomeQuestion(question=456))
+    assert answers == [456]
+
+    peer2.answer_with(
+        "test_dataclass_nested", lambda thing: SomeAnswer(answer=thing.child.question)
+    )
+    answers = peer1.ask(
+        "test_dataclass_nested", thing=NestedQuestion(child=SomeQuestion(question=789))
+    )
+    assert len(answers) == 1
+    assert answers[0].answer == 789
+
+    peer2.answer_with("test_decimal", lambda thing: Decimal(2) + thing)
+    answers = peer1.ask("test_decimal", thing=Decimal(1))
+    assert answers == [Decimal(3)]

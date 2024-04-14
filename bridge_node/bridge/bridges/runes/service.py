@@ -203,7 +203,7 @@ class RuneBridgeService:
         divisibility = rune_response["entry"]["divisibility"]
         if transfer.amount_decimal != Decimal(transfer.amount_raw) / (10**divisibility):
             raise ValueError(
-                f"Amount mismatch: {transfer.amount_decimal} != {transfer.amount_raw} / 10^{divisibility}"
+                f"Amount mismatch: {transfer.amount_decimal!r} != {transfer.amount_raw} / 10^{divisibility}"
             )
 
         balance_at_output = self.ord_multisig.get_rune_balance_at_output(

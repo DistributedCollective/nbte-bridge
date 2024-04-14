@@ -116,13 +116,22 @@ task("deploy-regtest")
             accessControl: accessControlResult.address,
             addressValidator: btcAddressValidatorResult.address,
         });
+
+        await hre.run("runes-register-rune", {
+            "bridgeAddress": runesResult.addresses.RuneBridge,
+            "runeNumber": "34709819113397941387",
+            "runeDivisibility": 18,
+            "runeName": "MYRUNEISGOODER",
+            "runeSymbol": "R",
+        })
+
         return {
             addresses: {
-                'TapBridge': tapBridgeResult.addresses.TapBridge,
-                'RuneBridge': runesResult.addresses.RuneBridge,
+                TapBridge: tapBridgeResult.addresses.TapBridge,
+                RuneBridge: runesResult.addresses.RuneBridge,
                 NBTEBridgeAccessControl: accessControlResult.address,
                 BTCAddressValidator: btcAddressValidatorResult.address,
-            }
+            },
         }
     }));
 

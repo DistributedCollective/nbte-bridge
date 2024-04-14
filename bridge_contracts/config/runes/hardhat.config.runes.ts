@@ -82,7 +82,7 @@ task(`${PREFIX}deploy-testnet`)
 
 task(`${PREFIX}register-rune`)
     .addParam("bridgeAddress", "RuneBridge contract address")
-    .addParam("runeNumber", "Rune number", undefined, types.int)
+    .addParam("runeNumber", "Rune number")
     .addParam("runeDivisibility", "Rune number", undefined, types.int)
     .addParam("runeName", "Rune name")
     .addParam("runeSymbol", "Rune symbol")
@@ -94,6 +94,7 @@ task(`${PREFIX}register-rune`)
         bridgeAddress
     }, hre) => {
         const ethers = hre.ethers;
+        runeNumber = BigInt(runeNumber);
 
         const bridge = await ethers.getContractAt("RuneBridge", bridgeAddress);
 

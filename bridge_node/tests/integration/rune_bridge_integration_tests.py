@@ -1,4 +1,5 @@
 import logging
+import pyord
 
 import pytest
 from web3.contract import Contract
@@ -11,8 +12,9 @@ from .utils import wait_for_condition, from_wei, to_wei
 logger = logging.getLogger(__name__)
 
 
-RUNE_BRIDGE_ADDRESS = "0xDc64a140Aa3E981100a9becA4E685f962f0cF6C9"
+RUNE_BRIDGE_ADDRESS = "0x610178dA211FEF7D417bC0e6FeD39F05609AD788"
 RUNE_NAME = "MYRUNEISGOODER"
+RUNE = pyord.Rune.from_str(RUNE_NAME)
 
 
 @pytest.fixture()
@@ -44,7 +46,7 @@ def user_evm_token(
     user_rune_bridge_contract,
 ):
     return user_web3.eth.contract(
-        address=user_rune_bridge_contract.functions.getTokenByRune(RUNE_NAME).call(),
+        address=user_rune_bridge_contract.functions.getTokenByRune(RUNE.n).call(),
         abi=load_rune_bridge_abi("RuneToken"),
     )
 

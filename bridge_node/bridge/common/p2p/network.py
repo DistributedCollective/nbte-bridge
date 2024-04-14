@@ -1,6 +1,7 @@
 import logging
 import threading
 import dataclasses
+from decimal import Decimal
 from types import SimpleNamespace
 from typing import (
     Any,
@@ -119,14 +120,16 @@ class PyroNetwork(Network):
             question,
         )
         answers = []
-        serialized_question = self.serialize(question)
+        logger.debug("ask kwargs %s", kwargs)
         serialized_kwargs = {key: self.serialize(value) for key, value in kwargs.items()}
+        logger.debug("ask serialized kwargs %s", serialized_kwargs)
         for peer in self.peers:
             try:
-                answer = peer.answer(serialized_question, **serialized_kwargs)
+                answer = peer.answer(question, **serialized_kwargs)
                 if answer is not None:
                     # TODO: proper return type for null answer
-                    answers.append(self.deserialize(answer))
+                    deserialized_answer = self.deserialize(answer)
+                    answers.append(deserialized_answer)
             except Pyro5.errors.CommunicationError:
                 logger.exception("Error asking question %s from peer %s", question, peer)
         return answers
@@ -134,29 +137,39 @@ class PyroNetwork(Network):
     def serialize(self, value: Any) -> Any:
         if dataclasses.is_dataclass(value):
             ret = {
-                "__is_dataclass__": True,
-                # NOTE: do not footgun yourself by importing __class__ and __module__ without validating,
+                "_is_dataclass": True,
+                # NOTE: adding __class__ and __module__ does some weird stuff -- should be investigated
+                # also do not footgun yourself by importing __class__ and __module__ without validating,
                 # it's a security hazard
-                "__class__": value.__class__.__name__,
-                "__module__": value.__module__,
+                # "__class__": value.__class__.__name__,
+                # "__module__": value.__module__,
             }
-            for key, value in dataclasses.asdict(value).items():
-                ret[key] = self.serialize(value)
+            # for key, value in dataclasses.asdict(value).items():
+            for field in dataclasses.fields(value):
+                ret[field.name] = self.serialize(getattr(value, field.name))
             return ret
+        if isinstance(value, Decimal):
+            return {
+                "_is_decimal": True,
+                "value": str(value),
+            }
         return value
 
     def deserialize(self, value: Any) -> Any:
-        if isinstance(value, dict) and value.get("__is_dataclass__"):
-            # Don't import __class__ and __module__ -- it would be a safety hazard
-            # Instead just return a SimpleNamespace with deserialized values. It should conform to the same API
-            # with the exception that it doesn't have the methods of the dataclass. Good enough for now.
-            return SimpleNamespace(
-                **{
-                    key: self.deserialize(value)
-                    for key, value in value.items()
-                    if key not in ["__is_dataclass__", "__class__", "__module__"]
-                }
-            )
+        if isinstance(value, dict):
+            if value.get("_is_dataclass"):
+                # Don't try to serialize dataclasses back -- security hazard
+                # Instead just return a SimpleNamespace with deserialized values. It should conform to the same API
+                # with the exception that it doesn't have the methods of the dataclass. Good enough for now.
+                return SimpleNamespace(
+                    **{
+                        key: self.deserialize(value)
+                        for key, value in value.items()
+                        if key not in ["_is_dataclass"]
+                    }
+                )
+            if value.get("_is_decimal"):
+                return Decimal(value["value"])
         return value
 
     def broadcast(self, msg: Any):
@@ -198,8 +211,10 @@ class PyroNetwork(Network):
     @Pyro5.api.expose
     def answer(self, question, **kwargs):
         logger.debug("Answering question %r (thread %s)", question, threading.current_thread().name)
-        question = self.deserialize(question)
+        question = question
+        logger.debug("answer kwargs: %s", kwargs)
         kwargs = {key: self.deserialize(value) for key, value in kwargs.items()}
+        logger.debug("answer deserialized kwargs: %s", kwargs)
 
         answer_callback = self._answer_callbacks.get(question)
         if answer_callback is None:
@@ -207,6 +222,9 @@ class PyroNetwork(Network):
             return None
         try:
             ret = answer_callback(**kwargs)
+            logger.debug("answer ret: %s", ret)
+            ret = self.serialize(ret)
+            logger.debug("answer serialized ret: %s", ret)
         except Exception:
             logger.exception(
                 "Error answering question %r (thread %s)", question, threading.current_thread().name
