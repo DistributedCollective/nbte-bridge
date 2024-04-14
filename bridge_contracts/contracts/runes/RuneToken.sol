@@ -49,10 +49,11 @@ contract RuneToken is ERC20 {
         if (runeAmountDivisor == 1) {
             return tokenAmount;
         }
-        require(
-            tokenAmount % runeAmountDivisor == 0,
-            "amount too precise"
-        );
+        // TODO: might want to re-enable this validation
+//        require(
+//            tokenAmount % runeAmountDivisor == 0,
+//            "amount too precise"
+//        );
         return tokenAmount / runeAmountDivisor;
     }
 
