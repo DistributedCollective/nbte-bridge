@@ -222,7 +222,11 @@ class PyroNetwork(Network):
 
         answer_callback = self._answer_callbacks.get(question)
         if answer_callback is None:
-            logger.warning("No answer callback for question %r", question)
+            logger.warning(
+                "No answer callback for question %r (valid callbacks: %r)",
+                question,
+                list(self._answer_callbacks.keys()),
+            )
             return None
         try:
             ret = answer_callback(**kwargs)
@@ -237,6 +241,7 @@ class PyroNetwork(Network):
         return ret
 
     def answer_with(self, question: str, callback: Callable[..., Any]):
+        logger.info("Registering answer callback for question %r", question)
         if question in self._answer_callbacks:
             raise ValueError(f"Question {question} already has a callback")
         self._answer_callbacks[question] = callback
