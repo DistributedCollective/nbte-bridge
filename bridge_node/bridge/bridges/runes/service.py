@@ -57,10 +57,10 @@ class RuneBridgeService:
 
     def generate_deposit_address(self, *, evm_address: str, dbsession: Session) -> str:
         # TODO: dbsession now passed as parameter, seems ugly?
-        if not eth_utils.is_checksum_formatted_address(evm_address):
-            raise ValueError(
-                f"Invalid EVM address: {evm_address} (not a valid address or not checksummed properly)"
-            )
+        try:
+            evm_address = eth_utils.to_checksum_address(evm_address)
+        except Exception as e:
+            raise ValueError(f"Invalid EVM address: {evm_address}") from e
 
         user = (
             dbsession.query(User)
