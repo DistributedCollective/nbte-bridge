@@ -19,6 +19,49 @@
         "anonymous": false,
         "inputs": [
             {
+                "indexed": true,
+                "internalType": "address",
+                "name": "token",
+                "type": "address"
+            },
+            {
+                "indexed": false,
+                "internalType": "uint256",
+                "name": "maxTokenAmount",
+                "type": "uint256"
+            },
+            {
+                "indexed": false,
+                "internalType": "uint256",
+                "name": "minTokenAmount",
+                "type": "uint256"
+            },
+            {
+                "indexed": false,
+                "internalType": "uint256",
+                "name": "flatFeeBaseCurrency",
+                "type": "uint256"
+            },
+            {
+                "indexed": false,
+                "internalType": "uint256",
+                "name": "flatFeeTokens",
+                "type": "uint256"
+            },
+            {
+                "indexed": false,
+                "internalType": "uint256",
+                "name": "dynamicFeeTokens",
+                "type": "uint256"
+            }
+        ],
+        "name": "EvmToBtcTransferPolicyChanged",
+        "type": "event"
+    },
+    {
+        "anonymous": false,
+        "inputs": [
+            {
                 "indexed": false,
                 "internalType": "uint256",
                 "name": "counter",
@@ -70,7 +113,7 @@
             {
                 "indexed": false,
                 "internalType": "uint256",
-                "name": "amountWei",
+                "name": "tokenAmount",
                 "type": "uint256"
             },
             {
@@ -137,6 +180,19 @@
         ],
         "name": "RuneTransferToBtc",
         "type": "event"
+    },
+    {
+        "inputs": [],
+        "name": "DYNAMIC_FEE_DIVISOR",
+        "outputs": [
+            {
+                "internalType": "uint256",
+                "name": "",
+                "type": "uint256"
+            }
+        ],
+        "stateMutability": "view",
+        "type": "function"
     },
     {
         "inputs": [
@@ -206,6 +262,45 @@
         "inputs": [
             {
                 "internalType": "address",
+                "name": "",
+                "type": "address"
+            }
+        ],
+        "name": "evmToBtcTransferPoliciesByToken",
+        "outputs": [
+            {
+                "internalType": "uint256",
+                "name": "maxTokenAmount",
+                "type": "uint256"
+            },
+            {
+                "internalType": "uint256",
+                "name": "minTokenAmount",
+                "type": "uint256"
+            },
+            {
+                "internalType": "uint256",
+                "name": "flatFeeBaseCurrency",
+                "type": "uint256"
+            },
+            {
+                "internalType": "uint256",
+                "name": "flatFeeTokens",
+                "type": "uint256"
+            },
+            {
+                "internalType": "uint256",
+                "name": "dynamicFeeTokens",
+                "type": "uint256"
+            }
+        ],
+        "stateMutability": "view",
+        "type": "function"
+    },
+    {
+        "inputs": [
+            {
+                "internalType": "address",
                 "name": "to",
                 "type": "address"
             },
@@ -236,6 +331,52 @@
                 "internalType": "bytes32",
                 "name": "",
                 "type": "bytes32"
+            }
+        ],
+        "stateMutability": "view",
+        "type": "function"
+    },
+    {
+        "inputs": [
+            {
+                "internalType": "address",
+                "name": "token",
+                "type": "address"
+            }
+        ],
+        "name": "getEvmToBtcTransferPolicy",
+        "outputs": [
+            {
+                "components": [
+                    {
+                        "internalType": "uint256",
+                        "name": "maxTokenAmount",
+                        "type": "uint256"
+                    },
+                    {
+                        "internalType": "uint256",
+                        "name": "minTokenAmount",
+                        "type": "uint256"
+                    },
+                    {
+                        "internalType": "uint256",
+                        "name": "flatFeeBaseCurrency",
+                        "type": "uint256"
+                    },
+                    {
+                        "internalType": "uint256",
+                        "name": "flatFeeTokens",
+                        "type": "uint256"
+                    },
+                    {
+                        "internalType": "uint256",
+                        "name": "dynamicFeeTokens",
+                        "type": "uint256"
+                    }
+                ],
+                "internalType": "struct RuneBridge.EvmToBtcTransferPolicy",
+                "name": "policy",
+                "type": "tuple"
             }
         ],
         "stateMutability": "view",
@@ -443,6 +584,44 @@
     {
         "inputs": [
             {
+                "internalType": "address",
+                "name": "token",
+                "type": "address"
+            },
+            {
+                "internalType": "uint256",
+                "name": "maxTokenAmount",
+                "type": "uint256"
+            },
+            {
+                "internalType": "uint256",
+                "name": "minTokenAmount",
+                "type": "uint256"
+            },
+            {
+                "internalType": "uint256",
+                "name": "flatFeeBaseCurrency",
+                "type": "uint256"
+            },
+            {
+                "internalType": "uint256",
+                "name": "flatFeeTokens",
+                "type": "uint256"
+            },
+            {
+                "internalType": "uint256",
+                "name": "dynamicFeeTokens",
+                "type": "uint256"
+            }
+        ],
+        "name": "setEvmToBtcTransferPolicy",
+        "outputs": [],
+        "stateMutability": "nonpayable",
+        "type": "function"
+    },
+    {
+        "inputs": [
+            {
                 "internalType": "uint256",
                 "name": "",
                 "type": "uint256"
@@ -468,7 +647,7 @@
             },
             {
                 "internalType": "uint256",
-                "name": "amountWei",
+                "name": "tokenAmount",
                 "type": "uint256"
             },
             {
@@ -478,6 +657,47 @@
             }
         ],
         "name": "transferToBtc",
+        "outputs": [],
+        "stateMutability": "payable",
+        "type": "function"
+    },
+    {
+        "inputs": [
+            {
+                "internalType": "uint256",
+                "name": "amount",
+                "type": "uint256"
+            },
+            {
+                "internalType": "address payable",
+                "name": "receiver",
+                "type": "address"
+            }
+        ],
+        "name": "withdrawBaseCurrency",
+        "outputs": [],
+        "stateMutability": "nonpayable",
+        "type": "function"
+    },
+    {
+        "inputs": [
+            {
+                "internalType": "contract IERC20",
+                "name": "token",
+                "type": "address"
+            },
+            {
+                "internalType": "uint256",
+                "name": "amount",
+                "type": "uint256"
+            },
+            {
+                "internalType": "address",
+                "name": "receiver",
+                "type": "address"
+            }
+        ],
+        "name": "withdrawTokens",
         "outputs": [],
         "stateMutability": "nonpayable",
         "type": "function"
