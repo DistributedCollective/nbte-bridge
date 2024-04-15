@@ -1,6 +1,8 @@
 import sys
 import time
 import logging
+from typing import Callable
+
 from Pyro5 import config, core, serializers, protocol, errors, socketutil
 from Pyro5.client import _RemoteMethod, _StreamResultIterator, SerializedBlob
 from Pyro5.callcontext import current_context
@@ -68,7 +70,13 @@ class BoundPyroProxy(object):
         ]
     )
 
-    def __init__(self, uri, connected_socket=None, privkey=None):
+    def __init__(
+        self,
+        uri,
+        connected_socket=None,
+        privkey=None,
+        fetch_peer_addresses: Callable[[], list[str]] = lambda: [],
+    ):
         if connected_socket:
             uri = core.URI("PYRO:" + uri + "@<<connected-socket>>:0")
         if isinstance(uri, str):
@@ -96,6 +104,10 @@ class BoundPyroProxy(object):
         current_context.response_annotations = {}
         if connected_socket:
             self.__pyroCreateConnection(False, connected_socket)
+
+        self._fetch_peer_addresses = fetch_peer_addresses
+        self._cached_peer_addresses = None
+        self._cached_peer_addresses_timestamp = 0
 
     def __del__(self):
         if hasattr(self, "_pyroConnection"):
@@ -593,12 +605,15 @@ class BoundPyroProxy(object):
             )
 
     def _get_peer_addresses(self):
-        # TODO: get from external service
-        return [
-            "0x09dcD91DF9300a81a4b9C85FDd04345C3De58F48",
-            "0xA40013a058E70664367c515246F2560B82552ACb",
-            "0x4091663B0a7a14e35Ff1d6d9d0593cE15cE7710a",
-        ]
+        refetch_interval = 60
+        if self._cached_peer_addresses is not None:
+            if time.time() - self._cached_peer_addresses_timestamp < refetch_interval:
+                return self._cached_peer_addresses
+
+        log.debug("(Re)fetching peer addresses (client)")
+        self._cached_peer_addresses = self.fetch_peer_addresses()
+        self._cached_peer_addresses_timestamp = time.time()
+        return self._cached_peer_addresses
 
 
 # Forked from Pyro5.client.BoundPyroProxy.__pyroCreateConnection

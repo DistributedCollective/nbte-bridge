@@ -194,7 +194,11 @@ class PyroNetwork(Network):
             sender=str(self.uri),
             message=msg,
         )
-        with BoundPyroProxy(to, privkey=self.privkey) as peer:
+        with BoundPyroProxy(
+            to,
+            privkey=self.privkey,
+            fetch_peer_addresses=self.fetch_peer_addresses,
+        ) as peer:
             peer.receive(envelope)
 
     @Pyro5.api.expose
@@ -247,6 +251,7 @@ class PyroNetwork(Network):
             BoundPyroProxy(
                 self.get_peer_uri(peer, host),
                 privkey=self.privkey,
+                fetch_peer_addresses=self.fetch_peer_addresses,
             )
             for peer, host in self._peers
             if peer != self.node_id
