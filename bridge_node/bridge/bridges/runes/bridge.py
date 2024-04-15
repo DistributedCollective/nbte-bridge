@@ -51,7 +51,9 @@ class RuneBridge(Bridge):
         rune_deposits = self.service.scan_rune_deposits()
         # self-sign is implicit
         num_required_signatures = self.service.get_runes_to_evm_num_required_signers() - 1
+        logger.info("Found %s Rune->EVM deposits", len(rune_deposits))
         for deposit in rune_deposits:
+            logger.info("Processing Rune->EVM deposit %s", deposit)
             responses = self.network.ask(
                 question=self.sign_rune_to_evm_transfer_question,
                 message=messages.SignRuneToEvmTransferQuestion(
@@ -68,10 +70,13 @@ class RuneBridge(Bridge):
                 )
                 continue
             signatures = [response.signature for response in responses[:num_required_signatures]]
+
             self.service.send_rune_to_evm(deposit, signatures=signatures)
 
         token_deposits = self.service.scan_rune_token_deposits()
+        logger.info("Found %s RuneToken->BTC deposits", len(token_deposits))
         for deposit in token_deposits:
+            logger.info("Processing RuneToken->BTC deposit %s", deposit)
             # TODO: abstract these behind the service better
             unsigned_psbt = self.service.ord_multisig.create_rune_psbt(
                 transfers=[
