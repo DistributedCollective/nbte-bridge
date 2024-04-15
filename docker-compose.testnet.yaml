@@ -113,7 +113,6 @@ services:
     environment:
       - BRIDGE_NODE_ID=node-1
       - BRIDGE_HOSTNAME=bridge-node-1
-      - BRIDGE_LEADER_NODE_ID=node-1
       - BRIDGE_PEERS=node-2@bridge-node-2:5000,node-3@bridge-node-3:5000
       - BRIDGE_DB_URL=${DB_URL_1}
       - BRIDGE_EVM_PRIVATE_KEY=${EVM_PRIVKEY_1}
@@ -134,7 +133,6 @@ services:
     environment:
       - BRIDGE_NODE_ID=node-2
       - BRIDGE_HOSTNAME=bridge-node-2
-      - BRIDGE_LEADER_NODE_ID=node-2
       - BRIDGE_PEERS=node-1@bridge-node-1:5000,node-3@bridge-node-3:5000
       - BRIDGE_DB_URL=${DB_URL_2}
       - BRIDGE_EVM_PRIVATE_KEY=${EVM_PRIVKEY_2}
@@ -155,7 +153,6 @@ services:
     environment:
       - BRIDGE_NODE_ID=node-3
       - BRIDGE_HOSTNAME=bridge-node-3
-      - BRIDGE_LEADER_NODE_ID=node-3
       - BRIDGE_PEERS=node-1@bridge-node-1:5000,node-2@bridge-node-2:5000
       - BRIDGE_DB_URL=${DB_URL_3}
       - BRIDGE_EVM_PRIVATE_KEY=${EVM_PRIVKEY_3}

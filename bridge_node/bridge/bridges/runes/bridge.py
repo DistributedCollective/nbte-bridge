@@ -41,7 +41,8 @@ class RuneBridge(Bridge):
 
     def run_iteration(self) -> None:
         if not self.network.is_leader():
-            # TODO: right now, only alice will run these
+            # TODO: right now, only the leader will run these
+            logger.info("Not leader, not doing anything")
             return
 
         # TODO: make it more robust:
