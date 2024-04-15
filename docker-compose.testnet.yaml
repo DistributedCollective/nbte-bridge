@@ -170,7 +170,7 @@ services:
       context: bridge_frontend
       args:
         - REACT_APP_API_BASE_URL=
-        - REACT_APP_RUNE_BRIDGE_CONTRACT_ADDRESS=0x09E4D1C764113AbeE5986d5CF7A53893491a4BA8
+        - REACT_APP_RUNE_BRIDGE_CONTRACT_ADDRESS=0xBF6291ba5a47f6034abd23a71d2a720b42918533
     restart: always
     ports:
       - 127.0.0.1:3003:3000
