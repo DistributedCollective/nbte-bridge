@@ -67,6 +67,9 @@ class BoundPyroProxy(object):
             "_BoundPyroProxy__pyroTimeout",
             "_BoundPyroProxy__pyroOwnerThread",
             "_pyroPrivKey",  # added
+            "_fetch_peer_addresses",  # added
+            "_cached_peer_addresses",  # added
+            "_cached_peer_addresses_timestamp",  # added
         ]
     )
 
