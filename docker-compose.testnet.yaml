@@ -108,38 +108,61 @@ services:
       - "traefik.http.routers.alice-bridge.rule=PathPrefix(`/api/`)"
       - "traefik.http.services.alice-bridge.loadbalancer.server.port=8080"
       - "traefik.enable=true"
+    env_file:
+      - env.testnet-common
     environment:
-      # NOTE: the private keys and other secrets are supposed to be here -- they are not used in the real world, only regtest. Don't report them.
       - BRIDGE_NODE_ID=node-1
       - BRIDGE_HOSTNAME=bridge-node-1
       - BRIDGE_LEADER_NODE_ID=node-1
-      - BRIDGE_DB_URL=postgresql://bridge1:a5f83ab52f2c6c8d0a31e99c@postgres:5432/bridge1
-      - LOG_LEVEL=DEBUG
-      - BRIDGE_ENABLED_BRIDGES=runesrsk
-      - BRIDGE_EVM_PRIVATE_KEY=0x9a9a640da1fc0181e43a9ea00b81878f26e1678e3e246b25bd2835783f2be181
-      # ^-- address 0x4091663B0a7a14e35Ff1d6d9d0593cE15cE7710a
-      - BRIDGE_EVM_BLOCK_SAFETY_MARGIN=1
-      - BRIDGE_EVM_BRIDGE_CONTRACT_ADDRESS=0x5FbDB2315678afecb367f032d93F642f64180aa3
-      - BRIDGE_EVM_RPC_URL=https://testnet.sovryn.app/rpc
-      - BRIDGE_PEERS=
-      - BRIDGE_BTC_NETWORK=testnet
-      - BRIDGE_BTC_RPC_URL=http://bitcoinuser:bitcoinpass@bitcoind:18332
-      # Taproot Assets
-      - BRIDGE_TAP_HOST=
-      - BRIDGE_TAP_MACAROON_PATH=
-      - BRIDGE_TAP_TLS_CERT_PATH=
-      # RUNES
-      # TODO: we use the same keys as tap bridge. Might cause problems or not.
-      # RUNES COMMON
-      - BRIDGE_RUNES_RUNE_BRIDGE_CONTRACT_ADDRESS=0x09E4D1C764113AbeE5986d5CF7A53893491a4BA8
-      - BRIDGE_RUNES_EVM_DEFAULT_START_BLOCK=4943737
-      - BRIDGE_RUNES_ORD_API_URL=http://ord:80
-      - BRIDGE_RUNES_EVM_RPC_URL=https://testnet.sovryn.app/rpc
-      - BRIDGE_SECRET_RUNES_BTC_MASTER_XPUBS=${BRIDGE_SECRET_RUNES_BTC_MASTER_XPUBS}
-      # RUNES NODE-SPECIFIC
-      - BRIDGE_RUNES_BTC_RPC_WALLET_URL=http://bitcoinuser:bitcoinpass@bitcoind:18332/wallet/runebridge
-      - BRIDGE_SECRET_RUNES_EVM_PRIVATE_KEY=${BRIDGE_SECRET_RUNES_EVM_PRIVATE_KEY}
-      - BRIDGE_SECRET_RUNES_BTC_MASTER_XPRIV=${BRIDGE_SECRET_RUNES_BTC_MASTER_XPRIV}
+      - BRIDGE_PEERS=node-2@bridge-node-2:5000,node-3@bridge-node-3:5000
+      - BRIDGE_DB_URL=${DB_URL_1}
+      - BRIDGE_EVM_PRIVATE_KEY=${EVM_PRIVKEY_1}
+      - BRIDGE_RUNES_BTC_RPC_WALLET_URL=${BTC_RPC_1}
+      - BRIDGE_SECRET_RUNES_EVM_PRIVATE_KEY=${EVM_PRIVKEY_1}
+      - BRIDGE_SECRET_RUNES_BTC_MASTER_XPRIV=${BTC_XPRIV_1}
+      - BRIDGE_SECRET_RUNES_BTC_MASTER_XPUBS=${BTC_XPUBS}
+
+  bridge-node-2:
+    image: bridge_node:latest
+    build:
+      context: bridge_node
+    restart: always
+    depends_on:
+      - postgres
+    env_file:
+      - env.testnet-common
+    environment:
+      - BRIDGE_NODE_ID=node-2
+      - BRIDGE_HOSTNAME=bridge-node-2
+      - BRIDGE_LEADER_NODE_ID=node-2
+      - BRIDGE_PEERS=node-1@bridge-node-1:5000,node-3@bridge-node-3:5000
+      - BRIDGE_DB_URL=${DB_URL_2}
+      - BRIDGE_EVM_PRIVATE_KEY=${EVM_PRIVKEY_2}
+      - BRIDGE_RUNES_BTC_RPC_WALLET_URL=${BTC_RPC_2}
+      - BRIDGE_SECRET_RUNES_EVM_PRIVATE_KEY=${EVM_PRIVKEY_2}
+      - BRIDGE_SECRET_RUNES_BTC_MASTER_XPRIV=${BTC_XPRIV_2}
+      - BRIDGE_SECRET_RUNES_BTC_MASTER_XPUBS=${BTC_XPUBS}
+
+  bridge-node-3:
+    image: bridge_node:latest
+    build:
+      context: bridge_node
+    restart: always
+    depends_on:
+      - postgres
+    env_file:
+      - env.testnet-common
+    environment:
+      - BRIDGE_NODE_ID=node-3
+      - BRIDGE_HOSTNAME=bridge-node-3
+      - BRIDGE_LEADER_NODE_ID=node-3
+      - BRIDGE_PEERS=node-1@bridge-node-1:5000,node-2@bridge-node-2:5000
+      - BRIDGE_DB_URL=${DB_URL_3}
+      - BRIDGE_EVM_PRIVATE_KEY=${EVM_PRIVKEY_3}
+      - BRIDGE_RUNES_BTC_RPC_WALLET_URL=${BTC_RPC_3}
+      - BRIDGE_SECRET_RUNES_EVM_PRIVATE_KEY=${EVM_PRIVKEY_3}
+      - BRIDGE_SECRET_RUNES_BTC_MASTER_XPRIV=${BTC_XPRIV_3}
+      - BRIDGE_SECRET_RUNES_BTC_MASTER_XPUBS=${BTC_XPUBS}
 
   web:
     image: bridge_frontend:latest

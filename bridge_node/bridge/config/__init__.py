@@ -18,6 +18,7 @@ class Config:
     db_url = environ.var()
     enabled_bridges = environ.var(converter=comma_separated, default="all")
     access_control_contract_address = environ.var()
+    evm_rpc_url = environ.var()
 
     # Generic blockchain settings for all bridges
     evm_block_safety_margin = environ.var(converter=int, default=5)
@@ -26,7 +27,6 @@ class Config:
     # Tap bridge config.
     # TODO: prefix these!
     evm_bridge_contract_address = environ.var()
-    evm_rpc_url = environ.var()
     evm_start_block = environ.var(converter=int, default=1)
     tap_host = environ.var()
     tap_macaroon_path = environ.var()
@@ -39,7 +39,7 @@ class Config:
 
     # Rune bridge config
     runes_rune_bridge_contract_address = environ.var()
-    runes_evm_rpc_url = environ.var()
+    runes_evm_rpc_url = environ.var()  # TODO: get rid of this, just use the global one
     runes_evm_default_start_block = environ.var(converter=int, default=1)
     runes_btc_num_required_signers = environ.var(converter=int)
     runes_btc_rpc_wallet_url = environ.var()

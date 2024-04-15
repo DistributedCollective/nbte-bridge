@@ -51,7 +51,8 @@ task(`${PREFIX}deploy-regtest`)
         }
     }));
 
-task(`${PREFIX}deploy-testnet`)
+
+task(`deploy-rune-bridge`)
     .addParam('accessControl', 'NBTEBridgeAccessControl address')
     .addParam('addressValidator', 'BTCAddressValidator address')
     .setAction(jsonAction(async ({
@@ -74,9 +75,7 @@ task(`${PREFIX}deploy-testnet`)
         );
 
         return {
-            addresses: {
-                RuneBridge: bridge.target
-            }
+            address: bridge.target,
         }
     }));
 
@@ -110,6 +109,22 @@ task(`${PREFIX}register-rune`)
 
         return {
             success: true,
+        }
+    }));
+
+
+task(`${PREFIX}list-tokens`)
+    .addParam("bridgeAddress", "RuneBridge contract address")
+    .setAction(jsonAction(async ({
+        bridgeAddress
+    }, hre) => {
+        const ethers = hre.ethers;
+
+        const bridge = await ethers.getContractAt("RuneBridge", bridgeAddress);
+        const tokens = await bridge.listTokens();
+
+        return {
+            tokens,
         }
     }));
 
