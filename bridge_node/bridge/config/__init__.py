@@ -17,6 +17,7 @@ class Config:
     peers = environ.var(converter=lambda s: [x.split("@") for x in comma_separated(s)])
     db_url = environ.var()
     enabled_bridges = environ.var(converter=comma_separated, default="all")
+    access_control_contract_address = environ.var()
 
     # Generic blockchain settings for all bridges
     evm_block_safety_margin = environ.var(converter=int, default=5)

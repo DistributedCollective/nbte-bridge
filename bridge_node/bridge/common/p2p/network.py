@@ -323,12 +323,12 @@ def create_pyro_network(container: Container):
     # We also create a new Web3 for this instead of getting it from the Container,
     # because we anticipate that we might need multiple Web3 instances in the future.
     web3 = create_web3(config.evm_rpc_url)
-    federation_contract = web3.eth.contract(
-        address=config.evm_bridge_contract_address,
+    access_control_contract = web3.eth.contract(
+        address=config.access_control_contract_address,
         abi=[
             {
                 "inputs": [],
-                "name": "getFederators",
+                "name": "federators",
                 "outputs": [{"internalType": "address[]", "name": "", "type": "address[]"}],
                 "stateMutability": "view",
                 "type": "function",
@@ -343,7 +343,7 @@ def create_pyro_network(container: Container):
         peers=config.peers,
         context_cls=PyroSecureContext,
         privkey=config.evm_private_key,
-        fetch_peer_addresses=federation_contract.functions.getFederators().call,
+        fetch_peer_addresses=access_control_contract.functions.federators().call,
         leader_node_id=config.leader_node_id,
     )
 
