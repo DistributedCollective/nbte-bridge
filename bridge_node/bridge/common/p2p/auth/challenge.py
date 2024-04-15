@@ -49,7 +49,5 @@ def validate_message(data, expected_binding, valid_addresses):
 
     if recovered not in valid_addresses:
         raise Pyro5.errors.SecurityError(
-            "Recovered address %r does not match any of the allowed addresses %r",
-            recovered,
-            valid_addresses,
+            f"Recovered address {recovered!r} does not match any of the allowed addresses {valid_addresses!r}",
         )
