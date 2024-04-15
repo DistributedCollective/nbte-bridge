@@ -4,15 +4,19 @@ import "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 
 
 contract RuneToken is ERC20 {
-    address public deployer;
+    address public minter;
 
     uint256 public rune;
     uint8 public runeDivisibility;
     uint8 private tokenDecimals;
     uint256 public runeAmountDivisor;
 
-    modifier onlyDeployer() {
-        require(msg.sender == deployer, "only deployer");
+    event Mint(address indexed to, uint256 amount);
+    event Burn(address indexed from, uint256 amount);
+    event MinterChanged(address indexed oldMinter, address indexed newMinter);
+
+    modifier onlyMinter() {
+        require(msg.sender == minter, "only minter");
         _;
     }
 
@@ -22,7 +26,7 @@ contract RuneToken is ERC20 {
         uint256 _rune,
         uint8 _runeDivisibility
     ) ERC20(_tokenName, _tokenSymbol) {
-        deployer = msg.sender;
+        minter = msg.sender;
 
         rune = _rune;
         runeDivisibility = _runeDivisibility;
@@ -66,25 +70,33 @@ contract RuneToken is ERC20 {
         return runeAmount * runeAmountDivisor;
     }
 
-    // TODO: rename mintTo
-    function mint(
+    function mintTo(
         address to,
         uint256 amount
     )
     external
-    onlyDeployer
+    onlyMinter
     {
         _mint(to, amount);
+        emit Mint(to, amount);
     }
 
-    // TODO: drop from argument and onlyDeployer
+    function changeMinter(
+        address newMinter
+    )
+    external
+    onlyMinter
+    {
+        minter = newMinter;
+        emit MinterChanged(msg.sender, newMinter);
+    }
+
     function burn(
-        address from,
         uint256 amount
     )
     external
-    onlyDeployer
     {
-        _burn(from, amount);
+        _burn(msg.sender, amount);
+        emit Burn(msg.sender, amount);
     }
 }

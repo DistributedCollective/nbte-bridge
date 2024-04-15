@@ -176,6 +176,18 @@
                 "internalType": "string",
                 "name": "receiverBtcAddress",
                 "type": "string"
+            },
+            {
+                "indexed": false,
+                "internalType": "uint256",
+                "name": "baseCurrencyFee",
+                "type": "uint256"
+            },
+            {
+                "indexed": false,
+                "internalType": "uint256",
+                "name": "tokenFee",
+                "type": "uint256"
             }
         ],
         "name": "RuneTransferToBtc",
@@ -659,6 +671,24 @@
         "name": "transferToBtc",
         "outputs": [],
         "stateMutability": "payable",
+        "type": "function"
+    },
+    {
+        "inputs": [
+            {
+                "internalType": "contract RuneToken",
+                "name": "token",
+                "type": "address"
+            },
+            {
+                "internalType": "string",
+                "name": "receiverBtcAddress",
+                "type": "string"
+            }
+        ],
+        "name": "transferTokenBalanceToBtc",
+        "outputs": [],
+        "stateMutability": "nonpayable",
         "type": "function"
     },
     {
