@@ -614,7 +614,7 @@ class BoundPyroProxy(object):
                 return self._cached_peer_addresses
 
         log.debug("(Re)fetching peer addresses (client)")
-        self._cached_peer_addresses = self.fetch_peer_addresses()
+        self._cached_peer_addresses = self._fetch_peer_addresses()
         self._cached_peer_addresses_timestamp = time.time()
         return self._cached_peer_addresses
 
