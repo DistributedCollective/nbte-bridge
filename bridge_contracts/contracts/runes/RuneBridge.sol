@@ -11,6 +11,7 @@ import {RuneToken} from "./RuneToken.sol";
 
 contract RuneBridge is NBTEBridgeAccessControllable {
     using SafeERC20 for IERC20;
+    using SafeERC20 for RuneToken;
     using Address for address payable;
 
     event RuneTransferToBtc(
@@ -20,7 +21,9 @@ contract RuneBridge is NBTEBridgeAccessControllable {
         uint256 indexed rune,
         uint256 transferredTokenAmount,
         uint256 netRuneAmount,
-        string receiverBtcAddress
+        string receiverBtcAddress,
+        uint256 baseCurrencyFee,
+        uint256 tokenFee
     );
 
     event RuneTransferFromBtc(
@@ -113,19 +116,18 @@ contract RuneBridge is NBTEBridgeAccessControllable {
         uint256 tokenFee = policy.flatFeeTokens + (tokenAmount * policy.dynamicFeeTokens / DYNAMIC_FEE_DIVISOR);
         require(tokenAmount >= tokenFee, "token amount less than fees");
 
-        uint256 netTokenAmount = tokenAmount - tokenFee;
-
-        // TODO: use an approve - transfer - burn pattern
-        // ie. transfer tokenAmount here, then burn netTokenAmount
-        // burning from anyone is just fishy
-        token.burn(msg.sender, netTokenAmount);
-
-        // TODO: this doesn't validate the case if amount is too precise -- the rest will accumulate as dust in this
-        // contract and can be withdrawn later as service fees
-        uint256 netRuneAmount = token.getRuneAmount(tokenAmount);
+        // NOTE: converting between token and rune amounts might result in truncating of decimals
+        // if the rune has less decimals than the token. This is taken into account in the double conversions here,
+        // and the truncated amount is treated as transfer fee
+        uint256 netRuneAmount = token.getRuneAmount(tokenAmount - tokenFee);
         require(netRuneAmount > 0, "received net rune amount is zero");
+        uint256 netTokenAmount = token.getTokenAmount(netRuneAmount);
+        tokenFee = tokenAmount - netTokenAmount;
 
-        // TODO: add fees as part of this event
+        // transfer the full amount of tokens, then burn the net amount. rest is kept as fees.
+        token.safeTransferFrom(msg.sender, address(this), tokenAmount);
+        token.burn(netTokenAmount);
+
         numTransfersTotal++;
         emit RuneTransferToBtc(
             numTransfersTotal,
@@ -134,7 +136,9 @@ contract RuneBridge is NBTEBridgeAccessControllable {
             rune,
             tokenAmount,
             netRuneAmount,
-            receiverBtcAddress
+            receiverBtcAddress,
+            policy.flatFeeBaseCurrency,
+            tokenFee
         );
     }
 
@@ -214,7 +218,7 @@ contract RuneBridge is NBTEBridgeAccessControllable {
         RuneToken token = RuneToken(getTokenByRune(rune));  // this validates that it's registered
 
         uint256 tokenAmount = token.getTokenAmount(runeAmount);
-        token.mint(to, tokenAmount);
+        token.mintTo(to, tokenAmount);
 
         numTransfersTotal++;
         emit RuneTransferFromBtc(
@@ -292,6 +296,44 @@ contract RuneBridge is NBTEBridgeAccessControllable {
     {
         // TODO: emit event
         token.safeTransfer(receiver, amount);
+    }
+
+    /// @dev Transfer full balance of a Rune Token (probably collected as fees)
+    ///      to a BTC address, without double-spending fees
+    function transferTokenBalanceToBtc(
+        RuneToken token,
+        string calldata receiverBtcAddress
+    )
+    external
+    onlyAdmin
+    {
+        uint256 tokenAmount = address(token).balance;
+        require(tokenAmount > 0, "zero balance");
+
+        uint256 rune = token.rune();
+        require(isRuneRegistered(rune), "rune not registered");
+
+        require(btcAddressValidator.isValidBtcAddress(receiverBtcAddress), "invalid BTC address");
+
+        // do the double conversion to account for decimal differences
+        uint256 runeAmount = token.getRuneAmount(tokenAmount);
+        tokenAmount = token.getTokenAmount(runeAmount);
+        require(tokenAmount > 0, "received token amount is zero");
+
+        token.burn(tokenAmount);
+
+        numTransfersTotal++;
+        emit RuneTransferToBtc(
+            numTransfersTotal,
+            msg.sender,
+            address(token),
+            rune,
+            tokenAmount,
+            runeAmount,
+            receiverBtcAddress,
+            0,
+            0
+        );
     }
 
     function registerRune(

@@ -197,12 +197,13 @@ class RuneBridgeUtil:
         if rune and rune_token_address:
             raise ValueError("only one of rune or rune_token_address must be provided")
         if rune:
-            rune_token_address = self.get_rune_token(rune).address
+            rune_token = self.get_rune_token(rune)
         else:
             rune_number = self._rune_bridge_contract.functions.getRuneByToken(
                 rune_token_address,
             ).call()
             rune = self._rune_number_to_name(rune_number)
+            rune_token = self.get_rune_token(rune)
 
         if isinstance(sender, EVMWallet):
             sender = sender.address
@@ -214,8 +215,20 @@ class RuneBridgeUtil:
 
         amount_decimal = Decimal(amount_decimal)
 
+        tx_hash = rune_token.functions.approve(
+            self._rune_bridge_contract.address,
+            to_wei(amount_decimal),
+        ).transact(
+            {
+                "gas": 1_000_000,
+                "from": sender,
+            }
+        )
+        receipt = self._web3.eth.wait_for_transaction_receipt(tx_hash)
+        assert receipt.status, f"Approval failed: {receipt}"
+
         tx_hash = self._rune_bridge_contract.functions.transferToBtc(
-            rune_token_address,
+            rune_token.address,
             to_wei(amount_decimal),
             receiver_address,
         ).transact(
@@ -286,7 +299,7 @@ class RuneBridgeUtil:
         rune_token = self.get_rune_token(rune)
 
         with self.impersonate_bridge_contract() as bridge_address:
-            tx_hash = rune_token.functions.mint(
+            tx_hash = rune_token.functions.mintTo(
                 receiver,
                 to_wei(amount_decimal),
             ).transact({"from": bridge_address})
