@@ -75,6 +75,23 @@ task('deploy-access-control')
         };
     }));
 
+task('federators')
+    .addParam('accessControl', 'Access control address')
+    .setAction(jsonAction(async ({
+        accessControl: accessControlAddress,
+    }, hre) => {
+        const { ethers } = hre;
+        const accessControl = await ethers.getContractAt(
+            "NBTEBridgeAccessControl",
+            accessControlAddress,
+        );
+        const federators = await accessControl.federators();
+        console.log("Federators", federators);
+        return {
+            federators,
+        };
+    }));
+
 task('deploy-btc-address-validator')
     .addParam('accessControl', 'Access control address')
     .addParam('bech32Prefix', 'Bech32 prefix')

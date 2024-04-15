@@ -39,7 +39,7 @@ class PyroSecureContext:
         self.privkey = privkey
         self.fetch_peer_addresses = fetch_peer_addresses
         self._cached_peer_addresses = None
-        self._cached_peer_addresses_timestamp = None
+        self._cached_peer_addresses_timestamp = 0
         logger.debug("Enabling SSL for Pyro communication")
 
         Pyro5.config.SSL = True
