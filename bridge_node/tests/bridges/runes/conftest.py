@@ -1,6 +1,7 @@
 import dataclasses
 import logging
 import time
+from decimal import Decimal
 from types import SimpleNamespace
 
 import pytest
@@ -363,6 +364,7 @@ def wire_rune_bridge_for_federator(
             ord_api_url=ord_api_url,
             evm_block_safety_margin=0,
             evm_default_start_block=1,
+            runes_to_evm_fee_percentage_decimal=Decimal(0),
         ),
         secrets=RuneBridgeSecrets(
             evm_private_key=evm_private_key,

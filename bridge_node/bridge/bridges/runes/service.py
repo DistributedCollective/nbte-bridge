@@ -1,3 +1,4 @@
+import dataclasses
 import functools
 import logging
 import time
@@ -30,6 +31,16 @@ from ...common.services.transactions import TransactionManager
 from . import messages
 
 logger = logging.getLogger(__name__)
+
+
+@dataclasses.dataclass
+class TransferAmounts:
+    amount_decimal: Decimal
+    amount_raw: int
+    fee_decimal: Decimal
+    fee_raw: int
+    net_amount_decimal: Decimal
+    net_amount_raw: int
 
 
 class RuneBridgeServiceConfig(Protocol):
@@ -186,11 +197,13 @@ class RuneBridgeService:
             for spaced_rune_name, balance_entry in ord_output["runes"]:
                 # TODO: validate postage, but still store in DB
                 rune = rune_from_str(spaced_rune_name)
-                amount_raw = balance_entry["amount"]
-                amount_decimal = Decimal(amount_raw) / 10 ** balance_entry["divisibility"]
+                amounts = self._calculate_rune_to_evm_transfer_amounts(
+                    amount_raw=balance_entry["amount"],
+                    divisibility=balance_entry["divisibility"],
+                )
                 logger.info(
                     "Received %s %s for %s at %s:%s",
-                    amount_decimal,
+                    amounts.amount_decimal,
                     spaced_rune_name,
                     evm_address,
                     txid,
@@ -199,8 +212,9 @@ class RuneBridgeService:
 
                 transfer = messages.RuneToEvmTransfer(
                     evm_address=evm_address,
-                    amount_raw=amount_raw,
-                    amount_decimal=amount_decimal,
+                    amount_raw=amounts.amount_raw,
+                    amount_decimal=amounts.amount_decimal,
+                    net_amount_raw=amounts.net_amount_raw,
                     txid=txid,
                     vout=vout,
                     rune_name=rune.name,
@@ -304,14 +318,15 @@ class RuneBridgeService:
                 )
             for spaced_rune_name, balance_entry in output["runes"]:
                 rune = rune_from_str(spaced_rune_name)
-                amount_raw = balance_entry["amount"]
-                amount_decimal = Decimal(amount_raw) / 10 ** balance_entry["divisibility"]
-                fee_decimal = amount_decimal * self.config.runes_to_evm_fee_percentage_decimal / 100
-                receive_amount_decimal = amount_decimal - fee_decimal
+                amounts = self._calculate_rune_to_evm_transfer_amounts(
+                    amount_raw=balance_entry["amount"],
+                    divisibility=balance_entry["divisibility"],
+                )
                 transfer = messages.RuneToEvmTransfer(
                     evm_address=evm_address,
-                    amount_raw=amount_raw,
-                    amount_decimal=amount_decimal,
+                    amount_raw=amounts.amount_raw,
+                    amount_decimal=amounts.amount_decimal,
+                    net_amount_raw=amounts.net_amount_raw,
                     txid=txid,
                     vout=vout,
                     rune_name=rune.name,
@@ -327,9 +342,9 @@ class RuneBridgeService:
                         "btc_deposit_vout": vout,
                         "rune_name": spaced_rune_name,
                         "rune_symbol": get_rune_symbol(spaced_rune_name),
-                        "amount_decimal": str(amount_decimal),
-                        "fee_decimal": str(fee_decimal),
-                        "receive_amount_decimal": str(receive_amount_decimal),
+                        "amount_decimal": str(amounts.amount_decimal),
+                        "fee_decimal": str(amounts.fee_decimal),
+                        "receive_amount_decimal": str(amounts.net_amount_decimal),
                         "status": data.get("status", "seen"),
                         "evm_transfer_tx_hash": data.get("transfer_tx_hash", None),
                     }
@@ -342,7 +357,7 @@ class RuneBridgeService:
         tx_hash = self.rune_bridge_contract.functions.acceptTransferFromBtc(
             transfer.evm_address,
             rune.n,
-            transfer.amount_raw,
+            transfer.net_amount_raw,
             eth_utils.add_0x_prefix(transfer.txid),
             transfer.vout,
             signatures,
@@ -395,6 +410,22 @@ class RuneBridgeService:
                 f"Amount mismatch: {transfer.amount_decimal!r} != {transfer.amount_raw} / 10^{divisibility}"
             )
 
+        if transfer.net_amount_decimal != Decimal(transfer.net_amount_raw) / (10**divisibility):
+            raise ValueError(
+                f"Net amount mismatch: {transfer.net_amount_decimal!r} != {transfer.net_amount_raw} / 10^{divisibility}"
+            )
+
+        calculated_amounts = self._calculate_rune_to_evm_transfer_amounts(
+            amount_raw=transfer.amount_raw,
+            divisibility=divisibility,
+        )
+        if transfer.net_amount_raw != calculated_amounts.net_amount_raw:
+            raise ValueError(
+                f"Net amount mismatch: {transfer.net_amount_raw} != {calculated_amounts.net_amount_raw}"
+            )
+        if transfer.net_amount_raw == 0:
+            raise ValueError("Net amount is zero")
+
         balance_at_output = self.ord_multisig.get_rune_balance_at_output(
             txid=transfer.txid,
             vout=transfer.vout,
@@ -417,7 +448,7 @@ class RuneBridgeService:
         message_hash = self.rune_bridge_contract.functions.getAcceptTransferFromBtcMessageHash(
             transfer.evm_address,
             rune.n,
-            to_wei(transfer.amount_decimal),
+            to_wei(transfer.net_amount_decimal),
             eth_utils.add_0x_prefix(transfer.txid),
             transfer.vout,
         ).call()
@@ -554,3 +585,27 @@ class RuneBridgeService:
 
     def _sleep(self, multiplier: float = 1.0):
         time.sleep(1.0 * multiplier)
+
+    def _calculate_rune_to_evm_transfer_amounts(
+        self, amount_raw: int, divisibility: int
+    ) -> TransferAmounts:
+        if not isinstance(amount_raw, int):
+            raise ValueError(f"Amount must be int, got {amount_raw!r}")
+        if not isinstance(divisibility, int):
+            raise ValueError(f"Divisibility must be int, got {divisibility!r}")
+
+        divisor = 10**divisibility
+        amount_decimal = Decimal(amount_raw) / divisor
+        fee_decimal = amount_decimal * self.config.runes_to_evm_fee_percentage_decimal / 100
+        net_amount_decimal = amount_decimal - fee_decimal
+        net_amount_raw = int(net_amount_decimal * divisor)
+        fee_raw = amount_raw - net_amount_raw
+
+        return TransferAmounts(
+            amount_decimal=amount_decimal,
+            amount_raw=amount_raw,
+            fee_decimal=fee_decimal,
+            fee_raw=fee_raw,
+            net_amount_decimal=net_amount_decimal,
+            net_amount_raw=net_amount_raw,
+        )
