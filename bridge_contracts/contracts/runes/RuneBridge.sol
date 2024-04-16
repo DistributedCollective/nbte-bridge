@@ -72,6 +72,9 @@ contract RuneBridge is NBTEBridgeAccessControllable, Freezable, Pausable {
     mapping(address => uint256) public runesByToken;
     address[] public runeTokens;
 
+    /// @dev Mapping txHash => vout => rune => processed?
+    mapping(bytes32 => mapping(uint256 => mapping(uint256 => bool))) processedTransfersFromBtc;
+
     mapping(address => EvmToBtcTransferPolicy) public evmToBtcTransferPoliciesByToken;  // 0x0 for default policy
 
     constructor(
@@ -167,13 +170,6 @@ contract RuneBridge is NBTEBridgeAccessControllable, Freezable, Pausable {
         return runeTokens;
     }
 
-    function getEvmToBtcTransferPolicy(address token) public view returns (EvmToBtcTransferPolicy memory policy) {
-        policy = evmToBtcTransferPoliciesByToken[token];
-        if (policy.maxTokenAmount == 0) {
-            policy = evmToBtcTransferPoliciesByToken[address(0)];
-        }
-    }
-
     function paginateTokens(uint256 start, uint256 count) public view returns (address[] memory) {
         if (start >= runeTokens.length) {
             return new address[](0);
@@ -187,6 +183,28 @@ contract RuneBridge is NBTEBridgeAccessControllable, Freezable, Pausable {
             result[i - start] = runeTokens[i];
         }
         return result;
+    }
+
+    function getEvmToBtcTransferPolicy(address token) public view returns (EvmToBtcTransferPolicy memory policy) {
+        policy = evmToBtcTransferPoliciesByToken[token];
+        if (policy.maxTokenAmount == 0) {
+            policy = evmToBtcTransferPoliciesByToken[address(0)];
+        }
+    }
+
+    function isTransferFromBtcProcessed(bytes32 txHash, uint256 vout, uint256 rune) public view returns (bool) {
+        return processedTransfersFromBtc[txHash][vout][rune];
+    }
+
+    function _setTransferFromBtcProcessed(
+        bytes32 txHash,
+        uint256 vout,
+        uint256 rune
+    )
+    internal
+    {
+        // no validation here, calling functions will check it anyway before calling;
+        processedTransfersFromBtc[txHash][vout][rune] = true;
     }
 
     // Federator API
@@ -217,9 +235,10 @@ contract RuneBridge is NBTEBridgeAccessControllable, Freezable, Pausable {
             msg.sender
         );
 
-        // TODO: validate not processed
-
         RuneToken token = RuneToken(getTokenByRune(rune));  // this validates that it's registered
+
+        require(!isTransferFromBtcProcessed(btcTxId, btcTxVout, rune), "transfer already processed");
+        _setTransferFromBtcProcessed(btcTxId, btcTxVout, rune);
 
         uint256 tokenAmount = token.getTokenAmount(runeAmount);
         token.mintTo(to, tokenAmount);
