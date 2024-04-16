@@ -113,6 +113,7 @@ class RuneBridgeService:
 
         # New last block will be stored in the DB
         new_last_block = resp["lastblock"]
+        logger.info("New last block: %s", new_last_block)
 
         transfers = []
         for tx in resp["transactions"]:
@@ -165,7 +166,12 @@ class RuneBridgeService:
 
             if not output["runes"]:
                 # TODO: store these too
-                logger.warning("Transfer without runes: %s:%s", txid, vout)
+                logger.warning(
+                    "Transfer without runes: %s:%s. ord output: %s",
+                    txid,
+                    vout,
+                    output,
+                )
                 continue
 
             for rune_name, balance_entry in output["runes"]:
