@@ -27,6 +27,7 @@ class RuneBridge(Bridge):
         self.sign_rune_token_to_btc_transfer_question = (
             f"{bridge_id}:sign-rune-token-to-btc-transfer"
         )
+        self.max_retries = 10
 
     def init(self) -> None:
         if not self.network.is_leader():
@@ -55,8 +56,9 @@ class RuneBridge(Bridge):
         logger.info("Found %s Rune->EVM deposits", len(rune_deposits))
         for deposit in rune_deposits:
             logger.info("Processing Rune->EVM deposit %s", deposit)
-            tries_left = 10
-            while tries_left:
+            tries_left = self.max_retries + 1
+            while tries_left > 0:
+                tries_left -= 1
                 logger.info("Asking for signatures for deposit %s")
                 responses = self.network.ask(
                     question=self.sign_rune_to_evm_transfer_question,
@@ -76,7 +78,7 @@ class RuneBridge(Bridge):
                     "Not enough signatures for transfer: %s, trying again soon",
                     deposit,
                 )
-                time.sleep(1)
+                time.sleep(self.max_retries - tries_left + 1)
             else:
                 logger.error("Failed to get enough signatures for transfer: %s", deposit)
                 continue
@@ -102,8 +104,8 @@ class RuneBridge(Bridge):
                 transfer=deposit,
                 unsigned_psbt_serialized=self.service.ord_multisig.serialize_psbt(unsigned_psbt),
             )
-            tries_left = 10
-            while tries_left:
+            tries_left = self.max_retries + 1
+            while tries_left > 0:
                 tries_left -= 1
                 logger.info("Asking for signatures for RuneToken->BTC deposit %s")
                 responses = self.network.ask(
@@ -121,7 +123,7 @@ class RuneBridge(Bridge):
                     "Not enough signatures for transfer: %s",
                     deposit,
                 )
-                time.sleep(10 - tries_left)
+                time.sleep(self.max_retries - tries_left + 1)
             else:
                 logger.error("Failed to get enough signatures for transfer: %s", deposit)
                 continue

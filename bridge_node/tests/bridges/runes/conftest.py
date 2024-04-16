@@ -353,7 +353,7 @@ def wire_rune_bridge_for_federator(
         global_container=Container(FactoryRegistry("global")),
         transaction_registry=transaction_registry,
     )
-    return wire_rune_bridge(
+    wiring = wire_rune_bridge(
         config=RuneBridgeConfig(
             bridge_id="test-runebridge",
             rune_bridge_contract_address=rune_bridge_contract_address,
@@ -372,6 +372,8 @@ def wire_rune_bridge_for_federator(
         network=network,
         transaction_manager=alice_transaction_manager,
     )
+    wiring.bridge.max_retries = 0  # no retries in tests
+    return wiring
 
 
 @pytest.fixture()
