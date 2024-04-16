@@ -1,5 +1,6 @@
 import functools
 import logging
+import time
 from decimal import Decimal
 from typing import (
     Protocol,
@@ -104,6 +105,12 @@ class RuneBridgeService:
             logger.info("Scanning Rune deposits from block %s", last_bitcoin_block)
             resp = self.bitcoin_rpc.call("listsinceblock", last_bitcoin_block)
 
+        # Sync with Bitcoind to avoid missing rune outputs
+        self._sync_ord_with_bitcoind()
+
+        # New last block will be stored in the DB
+        new_last_block = resp["lastblock"]
+
         transfers = []
         for tx in resp["transactions"]:
             if tx["category"] != "receive":
@@ -165,8 +172,24 @@ class RuneBridgeService:
 
         with self.transaction_manager.transaction() as tx:
             key_value_store = tx.find_service(KeyValueStore)
-            key_value_store.set_value(last_block_key, resp["lastblock"])
+            key_value_store.set_value(last_block_key, new_last_block)
         return transfers
+
+    def _sync_ord_with_bitcoind(self, timeout=60, poll_interval=1):
+        start = time.time()
+        bitcoind_block_count = self.bitcoin_rpc.call("getblockcount")
+        while time.time() - start < timeout:
+            ord_block_count = self.ord_client.get("/blockcount")
+            if ord_block_count >= bitcoind_block_count:
+                break
+            logger.info(
+                "Waiting for ord to sync to block %d (current: %d)",
+                bitcoind_block_count,
+                ord_block_count,
+            )
+            time.sleep(poll_interval)
+        else:
+            raise TimeoutError("ORD did not sync in time")
 
     def get_last_scanned_bitcoin_block(self, dbsession: Session) -> str | None:
         # TODO: temporary code, remove
@@ -223,7 +246,7 @@ class RuneBridgeService:
             txid = tx["txid"]
             vout = tx["vout"]
             output = self.ord_client.get_output(txid, vout)
-            logger.info("Received %s runes in outpoint %s:%s", len(output["runes"]), txid, vout)
+            logger.debug("Received %s runes in outpoint %s:%s", len(output["runes"]), txid, vout)
             if not output["runes"]:
                 # Temporary solution to show something immediately
                 # Ord only shows outputs if they are indexed properly
