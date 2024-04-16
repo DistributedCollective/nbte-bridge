@@ -98,12 +98,15 @@ class RuneBridgeService:
             key_value_store = tx.find_service(KeyValueStore)
             last_bitcoin_block = key_value_store.get_value(last_block_key, default_value=None)
 
+        required_confirmations = 1
         if not last_bitcoin_block:
             logger.info("Scanning Rune deposits from the beginning")
-            resp = self.bitcoin_rpc.call("listsinceblock")
+            resp = self.bitcoin_rpc.call("listsinceblock", "", required_confirmations)
         else:
             logger.info("Scanning Rune deposits from block %s", last_bitcoin_block)
-            resp = self.bitcoin_rpc.call("listsinceblock", last_bitcoin_block)
+            resp = self.bitcoin_rpc.call(
+                "listsinceblock", last_bitcoin_block, required_confirmations
+            )
 
         # Sync with Bitcoind to avoid missing rune outputs
         self._sync_ord_with_bitcoind()
@@ -115,7 +118,6 @@ class RuneBridgeService:
         for tx in resp["transactions"]:
             if tx["category"] != "receive":
                 continue
-
             btc_address = tx.get("address")
             if not btc_address:
                 logger.warning("No BTC address in transaction %s", tx)
@@ -136,8 +138,21 @@ class RuneBridgeService:
                     continue
                 evm_address = deposit_address.user.evm_address
 
+            tx_confirmations = tx["confirmations"]
             txid = tx["txid"]
             vout = tx["vout"]
+
+            logger.info(
+                "found transfer: %s:%s, user %s with %s confirmations",
+                txid,
+                vout,
+                evm_address,
+                tx_confirmations,
+            )
+
+            if tx_confirmations < required_confirmations:
+                # Zero-confirmation txs will be scanned automatically next time
+                continue
 
             output = self.ord_client.get_output(txid, vout)
             logger.info(
@@ -147,7 +162,14 @@ class RuneBridgeService:
                 vout,
                 evm_address,
             )
+
+            if not output["runes"]:
+                # TODO: store these too
+                logger.warning("Transfer without runes: %s:%s", txid, vout)
+                continue
+
             for rune_name, balance_entry in output["runes"]:
+                # TODO: validate postage, but still store in DB
                 amount_raw = balance_entry["amount"]
                 amount_decimal = Decimal(amount_raw) / 10 ** balance_entry["divisibility"]
                 logger.info(
