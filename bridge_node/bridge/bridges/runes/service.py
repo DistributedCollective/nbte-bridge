@@ -243,7 +243,7 @@ class RuneBridgeService:
             for rune_name, balance_entry in output["runes"]:
                 amount_raw = balance_entry["amount"]
                 amount_decimal = Decimal(amount_raw) / 10 ** balance_entry["divisibility"]
-                fee_decimal = amount_decimal * self.config.runes_to_evm_fee_percentage_decimal
+                fee_decimal = amount_decimal * self.config.runes_to_evm_fee_percentage_decimal / 100
                 receive_amount_decimal = amount_decimal - fee_decimal
                 transfer = messages.RuneToEvmTransfer(
                     evm_address=evm_address,
