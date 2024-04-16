@@ -8,6 +8,10 @@ from .types import (
 )
 
 
+class UnindexedOutput(ValueError):
+    pass
+
+
 @dataclass(frozen=True)
 class OrdOutput:
     txid: str
@@ -37,11 +41,18 @@ class OrdOutputCache:
 
     def get_ord_output(self, txid: str, vout: int) -> OrdOutput:
         output_response = self._ord_client.get_output(txid=txid, vout=vout)
+
+        # unindexed outputs don't have the rune balances visible, so we must take great care not to use them
+        if not output_response["indexed"]:
+            raise UnindexedOutput(output_response)
+
         assert output_response["transaction"] == txid
+
         rune_balances = {}
         for rune_name, entry in output_response["runes"]:
             assert rune_name not in rune_balances  # not sure what to do if it is
             rune_balances[get_normalized_rune_name(rune_name)] = entry["amount"]
+
         return OrdOutput(
             txid=txid,
             vout=vout,
