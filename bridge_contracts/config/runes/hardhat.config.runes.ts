@@ -113,6 +113,71 @@ task(`${PREFIX}register-rune`)
     }));
 
 
+task(`${PREFIX}set-evm-to-btc-transfer-policy`)
+    .addParam("bridgeAddress", "RuneBridge contract address")
+    .addParam("token", "Token address")
+    .addOptionalParam("maxTokenAmount")
+    .addOptionalParam("minTokenAmount")
+    .addOptionalParam("flatFeeBaseCurrency")
+    .addOptionalParam("flatFeeTokens")
+    .addOptionalParam("dynamicFeeTokens")
+    .setAction(jsonAction(async ({
+        bridgeAddress,
+        token,
+        maxTokenAmount,
+        minTokenAmount,
+        flatFeeBaseCurrency,
+        flatFeeTokens,
+        dynamicFeeTokens
+    }, hre) => {
+        const ethers = hre.ethers;
+
+        const bridge = await ethers.getContractAt("RuneBridge", bridgeAddress);
+
+        const oldPolicy = await bridge.getEvmToBtcTransferPolicy(token);
+        console.log('Old policy:', oldPolicy);
+
+        let newPolicy = {
+            maxTokenAmount: oldPolicy.maxTokenAmount,
+            minTokenAmount: oldPolicy.minTokenAmount,
+            flatFeeBaseCurrency: oldPolicy.flatFeeBaseCurrency,
+            flatFeeTokens: oldPolicy.flatFeeTokens,
+            dynamicFeeTokens: oldPolicy.dynamicFeeTokens
+        };
+        if (maxTokenAmount) {
+            newPolicy.maxTokenAmount = BigInt(maxTokenAmount);
+        }
+        if (minTokenAmount) {
+            newPolicy.minTokenAmount = BigInt(minTokenAmount);
+        }
+        if (flatFeeBaseCurrency) {
+            newPolicy.flatFeeBaseCurrency = BigInt(flatFeeBaseCurrency);
+        }
+        if (flatFeeTokens) {
+            newPolicy.flatFeeTokens = BigInt(flatFeeTokens);
+        }
+        if (dynamicFeeTokens) {
+            newPolicy.dynamicFeeTokens = BigInt(dynamicFeeTokens);
+        }
+
+        console.log(`Setting EVM to BTC transfer policy for token ${token}`);
+        const tx = await bridge.setEvmToBtcTransferPolicy(
+            token,
+            newPolicy.maxTokenAmount,
+            newPolicy.minTokenAmount,
+            newPolicy.flatFeeBaseCurrency,
+            newPolicy.flatFeeTokens,
+            newPolicy.dynamicFeeTokens
+        );
+        console.log('tx hash:', tx.hash, 'waiting for tx...');
+        await tx.wait();
+
+        return {
+            success: true,
+        }
+    }));
+
+
 task(`${PREFIX}list-tokens`)
     .addParam("bridgeAddress", "RuneBridge contract address")
     .setAction(jsonAction(async ({

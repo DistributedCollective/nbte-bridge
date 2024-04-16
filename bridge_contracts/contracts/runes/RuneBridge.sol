@@ -83,10 +83,10 @@ contract RuneBridge is NBTEBridgeAccessControllable {
         _setEvmToBtcTransferPolicy(
             address(0),
             1_000_000 ether,
+            1,
+            0.0003 ether, // 30k sat
             0,
-            0,
-            0,
-            0
+            40  // 0.4%
         );
     }
 
