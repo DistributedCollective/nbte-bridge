@@ -44,6 +44,18 @@ task(`${PREFIX}deploy-regtest`)
             await tx.wait();
         }
 
+        console.log("Disabling fees by default");
+        const tx = await bridge.setEvmToBtcTransferPolicy(
+            "0x0000000000000000000000000000000000000000",
+            ethers.parseEther('1000000000000'),
+            0,
+            0,
+            0,
+            0,
+        );
+        console.log('tx hash:', tx.hash, 'waiting for tx...');
+        await tx.wait();
+
         return {
             addresses: {
                 RuneBridge: bridge.target
