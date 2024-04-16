@@ -1,6 +1,9 @@
+import functools
 import logging
 from decimal import Decimal
-from typing import Protocol
+from typing import (
+    Protocol,
+)
 
 import pyord
 import eth_utils
@@ -32,6 +35,7 @@ class RuneBridgeServiceConfig(Protocol):
     bridge_id: str
     evm_block_safety_margin: int
     evm_default_start_block: int
+    runes_to_evm_fee_percentage_decimal: Decimal
 
 
 class RuneBridgeService:
@@ -194,6 +198,14 @@ class RuneBridgeService:
         if not deposit_address:
             logger.debug("No deposit address found for %s", evm_address)
             return []
+
+        @functools.lru_cache
+        def get_rune_symbol(rune):
+            resp = self.ord_client.get_rune(rune)
+            if not resp:
+                return ""
+            return resp["entry"]["symbol"]
+
         logger.debug("User %s has deposit address %s", evm_address, deposit_address.btc_address)
         resp = self.bitcoin_rpc.call("listsinceblock", last_block)
         deposits = []
@@ -219,8 +231,11 @@ class RuneBridgeService:
                     {
                         "btc_deposit_txid": txid,
                         "btc_deposit_vout": vout,
-                        "rune_name": None,
-                        "amount_decimal": 0,
+                        "rune_name": "",
+                        "rune_symbol": "",
+                        "amount_decimal": "0",
+                        "fee_amount_decimal": "0",
+                        "receive_amount_decimal": "0",
                         "status": "detected",
                         "evm_transfer_tx_hash": None,
                     }
@@ -228,6 +243,8 @@ class RuneBridgeService:
             for rune_name, balance_entry in output["runes"]:
                 amount_raw = balance_entry["amount"]
                 amount_decimal = Decimal(amount_raw) / 10 ** balance_entry["divisibility"]
+                fee_decimal = amount_decimal * self.config.runes_to_evm_fee_percentage_decimal
+                receive_amount_decimal = amount_decimal - fee_decimal
                 transfer = messages.RuneToEvmTransfer(
                     evm_address=evm_address,
                     amount_raw=amount_raw,
@@ -245,7 +262,10 @@ class RuneBridgeService:
                         "btc_deposit_txid": txid,
                         "btc_deposit_vout": vout,
                         "rune_name": rune_name,
+                        "rune_symbol": get_rune_symbol(rune_name),
                         "amount_decimal": str(amount_decimal),
+                        "fee_decimal": str(fee_decimal),
+                        "receive_amount_decimal": str(receive_amount_decimal),
                         "status": data.get("status", "seen"),
                         "evm_transfer_tx_hash": data.get("transfer_tx_hash", None),
                     }

@@ -1,5 +1,5 @@
 import logging
-
+import time
 
 from bridge.common.interfaces.bridge import Bridge
 from bridge.common.p2p.network import Network
@@ -55,22 +55,31 @@ class RuneBridge(Bridge):
         logger.info("Found %s Rune->EVM deposits", len(rune_deposits))
         for deposit in rune_deposits:
             logger.info("Processing Rune->EVM deposit %s", deposit)
-            responses = self.network.ask(
-                question=self.sign_rune_to_evm_transfer_question,
-                message=messages.SignRuneToEvmTransferQuestion(
-                    transfer=deposit,
-                ),
-            )
-            # TODO: validate received signatures
-            # - test sender is federator
-            # - test recovered matches sender
-            if len(responses) < num_required_signatures:
+            tries_left = 10
+            while tries_left:
+                logger.info("Asking for signatures for deposit %s")
+                responses = self.network.ask(
+                    question=self.sign_rune_to_evm_transfer_question,
+                    message=messages.SignRuneToEvmTransferQuestion(
+                        transfer=deposit,
+                    ),
+                )
+                signatures = [
+                    response.signature for response in responses[:num_required_signatures]
+                ]
+                # TODO: validate received signatures
+                # - test sender is federator
+                # - test recovered matches sender
+                if len(signatures) >= num_required_signatures:
+                    break
                 logger.warning(
-                    "Not enough signatures for transfer: %s",
+                    "Not enough signatures for transfer: %s, trying again soon",
                     deposit,
                 )
+                time.sleep(1)
+            else:
+                logger.error("Failed to get enough signatures for transfer: %s", deposit)
                 continue
-            signatures = [response.signature for response in responses[:num_required_signatures]]
 
             self.service.send_rune_to_evm(deposit, signatures=signatures)
 
@@ -93,22 +102,30 @@ class RuneBridge(Bridge):
                 transfer=deposit,
                 unsigned_psbt_serialized=self.service.ord_multisig.serialize_psbt(unsigned_psbt),
             )
-            responses = self.network.ask(
-                question=self.sign_rune_token_to_btc_transfer_question,
-                message=message,
-            )
-            # TODO: validate responses
-            if len(responses) < num_required_signatures:
+            tries_left = 10
+            while tries_left:
+                tries_left -= 1
+                logger.info("Asking for signatures for RuneToken->BTC deposit %s")
+                responses = self.network.ask(
+                    question=self.sign_rune_token_to_btc_transfer_question,
+                    message=message,
+                )
+                signed_psbts = [
+                    self.service.ord_multisig.deserialize_psbt(response.signed_psbt_serialized)
+                    for response in responses[:num_required_signatures]
+                ]
+                # TODO: validate responses
+                if len(signed_psbts) >= num_required_signatures:
+                    break
                 logger.warning(
                     "Not enough signatures for transfer: %s",
                     deposit,
                 )
+                time.sleep(10 - tries_left)
+            else:
+                logger.error("Failed to get enough signatures for transfer: %s", deposit)
                 continue
 
-            signed_psbts = [
-                self.service.ord_multisig.deserialize_psbt(response.signed_psbt_serialized)
-                for response in responses[:num_required_signatures]
-            ]
             signed_psbts.append(self.service.ord_multisig.sign_psbt(unsigned_psbt))
             finalized_psbt = self.service.ord_multisig.combine_and_finalize_psbt(
                 initial_psbt=unsigned_psbt,

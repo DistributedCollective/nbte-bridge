@@ -1,4 +1,6 @@
 from dataclasses import dataclass
+from decimal import Decimal
+
 from eth_typing import ChecksumAddress
 
 
@@ -13,6 +15,8 @@ class RuneBridgeConfig:
     btc_base_derivation_path: str = "m/13/0/0"
     evm_block_safety_margin: int = 0
     evm_default_start_block: int = 1
+    runes_to_evm_fee_percentage_decimal: Decimal = Decimal("0.4")
+    runes_to_evm_min_postage: int = 10_000
 
 
 @dataclass(repr=False)
