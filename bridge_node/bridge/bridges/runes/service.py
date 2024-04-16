@@ -155,26 +155,35 @@ class RuneBridgeService:
                 # Zero-confirmation txs will be scanned automatically next time
                 continue
 
-            output = self.ord_client.get_output(txid, vout)
+            while True:
+                ord_output = self.ord_client.get_output(txid, vout)
+                if ord_output["indexed"]:
+                    break
+                logger.info("Output %s:%s not indexed in ord yet, waiting", txid, vout)
+                self._sleep()
+
             logger.info(
                 "Received %s runes in outpoint %s:%s (user %s)",
-                len(output["runes"]),
+                len(ord_output["runes"]),
                 txid,
                 vout,
                 evm_address,
             )
 
-            if not output["runes"]:
+            # TODO: validate this
+            # postage = ord_output["value"]
+
+            if not ord_output["runes"]:
                 # TODO: store these too
                 logger.warning(
                     "Transfer without runes: %s:%s. ord output: %s",
                     txid,
                     vout,
-                    output,
+                    ord_output,
                 )
                 continue
 
-            for rune_name, balance_entry in output["runes"]:
+            for rune_name, balance_entry in ord_output["runes"]:
                 # TODO: validate postage, but still store in DB
                 amount_raw = balance_entry["amount"]
                 amount_decimal = Decimal(amount_raw) / 10 ** balance_entry["divisibility"]
@@ -203,7 +212,7 @@ class RuneBridgeService:
             key_value_store.set_value(last_block_key, new_last_block)
         return transfers
 
-    def _sync_ord_with_bitcoind(self, timeout=60, poll_interval=1):
+    def _sync_ord_with_bitcoind(self, timeout=60):
         start = time.time()
         bitcoind_block_count = self.bitcoin_rpc.call("getblockcount")
         while time.time() - start < timeout:
@@ -215,7 +224,7 @@ class RuneBridgeService:
                 bitcoind_block_count,
                 ord_block_count,
             )
-            time.sleep(poll_interval)
+            self._sleep()
         else:
             raise TimeoutError("ORD did not sync in time")
 
@@ -538,3 +547,6 @@ class RuneBridgeService:
 
     def get_evm_to_runes_num_required_signers(self) -> int:
         return self.ord_multisig.num_required_signers
+
+    def _sleep(self, multiplier: float = 1.0):
+        time.sleep(1.0 * multiplier)
