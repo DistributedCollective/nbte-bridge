@@ -6,7 +6,6 @@ from typing import (
     Protocol,
 )
 
-import pyord
 import eth_utils
 from eth_account.account import LocalAccount
 from eth_account.messages import encode_defunct
@@ -25,6 +24,7 @@ from ...common.evm.utils import to_wei
 from ...common.models.key_value_store import KeyValuePair
 from ...common.ord.client import OrdApiClient
 from ...common.ord.multisig import OrdMultisig, RuneTransfer
+from ...common.ord.types import rune_from_str
 from ...common.services.key_value_store import KeyValueStore
 from ...common.services.transactions import TransactionManager
 from . import messages
@@ -183,14 +183,15 @@ class RuneBridgeService:
                 )
                 continue
 
-            for rune_name, balance_entry in ord_output["runes"]:
+            for spaced_rune_name, balance_entry in ord_output["runes"]:
                 # TODO: validate postage, but still store in DB
+                rune = rune_from_str(spaced_rune_name)
                 amount_raw = balance_entry["amount"]
                 amount_decimal = Decimal(amount_raw) / 10 ** balance_entry["divisibility"]
                 logger.info(
                     "Received %s %s for %s at %s:%s",
                     amount_decimal,
-                    rune_name,
+                    spaced_rune_name,
                     evm_address,
                     txid,
                     vout,
@@ -202,7 +203,8 @@ class RuneBridgeService:
                     amount_decimal=amount_decimal,
                     txid=txid,
                     vout=vout,
-                    rune_name=rune_name,
+                    rune_name=rune.name,
+                    rune_number=rune.n,
                 )
                 logger.info("Transfer: %s", transfer)
                 transfers.append(transfer)
@@ -300,7 +302,8 @@ class RuneBridgeService:
                         "evm_transfer_tx_hash": None,
                     }
                 )
-            for rune_name, balance_entry in output["runes"]:
+            for spaced_rune_name, balance_entry in output["runes"]:
+                rune = rune_from_str(spaced_rune_name)
                 amount_raw = balance_entry["amount"]
                 amount_decimal = Decimal(amount_raw) / 10 ** balance_entry["divisibility"]
                 fee_decimal = amount_decimal * self.config.runes_to_evm_fee_percentage_decimal / 100
@@ -311,7 +314,8 @@ class RuneBridgeService:
                     amount_decimal=amount_decimal,
                     txid=txid,
                     vout=vout,
-                    rune_name=rune_name,
+                    rune_name=rune.name,
+                    rune_number=rune.n,
                 )
                 data = self._read_rune_to_evm_transfer_key_value_store_data(
                     transfer,
@@ -321,8 +325,8 @@ class RuneBridgeService:
                     {
                         "btc_deposit_txid": txid,
                         "btc_deposit_vout": vout,
-                        "rune_name": rune_name,
-                        "rune_symbol": get_rune_symbol(rune_name),
+                        "rune_name": spaced_rune_name,
+                        "rune_symbol": get_rune_symbol(spaced_rune_name),
                         "amount_decimal": str(amount_decimal),
                         "fee_decimal": str(fee_decimal),
                         "receive_amount_decimal": str(receive_amount_decimal),
@@ -334,7 +338,7 @@ class RuneBridgeService:
 
     def send_rune_to_evm(self, transfer: messages.RuneToEvmTransfer, signatures: list[str]):
         logger.info("Executing Rune-to-EVM transfer %s", transfer)
-        rune = pyord.Rune.from_str(transfer.rune_name)
+        rune = rune_from_str(transfer.rune_name)
         tx_hash = self.rune_bridge_contract.functions.acceptTransferFromBtc(
             transfer.evm_address,
             rune.n,
@@ -409,7 +413,7 @@ class RuneBridgeService:
         # if not user.evm_address == transfer.evm_address:
         #     raise ValueError(f"User EVM address mismatch: {user.evm_address} != {transfer.evm_address}")
 
-        rune = pyord.Rune.from_str(transfer.rune_name)
+        rune = rune_from_str(transfer.rune_name)
         message_hash = self.rune_bridge_contract.functions.getAcceptTransferFromBtcMessageHash(
             transfer.evm_address,
             rune.n,

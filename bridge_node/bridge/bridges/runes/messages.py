@@ -11,6 +11,7 @@ class RuneToEvmTransfer:
     txid: str
     vout: int
     rune_name: str
+    rune_number: int
 
 
 @dataclasses.dataclass
