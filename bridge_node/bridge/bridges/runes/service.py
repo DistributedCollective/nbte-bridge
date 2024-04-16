@@ -171,22 +171,43 @@ class RuneBridgeService:
         return val.value if val else None
 
     def get_pending_deposits_for_evm_address(
-        self, evm_address: str, last_block: int, dbsession: Session
+        self,
+        evm_address: str,
+        last_block: int,
+        dbsession: Session,
     ) -> list[dict]:
         # TODO: temporary code, remove
         evm_address = eth_utils.to_checksum_address(evm_address)
-        logger.info("Getting transactions for %s since %s", evm_address, last_block)
+        logger.debug("Getting transactions for %s since %s", evm_address, last_block)
+        user = (
+            dbsession.query(User)
+            .filter_by(
+                evm_address=evm_address,
+                bridge_id=self.config.bridge_id,
+            )
+            .one_or_none()
+        )
+        if not user:
+            logger.debug("No user found for %s", evm_address)
+            return []
+        deposit_address = user.deposit_address
+        if not deposit_address:
+            logger.debug("No deposit address found for %s", evm_address)
+            return []
+        logger.debug("User %s has deposit address %s", evm_address, deposit_address.btc_address)
         resp = self.bitcoin_rpc.call("listsinceblock", last_block)
         deposits = []
-        expected_label = f"runes:deposit:{evm_address}"
-        logger.info("Got %s transactions", len(resp["transactions"]))
+        logger.debug(
+            "Got %s transactions since requested block (for all users)", len(resp["transactions"])
+        )
         for tx in resp["transactions"]:
             if tx["category"] != "receive":
                 continue
-            if "label" not in tx:
+            if "address" not in tx:
                 continue
-            if tx["label"] != expected_label:
+            if tx["address"] != deposit_address.btc_address:
                 continue
+            logger.debug("Found tx: %s", tx)
             txid = tx["txid"]
             vout = tx["vout"]
             output = self.ord_client.get_output(txid, vout)
