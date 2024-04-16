@@ -9,7 +9,6 @@ class RuneToEvmTransfer:
     amount_raw: int
     amount_decimal: Decimal
     net_amount_raw: int
-    net_amount_decimal: Decimal
     txid: str
     vout: int
     rune_name: str

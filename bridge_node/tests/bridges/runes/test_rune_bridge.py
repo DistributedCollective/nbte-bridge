@@ -1,3 +1,5 @@
+from decimal import Decimal
+
 import pytest
 import logging
 
@@ -233,6 +235,43 @@ def test_rune_tokens_to_btc_transfers_require_signatures_from_the_majority_of_no
         bridge_util.assert_rune_tokens_transferred_to_btc(transfer)
     else:
         bridge_util.assert_rune_tokens_not_transferred_to_btc(transfer)
+
+
+def test_fees_rune_to_evm(
+    bridge_util,
+    user_ord_wallet,
+    user_evm_wallet,
+    federator_wirings,
+):
+    rune = bridge_util.etch_and_register_test_rune(
+        prefix="FEESRUNETOEVM",
+        fund=(user_ord_wallet, 1000),
+    )
+    for wiring in federator_wirings:
+        wiring.service.config.runes_to_evm_fee_percentage_decimal = Decimal(1)
+
+    # Test runes to evm
+
+    deposit_address = bridge_util.get_deposit_address(user_evm_wallet.address)
+    initial_balances = bridge_util.snapshot_balances(
+        user_ord_wallet=user_ord_wallet,
+        user_evm_wallet=user_evm_wallet,
+        rune=rune,
+    )
+    bridge_util.transfer_runes_to_evm(
+        wallet=user_ord_wallet,
+        amount_decimal=1000,
+        deposit_address=deposit_address,
+        rune=rune,
+    )
+
+    bridge_util.run_bridge_iteration()
+
+    bridge_util.snapshot_balances_again(initial_balances).assert_values(
+        user_token_balance_decimal=990,
+        token_total_supply_decimal=990,
+        bridge_rune_balance_decimal=1000,
+    )
 
 
 # TODO: test that nodes won't validate invalid transfers

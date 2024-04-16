@@ -424,6 +424,11 @@ def carol_service(runes_setup) -> RuneBridgeService:
 
 
 @pytest.fixture()
+def federator_wirings(runes_setup) -> list[RuneBridgeWiring]:
+    return runes_setup.federator_wirings
+
+
+@pytest.fixture()
 def bridge_util(
     dbsession,
     ord,

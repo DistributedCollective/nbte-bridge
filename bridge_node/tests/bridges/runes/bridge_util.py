@@ -385,6 +385,8 @@ class RuneBridgeUtil:
         events = self._get_rune_token_transfer_events(transfer)
         assert len(events) == 1, f"Expected 1 Transfer event, got {len(events)}"
         event = events[-1]
+        # TODO: handle fees
+        # TODO: handle different decimals
         expected_amount_wei = to_wei(transfer.amount_decimal)
         assert (
             event["args"]["value"] == expected_amount_wei

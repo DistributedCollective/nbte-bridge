@@ -59,7 +59,7 @@ class RuneBridge(Bridge):
             tries_left = self.max_retries + 1
             while tries_left > 0:
                 tries_left -= 1
-                logger.info("Asking for signatures for deposit %s")
+                logger.info("Asking for signatures for deposit %s", deposit)
                 responses = self.network.ask(
                     question=self.sign_rune_to_evm_transfer_question,
                     message=messages.SignRuneToEvmTransferQuestion(

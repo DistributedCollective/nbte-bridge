@@ -19,9 +19,9 @@ from web3.contract import Contract
 from web3.types import EventData
 
 from bridge.common.btc.rpc import BitcoinRPC
+from .evm import load_rune_bridge_abi
 from .models import User, DepositAddress
 from ...common.evm.scanner import EvmEventScanner
-from ...common.evm.utils import to_wei
 from ...common.models.key_value_store import KeyValuePair
 from ...common.ord.client import OrdApiClient
 from ...common.ord.multisig import OrdMultisig, RuneTransfer
@@ -396,29 +396,27 @@ class RuneBridgeService:
         message: messages.SignRuneToEvmTransferQuestion,
     ) -> messages.SignRuneToEvmTransferAnswer:
         transfer = message.transfer
-        rune = self.ord_client.get_rune(transfer.rune_name)
-        if not rune:
-            raise ValueError(f"Rune {transfer.rune_name} not found (transfer {transfer})")
-
-        # TODO: rather validate by reading from the DB
         rune_response = self.ord_client.get_rune(transfer.rune_name)
         if not rune_response:
-            raise ValueError(f"Rune {transfer.rune_name} not found")
+            raise ValueError(f"Rune {transfer.rune_name} not found (transfer {transfer})")
+
+        rune = rune_from_str(transfer.rune_name)
+        if not rune.n == transfer.rune_number:
+            raise ValueError(f"Rune number mismatch: {rune}.n != {transfer.rune_number}")
+
+        if not self.rune_bridge_contract.functions.isRuneRegistered(rune.n).call():
+            raise ValueError(f"Rune {rune} not registered")
+
         divisibility = rune_response["entry"]["divisibility"]
-        if transfer.amount_decimal != Decimal(transfer.amount_raw) / (10**divisibility):
-            raise ValueError(
-                f"Amount mismatch: {transfer.amount_decimal!r} != {transfer.amount_raw} / 10^{divisibility}"
-            )
-
-        if transfer.net_amount_decimal != Decimal(transfer.net_amount_raw) / (10**divisibility):
-            raise ValueError(
-                f"Net amount mismatch: {transfer.net_amount_decimal!r} != {transfer.net_amount_raw} / 10^{divisibility}"
-            )
-
         calculated_amounts = self._calculate_rune_to_evm_transfer_amounts(
             amount_raw=transfer.amount_raw,
             divisibility=divisibility,
         )
+        if transfer.amount_raw != calculated_amounts.amount_raw:
+            raise ValueError(
+                f"Amount mismatch: {transfer.amount_decimal!r} != {calculated_amounts.amount_raw}"
+            )
+
         if transfer.net_amount_raw != calculated_amounts.net_amount_raw:
             raise ValueError(
                 f"Net amount mismatch: {transfer.net_amount_raw} != {calculated_amounts.net_amount_raw}"
@@ -437,18 +435,18 @@ class RuneBridgeService:
                 f"expected {transfer.amount_raw}"
             )
 
-        # TODO: validate the deposit address
+        # TODO: validate that the deposit address belongs to our wallet
+        # TODO: validate the deposit address belongs to the user
         # user = self.get_user_by_deposit_address(deposit_address=transfer.evm_address)
         # if not user:
         #     raise ValueError(f"User not found for deposit address {transfer.evm_address}")
         # if not user.evm_address == transfer.evm_address:
         #     raise ValueError(f"User EVM address mismatch: {user.evm_address} != {transfer.evm_address}")
 
-        rune = rune_from_str(transfer.rune_name)
         message_hash = self.rune_bridge_contract.functions.getAcceptTransferFromBtcMessageHash(
             transfer.evm_address,
             rune.n,
-            to_wei(transfer.net_amount_decimal),
+            transfer.net_amount_raw,
             eth_utils.add_0x_prefix(transfer.txid),
             transfer.vout,
         ).call()
@@ -608,4 +606,11 @@ class RuneBridgeService:
             fee_raw=fee_raw,
             net_amount_decimal=net_amount_decimal,
             net_amount_raw=net_amount_raw,
+        )
+
+    def _get_rune_token(self, rune_number: int) -> Contract:
+        address = self.rune_bridge_contract.functions.getTokenByRune(rune_number).call()
+        return self.web3.eth.contract(
+            address=address,
+            abi=load_rune_bridge_abi("RuneToken"),
         )
