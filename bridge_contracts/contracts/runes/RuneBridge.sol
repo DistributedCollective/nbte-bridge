@@ -3,13 +3,15 @@ pragma solidity 0.8.19;
 
 import "../shared/NBTEBridgeAccessControllable.sol";
 import "../shared/IBTCAddressValidator.sol";
+import {Freezable} from "../shared/Freezable.sol";
+import {Pausable} from "@openzeppelin/contracts/security/Pausable.sol";
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import {Address} from "@openzeppelin/contracts/utils/Address.sol";
 import {RuneToken} from "./RuneToken.sol";
 
 
-contract RuneBridge is NBTEBridgeAccessControllable {
+contract RuneBridge is NBTEBridgeAccessControllable, Freezable, Pausable {
     using SafeERC20 for IERC20;
     using SafeERC20 for RuneToken;
     using Address for address payable;
@@ -100,6 +102,7 @@ contract RuneBridge is NBTEBridgeAccessControllable {
     )
     external
     payable
+    whenNotPaused
     {
         require(tokenAmount > 0, "amount must be greater than 0");
 
@@ -198,6 +201,7 @@ contract RuneBridge is NBTEBridgeAccessControllable {
         bytes[] memory signatures
     )
     external
+    whenNotFrozen
     {
         // validate signatures. this also checks that the sender is a federator
         bytes32 messageHash = getAcceptTransferFromBtcMessageHash(
@@ -410,4 +414,37 @@ contract RuneBridge is NBTEBridgeAccessControllable {
         );
     }
 
+    // FREEZE / PAUSE API
+
+    /// @dev Pause the contract, stopping new transfers.
+    /// Can only be called by pausers.
+    function pause() external onlyPauser {
+        _pause();
+    }
+
+    /// @dev Freeze the contract, disabling the use of federator methods as well as pausing it.
+    /// Can only be called by guards.
+    /// @dev This is intended only for emergencies (such as in the event of a hostile federator network),
+    /// as it effectively stops the system from functioning at all.
+    function freeze() external onlyGuard {
+        if (!paused()) { // we don't want to risk a revert
+            _pause();
+        }
+        _freeze();
+    }
+
+    /// @dev Unpause the contract, allowing new transfers again. Cannot unpause when frozen.
+    /// After unfreezing, the contract needs to be unpaused manually.
+    /// Can only be called by pausers.
+    function unpause() external onlyPauser whenNotFrozen {
+        _unpause();
+    }
+
+    /// @dev Unfreeze the contract, re-enabling the use of federator methods.
+    /// Unfreezing does not automatically unpause the contract.
+    /// Can only be called by guards.
+    function unfreeze() external onlyGuard {
+        _unfreeze();
+        //_unpause(); // it's best to have the option unpause separately
+    }
 }
