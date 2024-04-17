@@ -1,8 +1,9 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.19;
 
-import "../shared/NBTEBridgeAccessControllable.sol";
-import "../shared/IBTCAddressValidator.sol";
+import {NBTEBridgeAccessControllable} from "../shared/NBTEBridgeAccessControllable.sol";
+import {IBTCAddressValidator} from "../shared/IBTCAddressValidator.sol";
+import {INBTEBridgeAccessControl} from "../shared/INBTEBridgeAccessControl.sol";
 import {Freezable} from "../shared/Freezable.sol";
 import {Pausable} from "@openzeppelin/contracts/security/Pausable.sol";
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
@@ -126,7 +127,11 @@ contract RuneBridge is NBTEBridgeAccessControllable, Freezable, Pausable {
         // if the rune has less decimals than the token. This is taken into account in the double conversions here,
         // and the truncated amount is treated as transfer fee
         uint256 netRuneAmount = token.getRuneAmount(tokenAmount - tokenFee);
+
+        // it's very important we don't emit an event with zero amount, zero amounts in runestone Edicts have
+        // special case behaviour
         require(netRuneAmount > 0, "received net rune amount is zero");
+
         uint256 netTokenAmount = token.getTokenAmount(netRuneAmount);
         tokenFee = tokenAmount - netTokenAmount;
 
@@ -431,6 +436,32 @@ contract RuneBridge is NBTEBridgeAccessControllable, Freezable, Pausable {
             flatFeeTokens,
             dynamicFeeTokens
         );
+    }
+
+    /// @dev Updates the Bitcoin address validator used.
+    /// Can only be called by admins.
+    /// @param newBtcAddressValidator   Address of the new BTCAddressValidator.
+    function setBtcAddressValidator(
+        IBTCAddressValidator newBtcAddressValidator
+    )
+    external
+    onlyAdmin
+    {
+        require(address(newBtcAddressValidator) != address(0), "Cannot set to zero address");
+        btcAddressValidator = newBtcAddressValidator;
+    }
+
+    /// @dev Updates the Access control. Can only be called by admins.
+    ///      Note that there is normally no need to do this, but we have it here for upgradeability
+    /// @param newAccessControl   Address of the new NBTEBridgeAccessControl.
+    function setAccessControl(
+        INBTEBridgeAccessControl newAccessControl
+    )
+    external
+    onlyAdmin
+    {
+        require(address(newAccessControl) != address(0), "Cannot set to zero address");
+        accessControl = newAccessControl;
     }
 
     // FREEZE / PAUSE API
