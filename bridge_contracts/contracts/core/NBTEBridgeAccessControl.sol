@@ -103,13 +103,21 @@ contract NBTEBridgeAccessControl is INBTEBridgeAccessControl, AccessControlEnume
     external
     view
     {
-        uint256 numRequired = numRequiredFederators();
-        _checkFederatorSignatures(
-            _messageHash,
-            _signatures,
-            numRequired,
-            address(0)
-        );
+        _messageHash = ECDSA.toEthSignedMessageHash(_messageHash);
+
+        uint numRequired = numRequiredFederators();
+        require(_signatures.length >= numRequired, "Not enough signatures");
+
+        address[] memory seen = new address[](_signatures.length);
+        for (uint i = 0; i < _signatures.length; i++) {
+            address recovered = ECDSA.recover(_messageHash, _signatures[i]);
+            require(recovered != address(0), "recover failed");
+            checkFederator(recovered);
+            for (uint j = 0; j < i; j++) {
+                require(seen[j] != recovered, "already signed by federator");
+            }
+            seen[i] = recovered;
+        }
     }
 
     /// @dev Check that there are enough valid federator signatures for the given message hash,
@@ -126,25 +134,12 @@ contract NBTEBridgeAccessControl is INBTEBridgeAccessControl, AccessControlEnume
     view
     {
         checkFederator(_sender);
-        uint256 numRequired = numRequiredFederators() - 1;
-        _checkFederatorSignatures(_messageHash, _signatures, numRequired, _sender);
-    }
 
-    /// @dev Internal function for checking federator signatures
-    /// @param _messageHash The message hash that's signed.
-    /// @param _signatures  An array of federator signatures for the message hash.
-    function _checkFederatorSignatures(
-        bytes32 _messageHash,
-        bytes[] memory _signatures,
-        uint256 _numRequired,
-        address _sender
-    )
-    internal
-    view
-    {
         _messageHash = ECDSA.toEthSignedMessageHash(_messageHash);
 
-        require(_signatures.length >= _numRequired, "Not enough signatures");
+        uint256 numRequired = numRequiredFederators() - 1;
+
+        require(_signatures.length >= numRequired, "Not enough signatures");
 
         address[] memory seen = new address[](_signatures.length);
         for (uint i = 0; i < _signatures.length; i++) {

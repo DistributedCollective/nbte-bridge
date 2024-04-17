@@ -334,6 +334,7 @@ contract RuneBridge is NBTEBridgeAccessControllable, Freezable, Pausable {
         bytes[] memory signatures
     )
     external
+    onlyFederator
     whenNotFrozen
     {
         // validate signatures. this also checks that the sender is a federator
@@ -344,10 +345,9 @@ contract RuneBridge is NBTEBridgeAccessControllable, Freezable, Pausable {
             btcTxId,
             btcTxVout
         );
-        accessControl.checkFederatorSignaturesWithImplicitSelfSign(
+        accessControl.checkFederatorSignatures(
             messageHash,
-            signatures,
-            msg.sender
+            signatures
         );
 
         RuneToken token = RuneToken(getTokenByRune(rune));  // this validates that it's registered
@@ -384,6 +384,7 @@ contract RuneBridge is NBTEBridgeAccessControllable, Freezable, Pausable {
         bytes[] memory signatures
     )
     external
+    onlyFederator
     whenNotFrozen
     {
         require(runeRegistrationRequested[rune], "registration not requested");
@@ -395,10 +396,9 @@ contract RuneBridge is NBTEBridgeAccessControllable, Freezable, Pausable {
             rune,
             runeDivisibility
         );
-        accessControl.checkFederatorSignaturesWithImplicitSelfSign(
+        accessControl.checkFederatorSignatures(
             messageHash,
-            signatures,
-            msg.sender
+            signatures
         );
 
         // this validates that the rune is not already registered
