@@ -1,22 +1,54 @@
-from sqlalchemy import Column, Integer, Text, ForeignKey, UniqueConstraint
+from sqlalchemy import (
+    Column,
+    Integer,
+    BigInteger,
+    Text,
+    ForeignKey,
+    UniqueConstraint,
+    DateTime,
+    func,
+)
 from sqlalchemy.orm import relationship
 
 from bridge.common.models.meta import Base
-from bridge.common.models.types import EVMAddress
+from bridge.common.models.types import (
+    EVMAddress,
+)
 
 # Do not change this, it alters all table names
 PREFIX = "runes"
 
 
-class User(Base):
-    # TODO: doesn't need to be constrained to rune bridge, really
-    __tablename__ = f"{PREFIX}_user"
+class Bridge(Base):
+    # TODO: move outside of the rune bridge models
+    __tablename__ = "bridge"
 
     id = Column(Integer, primary_key=True)
-    bridge_id = Column(Text, nullable=False)
-    evm_address = Column(EVMAddress, nullable=False)  # TODO: use custom evm address type
+    name = Column(Text, nullable=False, unique=True)
+    created_at = Column(DateTime(timezone=True), nullable=False, server_default=func.now())
+
+    # bridgeable_runes = relationship(
+    #     "BridgeableRune",
+    #     back_populates="bridge",
+    #     lazy="dynamic",
+    # )
+
+
+class User(Base):
+    # TODO: move outside of the rune bridge models
+    __tablename__ = "user"
+
+    id = Column(BigInteger, primary_key=True)
+    bridge_id = Column(
+        Integer,
+        ForeignKey("bridge.id"),
+        nullable=False,
+    )
+    evm_address = Column(EVMAddress, nullable=False, index=True)
 
     deposit_address = relationship("DepositAddress", uselist=False, back_populates="user")
+
+    created_at = Column(DateTime(timezone=True), nullable=False, server_default=func.now())
 
     __table_args__ = (
         UniqueConstraint("bridge_id", "evm_address", name="uq_runes_user_evm_address"),
@@ -24,59 +56,66 @@ class User(Base):
 
 
 class DepositAddress(Base):
-    __tablename__ = f"{PREFIX}_deposit_address"
+    # TODO: move outside of the rune bridge models
+    __tablename__ = "deposit_address"
 
-    user_id = Column(Integer, ForeignKey(f"{PREFIX}_user.id"), primary_key=True)
+    user_id = Column(Integer, ForeignKey("user.id"), primary_key=True)
     btc_address = Column(Text, nullable=False, unique=True)
+    created_at = Column(DateTime(timezone=True), nullable=False, server_default=func.now())
 
     user = relationship("User", back_populates="deposit_address")
 
 
-# class RuneDeposit(Base):
-#     __tablename__ = f"{PREFIX}_rune_deposit"
-#
-#     tx_hash = Column(Text, primary_key=True)
-#     block_number = Column(BigInteger, nullable=False)
-#     tx_index = Column(BigInteger, nullable=False)
-#     user_id = Column(Integer, ForeignKey(f'{PREFIX}_user.id'), nullable=False)
-#     rune_number = Column(Uint128, nullable=False)
-#     amount_raw = Column(Uint128, nullable=False)
-#
-#     __table_args__ = (
-#         UniqueConstraint("bridge_id", "tx_hash"),
-#     )
-
-
-# These are kept here temporarily:
-
 # class BridgeableRune(Base):
 #     __tablename__ = f"{PREFIX}_bridgeable_rune"
 #
-#     rune_number = Column(Uint128, nullable=False)  # Normalized name as base26 encoded integer
-#     normalized_name = Column(Text, nullable=False)
-#     spaced_name = Column(Text, nullable=False)
-#     spacers = Column(BigInteger, nullable=False)
-#     divisibility = Column(Integer, nullable=False)
-#     symbol = Column(Text, nullable=False)
-#     etching_block_number = Column(BigInteger, nullable=False)
-#     etching_tx_index = Column(BigInteger, nullable=False)
+#     id = Column(BigInteger, primary_key=True)
 #
-#     __table_args__ = (
-#         UniqueConstraint("bridge_id", "normalized_name"),
+#     bridge_id = Column(
+#         Integer, ForeignKey(f"{PREFIX}_bridge.id"), nullable=False
 #     )
-
-
-# class RunesToEvmTransfer(Base):
-#     __tablename__ = f"{PREFIX}_runes_to_evm_transfer"
 #
-#     rune_name = Column(Text, nullable=False)
-#     tx_id = Column(Text, nullable=False)
-#     amount_raw = Column(Uint128, nullable=False)
+#     rune_number = Column(
+#         Uint128,
+#         nullable=False,
+#     )  # Normalized name as base26 encoded integer
 #
-#     evm_address = Column(Text, nullable=False)
-#     block_number = Column(BigInteger, nullable=False)
-#     tx_index = Column(BigInteger, nullable=False)
+#     token_address = Column(EVMAddress, nullable=False, index=True)
+#     token_name = Column(Text, nullable=False)
+#     token_symbol = Column(Text, nullable=False)
+#
+#     bridge = relationship("Bridge", back_populates="bridgeable_runes")
+#     created_at = Column(
+#         DateTime(timezone=True), nullable=False, server_default=func.now()
+#     )
 #
 #     __table_args__ = (
-#         UniqueConstraint("bridge_id", "tx_hash"),
+#         UniqueConstraint("bridge_id", "rune_number"),
+#     )
+#
+# class RuneDeposit(Base):
+#     __tablename__ = f"{PREFIX}_rune_deposit"
+#
+#     id = Column(BigInteger, primary_key=True)
+#     tx_hash = Column(Text, nullable=False)
+#     block_number = Column(Integer, nullable=False)
+#     tx_index = Column(Integer, nullable=False)
+#     vout = Column(Integer, nullable=False)
+#
+#     user_id = Column(Integer, ForeignKey(f"{PREFIX}_user.id"), nullable=True)
+#     bridge_id = Column(
+#         Integer, ForeignKey(f"{PREFIX}_bridge.id"), nullable=False
+#     )
+#
+#     rune_number = Column(Uint128, nullable=False)
+#     amount_raw = Column(Uint128, nullable=False)
+#     created_at = Column(
+#         DateTime(timezone=True), nullable=False, server_default=func.now()
+#     )
+#
+#     __table_args__ = (
+#         UniqueConstraint(
+#             "bridge_id", "tx_hash", "vout", "rune_number",
+#             name="uq_runes_rune_deposit_tx_hash"
+#         ),
 #     )

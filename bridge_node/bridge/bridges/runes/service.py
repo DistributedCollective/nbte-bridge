@@ -21,7 +21,11 @@ from web3.types import EventData
 
 from bridge.common.btc.rpc import BitcoinRPC
 from .evm import load_rune_bridge_abi
-from .models import User, DepositAddress
+from .models import (
+    User,
+    DepositAddress,
+    Bridge,
+)
 from ...common.evm.scanner import EvmEventScanner
 from ...common.evm.utils import recover_message
 from ...common.models.key_value_store import KeyValuePair
@@ -77,6 +81,23 @@ class RuneBridgeService:
         self.transaction_manager = transaction_manager
         self.evm_account = evm_account
         self.web3 = web3
+        self._bridge_id = None
+
+    def init(self):
+        with self.transaction_manager.transaction() as tx:
+            dbsession = tx.find_service(Session)
+            bridge = dbsession.query(Bridge).filter_by(name=self.config.bridge_id).one_or_none()
+            if not bridge:
+                bridge = Bridge(name=self.config.bridge_id)
+                dbsession.add(bridge)
+                dbsession.flush()
+            self._bridge_id = bridge.id
+
+    @property
+    def bridge_id(self) -> int:
+        if self._bridge_id is None:
+            raise ValueError("Bridge ID not set - service is not initialized")
+        return self._bridge_id
 
     def generate_deposit_address(self, *, evm_address: str, dbsession: Session) -> str:
         # TODO: dbsession now passed as parameter, seems ugly?
@@ -87,12 +108,12 @@ class RuneBridgeService:
 
         user = (
             dbsession.query(User)
-            .filter_by(bridge_id=self.config.bridge_id, evm_address=evm_address)
+            .filter_by(bridge_id=self.bridge_id, evm_address=evm_address)
             .first()
         )
         if not user:
             user = User(
-                bridge_id=self.config.bridge_id,
+                bridge_id=self.bridge_id,
                 evm_address=evm_address,
             )
             dbsession.add(user)
@@ -110,7 +131,7 @@ class RuneBridgeService:
         return deposit_address.btc_address
 
     def scan_rune_deposits(self) -> list[messages.RuneToEvmTransfer]:
-        last_block_key = f"{self.config.bridge_id}:btc:deposits:last_scanned_block"
+        last_block_key = f"{self.bridge_id}:btc:deposits:last_scanned_block"
         with self.transaction_manager.transaction() as tx:
             key_value_store = tx.find_service(KeyValueStore)
             last_bitcoin_block = key_value_store.get_value(last_block_key, default_value=None)
@@ -252,7 +273,7 @@ class RuneBridgeService:
 
     def get_last_scanned_bitcoin_block(self, dbsession: Session) -> str | None:
         # TODO: temporary code, remove
-        last_block_key = f"{self.config.bridge_id}:btc:deposits:last_scanned_block"
+        last_block_key = f"{self.bridge_id}:btc:deposits:last_scanned_block"
         val = dbsession.query(KeyValuePair).filter_by(key=last_block_key).one_or_none()
         return val.value if val else None
 
@@ -269,7 +290,7 @@ class RuneBridgeService:
             dbsession.query(User)
             .filter_by(
                 evm_address=evm_address,
-                bridge_id=self.config.bridge_id,
+                bridge_id=self.bridge_id,
             )
             .one_or_none()
         )
@@ -519,7 +540,7 @@ class RuneBridgeService:
     def _get_rune_to_evm_transfer_key_value_store_key(
         self, transfer: messages.RuneToEvmTransfer
     ) -> str:
-        return f"{self.config.bridge_id}:rune-to-evm-transfer:{transfer.txid}:{transfer.vout}:{transfer.rune_name}"
+        return f"{self.bridge_id}:rune-to-evm-transfer:{transfer.txid}:{transfer.vout}:{transfer.rune_name}"
 
     def _update_rune_to_evm_transfer_key_value_store_data(
         self,
@@ -587,7 +608,7 @@ class RuneBridgeService:
                 dbsession=dbsession,
                 block_safety_margin=self.config.evm_block_safety_margin,
                 key_value_store=key_value_store,
-                key_value_store_namespace=self.config.bridge_id,
+                key_value_store_namespace=self.bridge_id,
                 default_start_block=self.config.evm_default_start_block,
             )
             scanner.scan_new_events()
@@ -614,7 +635,7 @@ class RuneBridgeService:
                 sa.select(DepositAddress)
                 .join(User)
                 .filter(
-                    User.bridge_id == self.config.bridge_id,
+                    User.bridge_id == self.bridge_id,
                     DepositAddress.btc_address == deposit_address,
                 )
             ).one_or_none()

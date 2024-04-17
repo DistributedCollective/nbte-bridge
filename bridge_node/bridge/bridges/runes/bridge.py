@@ -32,6 +32,7 @@ class RuneBridge(Bridge):
         self.max_retries = 10
 
     def init(self) -> None:
+        self.service.init()
         if not self.network.is_leader():
             self.network.answer_with(
                 self.sign_rune_to_evm_transfer_question,

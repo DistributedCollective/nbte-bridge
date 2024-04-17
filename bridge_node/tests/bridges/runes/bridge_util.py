@@ -17,6 +17,7 @@ from web3.types import EventData
 from bridge.bridges.runes.bridge import RuneBridge
 from bridge.bridges.runes.evm import load_rune_bridge_abi
 from bridge.bridges.runes.models import (
+    Bridge,
     DepositAddress,
     User,
 )
@@ -480,11 +481,19 @@ class RuneBridgeUtil:
 
     def _get_evm_address_from_deposit_address(self, deposit_address: str) -> str | None:
         with self._dbsession.begin():
+            bridge = self._dbsession.scalars(
+                sa.select(Bridge).filter(
+                    Bridge.name == self._rune_bridge.bridge_id,
+                )
+            ).one_or_none()
+            if not bridge:
+                logger.warning("Bridge %s not found", self._rune_bridge.bridge_id)
+                return None
             obj = self._dbsession.scalars(
                 sa.select(DepositAddress)
                 .join(User)
                 .filter(
-                    User.bridge_id == self._rune_bridge.bridge_id,
+                    User.bridge_id == bridge.id,
                     DepositAddress.btc_address == deposit_address,
                 )
             ).one_or_none()
