@@ -125,8 +125,8 @@ contract RuneBridge is NBTEBridgeAccessControllable, Freezable, Pausable {
     {
         require(tokenAmount > 0, "amount must be greater than 0");
 
+        require(isTokenRegistered(token), "rune not registered");
         uint256 rune = token.rune();
-        require(isRuneRegistered(rune), "rune not registered");
 
         require(btcAddressValidator.isValidBtcAddress(receiverBtcAddress), "invalid BTC address");
 
@@ -170,6 +170,11 @@ contract RuneBridge is NBTEBridgeAccessControllable, Freezable, Pausable {
 
     function isRuneRegistered(uint256 rune) public view returns (bool) {
         return tokensByRune[rune] != address(0);
+    }
+
+    /// @dev Is the token a Rune Token deployed by the Bridge_
+    function isTokenRegistered(address token) public view returns (bool) {
+        return runesByToken[rune] != address(0);
     }
 
     function numRunesRegistered() public view returns (uint256) {
@@ -353,8 +358,8 @@ contract RuneBridge is NBTEBridgeAccessControllable, Freezable, Pausable {
         uint256 tokenAmount = address(token).balance;
         require(tokenAmount > 0, "zero balance");
 
+        require(isTokenRegistered(address(token)), "rune not registered");
         uint256 rune = token.rune();
-        require(isRuneRegistered(rune), "rune not registered");
 
         require(btcAddressValidator.isValidBtcAddress(receiverBtcAddress), "invalid BTC address");
 
