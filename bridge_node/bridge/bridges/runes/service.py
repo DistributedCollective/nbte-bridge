@@ -25,6 +25,11 @@ from .models import (
     User,
     DepositAddress,
     Bridge,
+    Rune,
+    RuneDeposit,
+    RuneDepositStatus,
+    IncomingBtcTx,
+    IncomingBtcTxStatus,
 )
 from ...common.evm.scanner import EvmEventScanner
 from ...common.evm.utils import recover_message
@@ -82,6 +87,8 @@ class RuneBridgeService:
         self.evm_account = evm_account
         self.web3 = web3
         self._bridge_id = None
+
+        self._get_block_time_by_hash = functools.lru_cache(256)(self._get_block_time_by_hash)
 
     def init(self):
         with self.transaction_manager.transaction() as tx:
@@ -157,10 +164,14 @@ class RuneBridgeService:
         new_last_block = resp["lastblock"]
         logger.info("New last block: %s", new_last_block)
 
-        transfers = []
+        # Filter invalid transactions and map ord_output outside of db transaction
+        # Also keep track of newly seen runes
+        rune_names = set()
+        transactions = []
         for tx in resp["transactions"]:
             if tx["category"] != "receive":
                 continue
+
             btc_address = tx.get("address")
             if not btc_address:
                 logger.warning("No BTC address in transaction %s", tx)
@@ -170,92 +181,221 @@ class RuneBridgeService:
                 logger.info("Ignoring tx to change address %s", btc_address)
                 continue
 
-            # TODO: temporary solution here, we should actually always store RuneDeposits
-            with self.transaction_manager.transaction() as _tx:
-                dbsession = _tx.find_service(Session)
+            txid = tx["txid"]
+            vout = tx["vout"]
+            tx_confirmations = tx["confirmations"]
+            ord_output = tx["ord_output"] = None
+            if tx_confirmations > 0:
+                # TXs without confirmations are not indexed by ord
+                for _ in range(10):
+                    ord_output = self.ord_client.get_output(txid, vout)
+                    if ord_output["indexed"]:
+                        tx["ord_output"] = ord_output
+                        break
+                    logger.info("Output %s:%s not indexed in ord yet, waiting", txid, vout)
+                    self._sleep()
+                else:
+                    raise RuntimeError("Output not indexed in ord after 10 tries")
+
+            if ord_output:
+                for spaced_rune_name, _ in ord_output["runes"]:
+                    rune_names.add(spaced_rune_name)
+
+            transactions.append(tx)
+
+        rune_entries = []
+        for rune_name in rune_names:
+            rune_response = self.ord_client.get_rune(rune_name)
+            if not rune_response:
+                raise RuntimeError(f"Rune {rune_name} not found in ord")
+            rune_entries.append(rune_response["entry"])
+
+        transfers = []
+        with self.transaction_manager.transaction() as _tx:
+            dbsession = _tx.find_service(Session)
+            key_value_store = _tx.find_service(KeyValueStore)
+
+            logger.info("Indexing %s runes", len(rune_entries))
+            for rune_entry in rune_entries:
+                pyord_rune = rune_from_str(rune_entry["spaced_rune"])
+                rune = (
+                    dbsession.query(Rune)
+                    .filter_by(bridge_id=self.bridge_id, n=pyord_rune.n)
+                    .one_or_none()
+                )
+                if not rune:
+                    logger.info("Creating rune %s (%s)", pyord_rune, rune_entry)
+                    rune = Rune(
+                        bridge_id=self.bridge_id,
+                        n=pyord_rune.n,
+                        name=pyord_rune.name,
+                        symbol=rune_entry["symbol"],
+                        spaced_name=rune_entry["spaced_rune"],
+                        divisibility=rune_entry["divisibility"],
+                        turbo=rune_entry["turbo"],
+                    )
+                    dbsession.add(rune)
+                    dbsession.flush()
+
+            logger.info("Indexing %s transactions", len(transactions))
+            for tx in transactions:
+                tx_confirmations = tx["confirmations"]
+                txid = tx["txid"]
+                vout = tx["vout"]
+                btc_address = tx["address"]
+                ord_output = tx["ord_output"]
+                if ord_output:
+                    assert ord_output["indexed"]
+
+                btc_tx = (
+                    dbsession.query(IncomingBtcTx)
+                    .filter_by(
+                        bridge_id=self.bridge_id,
+                        tx_id=txid,
+                        vout=vout,
+                    )
+                    .one_or_none()
+                )
+                if btc_tx:
+                    logger.info("Updating IncomingBtcTx %s:%s: %s", txid, vout, btc_tx)
+                else:
+                    logger.info("Creating new IncomingBtcTx %s:%s", txid, vout)
+                    btc_tx = IncomingBtcTx(
+                        bridge_id=self.bridge_id,
+                        tx_id=txid,
+                        vout=vout,
+                        status=IncomingBtcTxStatus.DETECTED,
+                    )
+                    dbsession.add(btc_tx)
+
+                if (
+                    tx_confirmations >= required_confirmations
+                    and btc_tx.status == IncomingBtcTx.DETECTED
+                ):
+                    btc_tx.status = IncomingBtcTxStatus.ACCEPTED
+                btc_tx.block_number = tx.get("blockheight")
+                btc_tx.time = tx["time"]
+                btc_tx.amount_sat = int(tx["amount"] * 100_000_000)
+                btc_tx.address = btc_address
+                dbsession.flush()
+
                 deposit_address = (
-                    dbsession.query(DepositAddress).filter_by(btc_address=btc_address).first()
+                    dbsession.query(DepositAddress).filter_by(btc_address=btc_address).one_or_none()
                 )
                 if not deposit_address:
                     logger.warning("No deposit address found for %s", tx)
                     continue
+
+                btc_tx.user_id = deposit_address.user_id
+                dbsession.flush()
+
                 evm_address = deposit_address.user.evm_address
 
-            tx_confirmations = tx["confirmations"]
-            txid = tx["txid"]
-            vout = tx["vout"]
-
-            logger.info(
-                "found transfer: %s:%s, user %s with %s confirmations",
-                txid,
-                vout,
-                evm_address,
-                tx_confirmations,
-            )
-
-            if tx_confirmations < required_confirmations:
-                # Zero-confirmation txs will be scanned automatically next time
-                continue
-
-            while True:
-                ord_output = self.ord_client.get_output(txid, vout)
-                if ord_output["indexed"]:
-                    break
-                logger.info("Output %s:%s not indexed in ord yet, waiting", txid, vout)
-                self._sleep()
-
-            logger.info(
-                "Received %s runes in outpoint %s:%s (user %s)",
-                len(ord_output["runes"]),
-                txid,
-                vout,
-                evm_address,
-            )
-
-            # TODO: validate this
-            # postage = ord_output["value"]
-
-            if not ord_output["runes"]:
-                # TODO: store these too
-                logger.warning(
-                    "Transfer without runes: %s:%s. ord output: %s",
-                    txid,
-                    vout,
-                    ord_output,
-                )
-                continue
-
-            for spaced_rune_name, balance_entry in ord_output["runes"]:
-                # TODO: validate postage, but still store in DB
-                rune = rune_from_str(spaced_rune_name)
-                amounts = self._calculate_rune_to_evm_transfer_amounts(
-                    amount_raw=balance_entry["amount"],
-                    divisibility=balance_entry["divisibility"],
-                )
                 logger.info(
-                    "Received %s %s for %s at %s:%s",
-                    amounts.amount_decimal,
-                    spaced_rune_name,
-                    evm_address,
+                    "found transfer: %s:%s, user %s with %s confirmations",
                     txid,
                     vout,
+                    evm_address,
+                    tx_confirmations,
                 )
 
-                transfer = messages.RuneToEvmTransfer(
-                    evm_address=evm_address,
-                    amount_raw=amounts.amount_raw,
-                    amount_decimal=amounts.amount_decimal,
-                    net_amount_raw=amounts.net_amount_raw,
-                    txid=txid,
-                    vout=vout,
-                    rune_name=rune.name,
-                    rune_number=rune.n,
-                )
-                logger.info("Transfer: %s", transfer)
-                transfers.append(transfer)
+                if not ord_output:
+                    logger.info("Ord output not yet indexed, will be scanned later")
+                    continue
 
-        with self.transaction_manager.transaction() as tx:
-            key_value_store = tx.find_service(KeyValueStore)
+                logger.info(
+                    "Received %s runes in outpoint %s:%s (user %s)",
+                    len(ord_output["runes"]),
+                    txid,
+                    vout,
+                    evm_address,
+                )
+
+                if not ord_output["runes"]:
+                    logger.warning(
+                        "Transfer without runes: %s:%s. ord output: %s",
+                        txid,
+                        vout,
+                        ord_output,
+                    )
+                    continue
+
+                for spaced_rune_name, balance_entry in ord_output["runes"]:
+                    # TODO: validate postage, but still store in DB (done?)
+                    pyord_rune = rune_from_str(spaced_rune_name)
+                    rune = (
+                        dbsession.query(Rune)
+                        .filter_by(bridge_id=self.bridge_id, n=pyord_rune.n)
+                        .one()
+                    )
+                    amounts = self._calculate_rune_to_evm_transfer_amounts(
+                        amount_raw=balance_entry["amount"],
+                        divisibility=balance_entry["divisibility"],
+                    )
+                    logger.info(
+                        "Received %s %s for %s at %s:%s",
+                        amounts.amount_decimal,
+                        spaced_rune_name,
+                        evm_address,
+                        txid,
+                        vout,
+                    )
+
+                    deposit = (
+                        dbsession.query(RuneDeposit)
+                        .filter_by(
+                            bridge_id=self.bridge_id,
+                            tx_id=txid,
+                            vout=vout,
+                            rune_number=rune.n,
+                        )
+                        .one_or_none()
+                    )
+                    if deposit:
+                        logger.info("Updating deposit %s", deposit.id)
+                    else:
+                        logger.info("Creating new deposit")
+                        deposit = RuneDeposit(
+                            bridge_id=self.bridge_id,
+                            tx_id=txid,
+                            vout=vout,
+                            rune_number=rune.n,
+                            status=RuneDepositStatus.DETECTED,
+                        )
+                        dbsession.add(deposit)
+
+                    deposit.incoming_btc_tx_id = btc_tx.id
+                    deposit.block_number = tx["blockheight"]
+                    deposit.user_id = deposit_address.user_id
+                    deposit.postage = ord_output["value"]
+                    deposit.transfer_amount_raw = balance_entry["amount"]
+                    deposit.net_amount_raw = amounts.net_amount_raw
+                    deposit.rune_id = rune.id
+                    if (
+                        tx_confirmations >= required_confirmations
+                        and deposit.status == RuneDepositStatus.DETECTED
+                    ):
+                        deposit.status = RuneDepositStatus.ACCEPTED
+                    dbsession.flush()
+
+                    transfer = messages.RuneToEvmTransfer(
+                        evm_address=evm_address,
+                        amount_raw=amounts.amount_raw,
+                        amount_decimal=amounts.amount_decimal,
+                        net_amount_raw=amounts.net_amount_raw,
+                        txid=txid,
+                        vout=vout,
+                        rune_name=rune.name,
+                        rune_number=rune.n,
+                    )
+                    logger.info("Transfer: %s", transfer)
+                    transfers.append(transfer)
+
+            check = key_value_store.get_value(last_block_key, default_value=None)
+            if check != last_bitcoin_block:
+                raise RuntimeError(
+                    f"Last block changed from {last_bitcoin_block} to {check} while processing deposits!"
+                )
             key_value_store.set_value(last_block_key, new_last_block)
         return transfers
 
@@ -287,9 +427,8 @@ class RuneBridgeService:
         last_block: str,
         dbsession: Session,
     ) -> list[dict]:
-        # TODO: temporary code, remove
         evm_address = eth_utils.to_checksum_address(evm_address)
-        logger.debug("Getting transactions for %s since %s", evm_address, last_block)
+        logger.info("Getting transactions for %s since %s", evm_address, last_block)
         user = (
             dbsession.query(User)
             .filter_by(
@@ -299,45 +438,47 @@ class RuneBridgeService:
             .one_or_none()
         )
         if not user:
-            logger.debug("No user found for %s", evm_address)
+            logger.info("No user found for %s", evm_address)
             return []
+
+        if len(last_block) != 64:
+            logger.info("Invalid block hash length %s", last_block)
+            return []
+
+        block_time = self._get_block_time_by_hash(last_block)
+        if not block_time:
+            logger.info("Invalid block hash %s", last_block)
+            return []
+
         deposit_address = user.deposit_address
         if not deposit_address:
-            logger.debug("No deposit address found for %s", evm_address)
+            logger.info("No deposit address found for %s", evm_address)
             return []
 
-        @functools.lru_cache
-        def get_rune_symbol(rune):
-            resp = self.ord_client.get_rune(rune)
-            if not resp:
-                return ""
-            return resp["entry"]["symbol"]
-
-        logger.debug("User %s has deposit address %s", evm_address, deposit_address.btc_address)
-        resp = self.bitcoin_rpc.call("listsinceblock", last_block)
-        deposits = []
-        logger.debug(
-            "Got %s transactions since requested block (for all users)", len(resp["transactions"])
+        logger.info("User %s has deposit address %s", evm_address, deposit_address.btc_address)
+        btc_transactions = (
+            dbsession.query(IncomingBtcTx)
+            .filter_by(
+                bridge_id=self.bridge_id,
+                user_id=user.id,
+            )
+            .filter(
+                IncomingBtcTx.time >= block_time,
+            )
+            .order_by(
+                IncomingBtcTx.time,
+            )
+            .all()
         )
-        for tx in resp["transactions"]:
-            if tx["category"] != "receive":
-                continue
-            if "address" not in tx:
-                continue
-            if tx["address"] != deposit_address.btc_address:
-                continue
-            logger.debug("Found tx: %s", tx)
-            txid = tx["txid"]
-            vout = tx["vout"]
-            output = self.ord_client.get_output(txid, vout)
-            logger.debug("Received %s runes in outpoint %s:%s", len(output["runes"]), txid, vout)
-            if not output["runes"]:
-                # Temporary solution to show something immediately
-                # Ord only shows outputs if they are indexed properly
+
+        deposits = []
+        for tx in btc_transactions:
+            if tx.status == IncomingBtcTxStatus.DETECTED and not tx.rune_deposits:
+                logger.info("Found detected tx %s", tx.id)
                 deposits.append(
                     {
-                        "btc_deposit_txid": txid,
-                        "btc_deposit_vout": vout,
+                        "btc_deposit_txid": tx.tx_id,
+                        "btc_deposit_vout": tx.vout,
                         "rune_name": "",
                         "rune_symbol": "",
                         "amount_decimal": "0",
@@ -347,80 +488,130 @@ class RuneBridgeService:
                         "evm_transfer_tx_hash": None,
                     }
                 )
-            for spaced_rune_name, balance_entry in output["runes"]:
-                rune = rune_from_str(spaced_rune_name)
-                amounts = self._calculate_rune_to_evm_transfer_amounts(
-                    amount_raw=balance_entry["amount"],
-                    divisibility=balance_entry["divisibility"],
-                )
-                transfer = messages.RuneToEvmTransfer(
-                    evm_address=evm_address,
-                    amount_raw=amounts.amount_raw,
-                    amount_decimal=amounts.amount_decimal,
-                    net_amount_raw=amounts.net_amount_raw,
-                    txid=txid,
-                    vout=vout,
-                    rune_name=rune.name,
-                    rune_number=rune.n,
-                )
-                data = self._read_rune_to_evm_transfer_key_value_store_data(
-                    transfer,
-                    dbsession=dbsession,
-                )
-                deposits.append(
-                    {
-                        "btc_deposit_txid": txid,
-                        "btc_deposit_vout": vout,
-                        "rune_name": spaced_rune_name,
-                        "rune_symbol": get_rune_symbol(spaced_rune_name),
-                        "amount_decimal": str(amounts.amount_decimal),
-                        "fee_decimal": str(amounts.fee_decimal),
-                        "receive_amount_decimal": str(amounts.net_amount_decimal),
-                        "status": data.get("status", "seen"),
-                        "evm_transfer_tx_hash": data.get("transfer_tx_hash", None),
-                    }
-                )
+            else:
+                for rune_deposit in tx.rune_deposits:
+                    rune = rune_deposit.rune
+                    deposits.append(
+                        {
+                            "btc_deposit_txid": rune_deposit.tx_id,
+                            "btc_deposit_vout": rune_deposit.vout,
+                            "rune_name": rune.spaced_name,
+                            "rune_symbol": rune.symbol,
+                            "amount_decimal": str(
+                                rune.decimal_amount(rune_deposit.transfer_amount_raw)
+                            ),
+                            "fee_decimal": str(rune.decimal_amount(rune_deposit.fee_raw)),
+                            "receive_amount_decimal": str(
+                                rune.decimal_amount(rune_deposit.net_amount_raw)
+                            ),
+                            "status": rune_deposit.get_status_for_ui(),
+                            "evm_transfer_tx_hash": rune_deposit.evm_tx_hash,
+                        }
+                    )
+
         return deposits
+
+    def _get_block_time_by_hash(self, block_hash) -> int | None:
+        try:
+            block = self.bitcoin_rpc.call("getblock", block_hash)
+            return block["time"]
+        except Exception as e:
+            logger.info("Invalid block hash %s (%s)", block_hash, e)
+            return None
 
     def send_rune_to_evm(self, transfer: messages.RuneToEvmTransfer, signatures: list[str]):
         logger.info("Executing Rune-to-EVM transfer %s", transfer)
         rune = rune_from_str(transfer.rune_name)
-        tx_hash = self.rune_bridge_contract.functions.acceptTransferFromBtc(
-            transfer.evm_address,
-            rune.n,
-            transfer.net_amount_raw,
-            eth_utils.add_0x_prefix(transfer.txid),
-            transfer.vout,
-            signatures,
-        ).transact(
-            {
-                "gas": 500_000,
-            }
-        )
-        logger.info("Sent Rune-to-EVM transfer %s, waiting...", tx_hash.hex())
 
-        # TODO: temporary code, remove
-        self._update_rune_to_evm_transfer_key_value_store_data(
-            transfer,
-            {
-                "status": "sent_to_evm",
-                "transfer_tx_hash": tx_hash.hex(),
-            },
-        )
+        with self.transaction_manager.transaction() as tx:
+            dbsession = tx.find_service(Session)
+            deposit = (
+                dbsession.query(RuneDeposit)
+                .filter_by(
+                    bridge_id=self.bridge_id,
+                    tx_id=transfer.txid,
+                    vout=transfer.vout,
+                    rune_number=rune.n,
+                )
+                .one()
+            )
+            if deposit.status != RuneDepositStatus.ACCEPTED:
+                raise ValidationError(f"Deposit {deposit} not accepted (got {deposit.status})")
+            deposit.status = RuneDepositStatus.SENDING_TO_EVM
 
-        receipt = self.web3.eth.wait_for_transaction_receipt(
-            tx_hash,
-            timeout=120,
-            poll_latency=2.0,
-        )
-        self._update_rune_to_evm_transfer_key_value_store_data(
-            transfer,
-            {
-                "status": "confirmed",
-            },
-        )
-        assert receipt["status"]
-        logger.info("Rune-to-EVM transfer %s confirmed", tx_hash.hex())
+        try:
+            tx_hash = self.rune_bridge_contract.functions.acceptTransferFromBtc(
+                transfer.evm_address,
+                rune.n,
+                transfer.net_amount_raw,
+                eth_utils.add_0x_prefix(transfer.txid),
+                transfer.vout,
+                signatures,
+            ).transact(
+                {
+                    "gas": 500_000,
+                }
+            )
+            logger.info("Sent Rune-to-EVM transfer %s, waiting...", tx_hash.hex())
+        except Exception as e:
+            logger.exception("Error sending Rune-to-EVM transfer")
+            with self.transaction_manager.transaction() as tx:
+                dbsession = tx.find_service(Session)
+                deposit = (
+                    dbsession.query(RuneDeposit)
+                    .filter_by(
+                        bridge_id=self.bridge_id,
+                        tx_id=transfer.txid,
+                        vout=transfer.vout,
+                        rune_number=rune.n,
+                    )
+                    .one()
+                )
+                deposit.status = RuneDepositStatus.EVM_TRANSFER_FAILED
+            raise e
+        else:
+            with self.transaction_manager.transaction() as tx:
+                dbsession = tx.find_service(Session)
+                deposit = (
+                    dbsession.query(RuneDeposit)
+                    .filter_by(
+                        bridge_id=self.bridge_id,
+                        tx_id=transfer.txid,
+                        vout=transfer.vout,
+                        rune_number=rune.n,
+                    )
+                    .one()
+                )
+                deposit.status = RuneDepositStatus.SENT_TO_EVM
+                deposit.evm_tx_hash = tx_hash.hex()
+
+        receipt = self.web3.eth.get_transaction_receipt(tx_hash)
+        if receipt:
+            with self.transaction_manager.transaction() as tx:
+                dbsession = tx.find_service(Session)
+                deposit = (
+                    dbsession.query(RuneDeposit)
+                    .filter_by(
+                        bridge_id=self.bridge_id,
+                        tx_id=transfer.txid,
+                        vout=transfer.vout,
+                        rune_number=rune.n,
+                    )
+                    .one()
+                )
+                if receipt["status"]:
+                    deposit.status = RuneDepositStatus.CONFIRMED_IN_EVM
+                    logger.info("Rune-to-EVM transfer %s confirmed", tx_hash.hex())
+                else:
+                    deposit.status = RuneDepositStatus.EVM_TRANSACTION_FAILED
+                    logger.warning("Rune-to-EVM transfer %s failed", tx_hash.hex())
+        else:
+            logger.info("Rune-to-EVM transfer %s not yet confirmed", tx_hash.hex())
+
+    # def confirm_pending_rune_to_evm_transfers(self):
+    #     # TODO
+    #     with self.transaction_manager.transaction() as tx:
+    #         dbsession = tx.find_service(Session)
 
     def answer_sign_rune_to_evm_transfer_question(
         self,
@@ -545,43 +736,6 @@ class RuneBridgeService:
         self, transfer: messages.RuneToEvmTransfer
     ) -> str:
         return f"{self.bridge_name}:rune-to-evm-transfer:{transfer.txid}:{transfer.vout}:{transfer.rune_name}"
-
-    def _update_rune_to_evm_transfer_key_value_store_data(
-        self,
-        transfer: messages.RuneToEvmTransfer,
-        data: dict,
-    ):
-        with self.transaction_manager.transaction() as tx:
-            key = self._get_rune_to_evm_transfer_key_value_store_key(transfer)
-            key_value_store = tx.find_service(KeyValueStore)
-            existing_data = (
-                key_value_store.get_value(
-                    key,
-                    default_value={},
-                )
-                or {}
-            )
-            existing_data.update(data)
-            key_value_store.set_value(
-                key,
-                existing_data,
-            )
-
-    def _read_rune_to_evm_transfer_key_value_store_data(
-        self, transfer: messages.RuneToEvmTransfer, dbsession: Session
-    ):
-        val = (
-            dbsession.query(KeyValuePair)
-            .filter_by(
-                key=self._get_rune_to_evm_transfer_key_value_store_key(transfer),
-            )
-            .one_or_none()
-        )
-        if val:
-            val = val.value
-        if not val:
-            return {}
-        return val
 
     def scan_rune_token_deposits(self) -> list[messages.RuneTokenToBtcTransfer]:
         events: list[messages.RuneTokenToBtcTransfer] = []

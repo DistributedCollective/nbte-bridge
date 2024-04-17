@@ -1,3 +1,6 @@
+from decimal import Decimal
+from enum import IntEnum
+
 from sqlalchemy import (
     Column,
     Integer,
@@ -7,16 +10,17 @@ from sqlalchemy import (
     UniqueConstraint,
     DateTime,
     func,
+    Boolean,
+    LargeBinary,
 )
+from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import relationship
 
 from bridge.common.models.meta import Base
 from bridge.common.models.types import (
     EVMAddress,
+    Uint128,
 )
-
-# Do not change this, it alters all table names
-PREFIX = "runes"
 
 
 class Bridge(Base):
@@ -93,29 +97,140 @@ class DepositAddress(Base):
 #         UniqueConstraint("bridge_id", "rune_number"),
 #     )
 #
-# class RuneDeposit(Base):
-#     __tablename__ = f"{PREFIX}_rune_deposit"
-#
-#     id = Column(BigInteger, primary_key=True)
-#     tx_hash = Column(Text, nullable=False)
-#     block_number = Column(Integer, nullable=False)
-#     tx_index = Column(Integer, nullable=False)
-#     vout = Column(Integer, nullable=False)
-#
-#     user_id = Column(Integer, ForeignKey(f"{PREFIX}_user.id"), nullable=True)
-#     bridge_id = Column(
-#         Integer, ForeignKey(f"{PREFIX}_bridge.id"), nullable=False
-#     )
-#
-#     rune_number = Column(Uint128, nullable=False)
-#     amount_raw = Column(Uint128, nullable=False)
-#     created_at = Column(
-#         DateTime(timezone=True), nullable=False, server_default=func.now()
-#     )
-#
-#     __table_args__ = (
-#         UniqueConstraint(
-#             "bridge_id", "tx_hash", "vout", "rune_number",
-#             name="uq_runes_rune_deposit_tx_hash"
-#         ),
-#     )
+
+
+class IncomingBtcTxStatus(IntEnum):
+    DETECTED = 1
+    ACCEPTED = 2
+
+
+class RuneDepositStatus(IntEnum):
+    DETECTED = 1
+    ACCEPTED = 2
+    SENDING_TO_EVM = 3
+    SENT_TO_EVM = 4
+    CONFIRMED_IN_EVM = 5
+    REJECTED = 50
+    SENDING_TO_EVM_FAILED = 100
+    EVM_TRANSACTION_FAILED = 101
+
+
+class IncomingBtcTx(Base):
+    __tablename__ = "incoming_btc_tx"
+
+    id = Column(BigInteger, primary_key=True)
+    bridge_id = Column(Integer, ForeignKey("bridge.id"), nullable=False)
+
+    tx_id = Column(Text, nullable=False)
+    vout = Column(Integer, nullable=False)
+    block_number = Column(Integer, nullable=True)
+    time = Column(Integer, nullable=False)
+
+    address = Column(Text, nullable=False)
+
+    amount_sat = Column(BigInteger, nullable=False)
+
+    user_id = Column(Integer, ForeignKey("user.id"), nullable=True)
+    user = relationship("User")
+
+    status = Column(Integer, nullable=False, default=IncomingBtcTxStatus.DETECTED)
+
+    rune_deposits = relationship("RuneDeposit", back_populates="incoming_btc_tx")
+
+    created_at = Column(DateTime(timezone=True), nullable=False, server_default=func.now())
+
+    __table_args__ = (
+        UniqueConstraint("bridge_id", "tx_id", "vout", name="uq_incoming_bitcoin_tx_id_vout"),
+    )
+
+
+class Rune(Base):
+    __tablename__ = "rune"
+
+    id = Column(BigInteger, primary_key=True)
+    bridge_id = Column(Integer, ForeignKey("bridge.id"), nullable=False)
+
+    n = Column(Uint128, nullable=False)  # name base26 encoded
+    name = Column(Text, nullable=False)
+    spaced_name = Column(Text, nullable=False)
+    symbol = Column(Text, nullable=False)
+    divisibility = Column(Integer, nullable=False)
+    turbo = Column(Boolean, nullable=False)
+
+    __table_args__ = (UniqueConstraint("bridge_id", "n", name="uq_rune_n"),)
+
+    def __repr__(self):
+        return f"Rune(id={self.id}, n={self.n}, name={self.name!r}, symbol={self.symbol!r})"
+
+    def decimal_amount(self, amount_raw: int) -> Decimal:
+        return Decimal(amount_raw) / 10**self.divisibility
+
+
+class RuneDeposit(Base):
+    __tablename__ = "rune_deposit"
+
+    id = Column(BigInteger, primary_key=True)
+    bridge_id = Column(Integer, ForeignKey("bridge.id"), nullable=False)
+
+    tx_id = Column(Text, nullable=False)
+    vout = Column(Integer, nullable=False)
+    block_number = Column(Integer, nullable=False)
+
+    rune_number = Column(Uint128, nullable=False)
+
+    rune_id = Column(Integer, ForeignKey("rune.id"), nullable=False)
+    rune = relationship(Rune)
+
+    user_id = Column(Integer, ForeignKey("user.id"), nullable=False)
+    user = relationship(User)
+
+    incoming_btc_tx_id = Column(Integer, ForeignKey("incoming_btc_tx.id"), nullable=False)
+    incoming_btc_tx = relationship(IncomingBtcTx, back_populates="rune_deposits")
+
+    postage = Column(BigInteger, nullable=False)
+
+    transfer_amount_raw = Column(Uint128, nullable=False)
+    net_amount_raw = Column(Uint128, nullable=False)
+
+    evm_tx_hash = Column(Text, nullable=True)
+
+    accept_transfer_message_hash = Column(LargeBinary, nullable=True)
+    accept_transfer_signatures = Column(JSONB, nullable=False, server_default="[]")
+
+    status = Column(
+        Integer,
+        nullable=False,
+        default=RuneDepositStatus.DETECTED.value,
+    )
+
+    created_at = Column(
+        DateTime(timezone=True),
+        nullable=False,
+        server_default=func.now(),
+    )
+
+    __table_args__ = (
+        UniqueConstraint(
+            "bridge_id",
+            "tx_id",
+            "vout",
+            "rune_number",
+            name="uq_rune_deposit_txid_vout_rune_number",
+        ),
+    )
+
+    @property
+    def fee_raw(self) -> int:
+        return self.transfer_amount_raw - self.net_amount_raw
+
+    def get_status_for_ui(self) -> str:
+        # XXX maps status to a string that can be used in the UI
+        status_map = {
+            RuneDepositStatus.DETECTED: "detected",
+            RuneDepositStatus.ACCEPTED: "seen",
+            RuneDepositStatus.SENDING_TO_EVM: "seen",
+            RuneDepositStatus.SENT_TO_EVM: "sent_to_evm",
+            RuneDepositStatus.CONFIRMED_IN_EVM: "confirmed",
+            # RuneDepositStatus.EVM_TRANSFER_FAILED: "evm_transfer_failed",
+        }
+        return status_map.get(self.status, "Processing")
