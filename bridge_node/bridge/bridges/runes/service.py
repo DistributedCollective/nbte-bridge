@@ -270,7 +270,7 @@ class RuneBridgeService:
 
                 if (
                     tx_confirmations >= required_confirmations
-                    and btc_tx.status == IncomingBtcTx.DETECTED
+                    and btc_tx.status == IncomingBtcTxStatus.DETECTED
                 ):
                     btc_tx.status = IncomingBtcTxStatus.ACCEPTED
                 btc_tx.block_number = tx.get("blockheight")
@@ -519,33 +519,118 @@ class RuneBridgeService:
             logger.info("Invalid block hash %s (%s)", block_hash, e)
             return None
 
-    def send_rune_to_evm(self, transfer: messages.RuneToEvmTransfer, signatures: list[str]):
-        logger.info("Executing Rune-to-EVM transfer %s", transfer)
-        rune = rune_from_str(transfer.rune_name)
+    def get_accepted_rune_deposit_ids(self):
+        with self.transaction_manager.transaction() as tx:
+            dbsession = tx.find_service(Session)
+            deposits = (
+                dbsession.query(RuneDeposit)
+                .filter_by(
+                    bridge_id=self.bridge_id,
+                    status=RuneDepositStatus.ACCEPTED,
+                )
+                .order_by(
+                    RuneDeposit.id,
+                )
+            )
+            return [deposit.id for deposit in deposits]
 
+    def get_sign_rune_to_evm_transfer_question(
+        self, deposit_id: int
+    ) -> messages.SignRuneToEvmTransferQuestion:
         with self.transaction_manager.transaction() as tx:
             dbsession = tx.find_service(Session)
             deposit = (
                 dbsession.query(RuneDeposit)
                 .filter_by(
                     bridge_id=self.bridge_id,
-                    tx_id=transfer.txid,
-                    vout=transfer.vout,
-                    rune_number=rune.n,
+                    id=deposit_id,
                 )
                 .one()
             )
             if deposit.status != RuneDepositStatus.ACCEPTED:
                 raise ValidationError(f"Deposit {deposit} not accepted (got {deposit.status})")
+            return messages.SignRuneToEvmTransferQuestion(
+                transfer=messages.RuneToEvmTransfer(
+                    evm_address=deposit.user.evm_address,
+                    amount_raw=deposit.transfer_amount_raw,
+                    amount_decimal=deposit.rune.decimal_amount(deposit.transfer_amount_raw),
+                    net_amount_raw=deposit.net_amount_raw,
+                    txid=deposit.tx_id,
+                    vout=deposit.vout,
+                    rune_name=deposit.rune.name,
+                    rune_number=deposit.rune.n,
+                )
+            )
+
+    def update_rune_deposit_signatures(
+        self,
+        deposit_id: int,
+        message_hash: str,
+        answers: list[messages.SignRuneToEvmTransferAnswer],
+    ) -> bool:
+        with self.transaction_manager.transaction() as tx:
+            dbsession = tx.find_service(Session)
+            deposit = (
+                dbsession.query(RuneDeposit)
+                .filter_by(
+                    bridge_id=self.bridge_id,
+                    id=deposit_id,
+                )
+                .one()
+            )
+            logger.info("Updating signatures for deposit %s", deposit)
+            if deposit.status != RuneDepositStatus.ACCEPTED:
+                raise ValidationError(f"Deposit {deposit} not accepted (got {deposit.status})")
+
+            deposit.accept_transfer_message_hash = message_hash
+            signatures = deposit.accept_transfer_signatures
+            signers = deposit.accept_transfer_signers
+            answers = self._prune_invalid_sign_rune_to_evm_transfer_answers(
+                message_hash=message_hash,
+                answers=answers,
+            )
+            for answer in answers:
+                if answer.signer not in signers:
+                    signers.append(answer.signer)
+                    signatures.append(answer.signature)
+            dbsession.flush()
+            return len(signatures) >= self.get_runes_to_evm_num_required_signers()
+
+    def send_rune_deposit_to_evm(self, deposit_id: int):
+        num_required_signers = self.get_runes_to_evm_num_required_signers()
+        with self.transaction_manager.transaction() as tx:
+            dbsession = tx.find_service(Session)
+            deposit = (
+                dbsession.query(RuneDeposit)
+                .filter_by(
+                    bridge_id=self.bridge_id,
+                    id=deposit_id,
+                )
+                .one()
+            )
+            logger.info("Executing Rune-to-EVM transfer %s", deposit)
+            if deposit.status != RuneDepositStatus.ACCEPTED:
+                raise ValidationError(f"Deposit {deposit} not accepted (got {deposit.status})")
+
+            signatures = deposit.accept_transfer_signatures
+            if len(signatures) < num_required_signers:
+                logger.info("Don't have enough signatures for transfer %s", deposit)
+                return
+            signatures = signatures[:num_required_signers]
             deposit.status = RuneDepositStatus.SENDING_TO_EVM
+            evm_address = deposit.user.evm_address
+            rune_number = deposit.rune_number
+            net_rune_amount = deposit.net_amount_raw
+            btc_txid = deposit.tx_id
+            btc_vout = deposit.vout
 
         try:
             tx_hash = self.rune_bridge_contract.functions.acceptTransferFromBtc(
-                transfer.evm_address,
-                rune.n,
-                transfer.net_amount_raw,
-                eth_utils.add_0x_prefix(transfer.txid),
-                transfer.vout,
+                evm_address,
+                rune_number,
+                net_rune_amount,
+                eth_utils.add_0x_prefix(btc_txid),
+                btc_vout,
                 signatures,
             ).transact(
                 {
@@ -557,61 +642,46 @@ class RuneBridgeService:
             logger.exception("Error sending Rune-to-EVM transfer")
             with self.transaction_manager.transaction() as tx:
                 dbsession = tx.find_service(Session)
-                deposit = (
-                    dbsession.query(RuneDeposit)
-                    .filter_by(
-                        bridge_id=self.bridge_id,
-                        tx_id=transfer.txid,
-                        vout=transfer.vout,
-                        rune_number=rune.n,
-                    )
-                    .one()
-                )
-                deposit.status = RuneDepositStatus.EVM_TRANSFER_FAILED
+                deposit = dbsession.get(RuneDeposit, deposit_id)
+                deposit.status = RuneDepositStatus.SENDING_TO_EVM_FAILED
             raise e
         else:
             with self.transaction_manager.transaction() as tx:
                 dbsession = tx.find_service(Session)
-                deposit = (
-                    dbsession.query(RuneDeposit)
-                    .filter_by(
-                        bridge_id=self.bridge_id,
-                        tx_id=transfer.txid,
-                        vout=transfer.vout,
-                        rune_number=rune.n,
-                    )
-                    .one()
-                )
+                deposit = dbsession.get(RuneDeposit, deposit_id)
                 deposit.status = RuneDepositStatus.SENT_TO_EVM
                 deposit.evm_tx_hash = tx_hash.hex()
 
-        receipt = self.web3.eth.get_transaction_receipt(tx_hash)
-        if receipt:
-            with self.transaction_manager.transaction() as tx:
-                dbsession = tx.find_service(Session)
-                deposit = (
-                    dbsession.query(RuneDeposit)
-                    .filter_by(
-                        bridge_id=self.bridge_id,
-                        tx_id=transfer.txid,
-                        vout=transfer.vout,
-                        rune_number=rune.n,
-                    )
-                    .one()
-                )
-                if receipt["status"]:
-                    deposit.status = RuneDepositStatus.CONFIRMED_IN_EVM
-                    logger.info("Rune-to-EVM transfer %s confirmed", tx_hash.hex())
-                else:
-                    deposit.status = RuneDepositStatus.EVM_TRANSACTION_FAILED
-                    logger.warning("Rune-to-EVM transfer %s failed", tx_hash.hex())
-        else:
-            logger.info("Rune-to-EVM transfer %s not yet confirmed", tx_hash.hex())
+        self._confirm_sent_rune_deposit(deposit_id)
 
-    # def confirm_pending_rune_to_evm_transfers(self):
-    #     # TODO
-    #     with self.transaction_manager.transaction() as tx:
-    #         dbsession = tx.find_service(Session)
+    def confirm_sent_rune_deposits(self):
+        with self.transaction_manager.transaction() as tx:
+            dbsession = tx.find_service(Session)
+            deposits = dbsession.query(RuneDeposit).filter_by(
+                bridge_id=self.bridge_id,
+                status=RuneDepositStatus.SENT_TO_EVM,
+            )
+            ids = [deposit.id for deposit in deposits]
+        for id in ids:
+            self._confirm_sent_rune_deposit(id)
+
+    def _confirm_sent_rune_deposit(self, deposit_id: int):
+        with self.transaction_manager.transaction() as tx:
+            dbsession = tx.find_service(Session)
+            deposit = dbsession.get(RuneDeposit, deposit_id)
+            if deposit.status == RuneDepositStatus.SENT_TO_EVM:
+                receipt = self.web3.eth.get_transaction_receipt(deposit.evm_tx_hash)
+                if receipt:
+                    if receipt["status"]:
+                        deposit.status = RuneDepositStatus.CONFIRMED_IN_EVM
+                        logger.info("Rune-to-EVM transfer %s confirmed", deposit)
+                    else:
+                        deposit.status = RuneDepositStatus.EVM_TRANSACTION_FAILED
+                        logger.warning("Rune-to-EVM transfer %s failed", deposit)
+                else:
+                    logger.info("Rune-to-EVM transfer %s not yet confirmed", deposit)
+            else:
+                logger.warning("Deposit %s not in SENT_TO_EVM state", deposit)
 
     def answer_sign_rune_to_evm_transfer_question(
         self,
@@ -680,7 +750,7 @@ class RuneBridgeService:
             message_hash=eth_utils.to_hex(message_hash),
         )
 
-    def prune_invalid_sign_rune_to_evm_transfer_answers(
+    def _prune_invalid_sign_rune_to_evm_transfer_answers(
         self, *, message_hash: bytes | str, answers: list[messages.SignRuneToEvmTransferAnswer]
     ) -> list[messages.SignRuneToEvmTransferAnswer]:
         signers = set()

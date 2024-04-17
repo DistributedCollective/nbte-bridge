@@ -49,51 +49,33 @@ class RuneBridge(Bridge):
             logger.info("Not leader, not doing anything")
             return
 
-        # TODO: first scan and store to DB, then handle
+        rune_deposits = self.service.scan_rune_deposits()
+        logger.info("Found %s Rune->EVM deposits", len(rune_deposits))
 
         self._handle_rune_transfers_to_evm()
+
         self._handle_rune_token_transfers_to_btc()
 
     def _handle_rune_transfers_to_evm(self):
-        num_required_signatures = self.service.get_runes_to_evm_num_required_signers()
+        self.service.confirm_sent_rune_deposits()
 
-        rune_deposits = self.service.scan_rune_deposits()
-        logger.info("Found %s Rune->EVM deposits", len(rune_deposits))
-        for deposit in rune_deposits:
-            logger.info("Processing Rune->EVM deposit %s", deposit)
-            tries_left = self.max_retries + 1
-            message = messages.SignRuneToEvmTransferQuestion(
-                transfer=deposit,
-            )
+        for deposit_id in self.service.get_accepted_rune_deposit_ids():
+            logger.info("Processing Rune->EVM deposit %s", deposit_id)
+            message = self.service.get_sign_rune_to_evm_transfer_question(deposit_id)
             self_response = self.service.answer_sign_rune_to_evm_transfer_question(message=message)
-            self_signature = self_response.signature
             message_hash = self_response.message_hash
-            while tries_left > 0:
-                tries_left -= 1
-                logger.info("Asking for signatures for deposit %s", deposit)
-                responses = self.network.ask(
-                    question=self.sign_rune_to_evm_transfer_question,
-                    message=message,
-                )
-                responses = self.service.prune_invalid_sign_rune_to_evm_transfer_answers(
-                    message_hash=message_hash,
-                    answers=responses,
-                )
-                signatures = [self_signature]
-                signatures.extend(response.signature for response in responses)
-                signatures = signatures[:num_required_signatures]
-                if len(signatures) >= num_required_signatures:
-                    break
-                logger.warning(
-                    "Not enough signatures for transfer: %s, trying again soon",
-                    deposit,
-                )
-                time.sleep(self.max_retries - tries_left + 1)
+            logger.info("Asking for signatures for deposit %s", message)
+            responses = self.network.ask(
+                question=self.sign_rune_to_evm_transfer_question,
+                message=message,
+            )
+            ready_to_send = self.service.update_rune_deposit_signatures(
+                deposit_id, message_hash=message_hash, answers=[self_response] + responses
+            )
+            if ready_to_send:
+                self.service.send_rune_deposit_to_evm(deposit_id)
             else:
-                logger.error("Failed to get enough signatures for transfer: %s", deposit)
-                continue
-
-            self.service.send_rune_to_evm(deposit, signatures=signatures)
+                logger.info("Not enough signatures for deposit %s", deposit_id)
 
     def _handle_rune_token_transfers_to_btc(self):
         num_required_signatures = self.service.get_rune_tokens_to_btc_num_required_signers()

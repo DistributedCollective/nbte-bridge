@@ -11,10 +11,10 @@ from sqlalchemy import (
     DateTime,
     func,
     Boolean,
-    LargeBinary,
 )
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import relationship
+from sqlalchemy.ext.mutable import MutableList
 
 from bridge.common.models.meta import Base
 from bridge.common.models.types import (
@@ -194,8 +194,13 @@ class RuneDeposit(Base):
 
     evm_tx_hash = Column(Text, nullable=True)
 
-    accept_transfer_message_hash = Column(LargeBinary, nullable=True)
-    accept_transfer_signatures = Column(JSONB, nullable=False, server_default="[]")
+    accept_transfer_message_hash = Column(Text, nullable=True)
+    accept_transfer_signatures = Column(
+        MutableList.as_mutable(JSONB), nullable=False, server_default="[]"
+    )
+    accept_transfer_signers = Column(
+        MutableList.as_mutable(JSONB), nullable=False, server_default="[]"
+    )
 
     status = Column(
         Integer,
@@ -218,6 +223,11 @@ class RuneDeposit(Base):
             name="uq_rune_deposit_txid_vout_rune_number",
         ),
     )
+
+    def __repr__(self):
+        rune_name = self.rune.spaced_name
+        net_amount = self.rune.decimal_amount(self.net_amount_raw)
+        return f"RuneDeposit({net_amount} {rune_name} => {self.user.evm_address} ({self.tx_id}:{self.vout}, status={self.status}))"
 
     @property
     def fee_raw(self) -> int:
