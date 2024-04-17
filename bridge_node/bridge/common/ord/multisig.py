@@ -47,6 +47,7 @@ logger = logging.getLogger(__name__)
 
 
 class OrdMultisig:
+    DUST_SAT = 1000  # dust limit in satoshis
     signer_xpub: str
 
     def __init__(
@@ -218,7 +219,7 @@ class OrdMultisig:
                 index=0,
             ),
         )
-        # This ist the rune_change_output at index 1
+        # This is the rune_change_output at index 1
         # We always add a 10 000 sat empty output for rune change
         # TODO: this is not ideal if we don't get change in runes
         psbt.add_output(
@@ -317,7 +318,7 @@ class OrdMultisig:
         output_amount_sat = sum(txout.nValue for txout in psbt.unsigned_tx.vout)
         # Change must be either 0 (no output generated) or at least this,
         # else it gets rejected as dust
-        min_change_output_value_sat = TARGET_POSTAGE_SAT
+        min_change_output_value_sat = self.DUST_SAT
 
         while True:
             tx_size_vbyte = estimate_p2wsh_multisig_tx_virtual_size(
