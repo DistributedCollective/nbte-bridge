@@ -12,54 +12,15 @@ import {Address} from "@openzeppelin/contracts/utils/Address.sol";
 import {RuneToken} from "./RuneToken.sol";
 
 
+/// @title The main Rune Bridge contract
+/// @notice Allows the federator network to mint new Rune Tokens based on rune deposits, and accepts the Rune Tokens
+//          back, which will burn them and instruct the federator network to release Runes.
 contract RuneBridge is NBTEBridgeAccessControllable, Freezable, Pausable {
     using SafeERC20 for IERC20;
     using SafeERC20 for RuneToken;
     using Address for address payable;
 
-    event RuneTransferToBtc(
-        uint256 counter,
-        address indexed from,
-        address indexed token,
-        uint256 indexed rune,
-        uint256 transferredTokenAmount,
-        uint256 netRuneAmount,
-        string receiverBtcAddress,
-        uint256 baseCurrencyFee,
-        uint256 tokenFee
-    );
-
-    event RuneTransferFromBtc(
-        uint256 counter,
-        address indexed to,
-        address indexed token,
-        uint256 indexed rune,
-        uint256 tokenAmount,
-        bytes32 btcTxId,
-        uint256 btcTxVout
-    );
-
-    event RuneRegistered(
-        uint256 counter,
-        uint256 rune,
-        address token
-    );
-
-    event AdminWithdrawal(
-        address indexed token,
-        uint256 amount
-    );
-
-    event AccessControlChanged(
-        address oldAccessControl,
-        address newAccessControl
-    );
-
-    event BTCAddressValidatorChanged(
-        address oldAccessControl,
-        address newAccessControl
-    );
-
+    /// @dev Fees and max/min amounts when transferring Rune Tokens from EVM to BTC
     struct EvmToBtcTransferPolicy {
         uint256 maxTokenAmount;  // if this is zero, the transfer policy is treated as unset
         uint256 minTokenAmount;
@@ -68,8 +29,60 @@ contract RuneBridge is NBTEBridgeAccessControllable, Freezable, Pausable {
         uint256 dynamicFeeTokens;  // base unit is 0.01 %
     }
 
+    /// @dev Emitted when a transfer from EVM to BTC is initiated.
+    event RuneTransferToBtc(
+        uint256 counter,                // an 1-based counter shared between both types of transfer
+        address indexed from,           // the user
+        address indexed token,          // the Rune Token the user sent
+        uint256 indexed rune,           // the base26-encoded rune
+        uint256 transferredTokenAmount, // the total amount of tokens sent by the user
+        uint256 netRuneAmount,          // the amount of runes the receiver will receive
+        string receiverBtcAddress,      // the BTC address of the receiver
+        uint256 baseCurrencyFee,        // the amount of base currency paid as fees
+        uint256 tokenFee                // the amount of tokens kept as fees
+    );
+
+    /// @dev Emitted when a transfer from BTC to EVM is accepted by the federation network
+    event RuneTransferFromBtc(
+        uint256 counter,                // an 1-based counter shared between both types of transfer
+        address indexed to,             // the user
+        address indexed token,          // the Rune Token the user received
+        uint256 indexed rune,           // the base26-encoded Rune
+        //uint256 transferredRuneAmount,  // the total amount of runes sent by the user
+        uint256 netTokenAmount,         // the amount of tokens the receiver received
+        bytes32 btcTxId,                // the bitcoin tx hash of the transaction from the user
+        uint256 btcTxVout               // the vout index of the transaction from the user
+    );
+
+    /// @dev Emitted when a new Rune is registered on the bridge and a new Rune Token is deployed
+    event RuneRegistered(
+        uint256 counter,                // an 1-based counter shared between both types of transfer
+        uint256 rune,                   // the base26-encoded Rune
+        address token                   // the freshly deployed Rune Token
+    );
+
+
+    /// @dev Emitted when an admin withdraws funds (fees or accidentally sent tokens) from the contract
+    event AdminWithdrawal(
+        address indexed token,          // address(0) indicates withdrawal of the base currency
+        uint256 amount
+    );
+
+    /// @dev emitted when the access control contract is changed
+    event AccessControlChanged(
+        address oldAccessControl,
+        address newAccessControl
+    );
+
+    /// @dev emitted when the BTC address validator is changed
+    event BTCAddressValidatorChanged(
+        address oldAccessControl,
+        address newAccessControl
+    );
+
+    /// @dev emitted when the EVM to BTC transfer policy is changed
     event EvmToBtcTransferPolicyChanged(
-        address indexed token, // 0x0 for default policy
+        address indexed token,          // 0x0 for default policy
         uint256 maxTokenAmount,
         uint256 minTokenAmount,
         uint256 flatFeeBaseCurrency,
@@ -80,19 +93,30 @@ contract RuneBridge is NBTEBridgeAccessControllable, Freezable, Pausable {
     /// @dev Denominator for the dynamic fee. uint16; 0.01 % granularity
     uint256 public constant DYNAMIC_FEE_DIVISOR = 10_000;
 
+    /// @dev The contract used to validate receiving BTC addresses
     IBTCAddressValidator public btcAddressValidator;
 
+    /// @dev total number of transfers, both sides. used as a counter for the events
     uint256 public numTransfersTotal;
 
+    /// @dev Mapping rune => token address. Values 0x0 mean that the rune is not registered
     mapping(uint256 => address) public tokensByRune;
+
+    /// @dev Mapping token address => rune. Values 0 mean that the token is not registered
     mapping(address => uint256) public runesByToken;
+
+    /// @dev deployed rune tokens
     address[] public runeTokens;
 
     /// @dev Mapping txHash => vout => rune => processed?
     mapping(bytes32 => mapping(uint256 => mapping(uint256 => bool))) processedTransfersFromBtc;
 
-    mapping(address => EvmToBtcTransferPolicy) public evmToBtcTransferPoliciesByToken;  // 0x0 for default policy
+    /// @dev EVM to BTC transfer policies by token. Index 0x0 is the default policy
+    mapping(address => EvmToBtcTransferPolicy) public evmToBtcTransferPoliciesByToken;
 
+    /// @dev Constructor
+    /// @param accessControl            Address of the NBTEBridgeBTCAccessControl contract.
+    /// @param newBtcAddressValidator   Address of the BTCAddressValidator contract.
     constructor(
         address _accessControl,
         address _btcAddressValidator
@@ -111,9 +135,13 @@ contract RuneBridge is NBTEBridgeAccessControllable, Freezable, Pausable {
         );
     }
 
-    // Public API
-    // ----------
+    // PUBLIC USER API
+    // ===============
 
+    /// @dev Accepts Rune Tokens from users and instructs the network to release runes based on that
+    /// @param token                The Rune Token to accept. Must be a token deployed by the bridge.
+    /// @param tokenAmount          The amount of tokens to accept
+    /// @param receiverBtcAddress   The BTC address to send the runes to.
     function transferToBtc(
         RuneToken token,
         uint256 tokenAmount,
@@ -168,6 +196,7 @@ contract RuneBridge is NBTEBridgeAccessControllable, Freezable, Pausable {
         );
     }
 
+    /// @dev Is the rune registered on the Bridge_
     function isRuneRegistered(uint256 rune) public view returns (bool) {
         return tokensByRune[rune] != address(0);
     }
@@ -177,24 +206,29 @@ contract RuneBridge is NBTEBridgeAccessControllable, Freezable, Pausable {
         return runesByToken[rune] != address(0);
     }
 
+    /// @dev Number of runes registered on the bridge
     function numRunesRegistered() public view returns (uint256) {
         return runeTokens.length;
     }
 
+    /// @dev Get the Rune Token that corresponds to a rune. Validates that the rune is registered
     function getTokenByRune(uint256 rune) public view returns (address token) {
         token = tokensByRune[rune];
         require(token != address(0), "rune not found");
     }
 
+    /// @dev Get the Rune that corresponds to a Rune Token. Validates that the token is registered
     function getRuneByToken(address token) public view returns (uint256 rune) {
         rune = runesByToken[token];
         require(rune != 0, "token not found");
     }
 
+    /// @dev List all Rune Tokens deployed by the bridge
     function listTokens() public view returns (address[] memory) {
         return runeTokens;
     }
 
+    /// @dev Get `count` Rune Tokens deployed by the bridge,  starting from `start`
     function paginateTokens(uint256 start, uint256 count) public view returns (address[] memory) {
         if (start >= runeTokens.length) {
             return new address[](0);
@@ -210,6 +244,7 @@ contract RuneBridge is NBTEBridgeAccessControllable, Freezable, Pausable {
         return result;
     }
 
+    /// @dev Get the transfer policy when transferring Rune Tokens to BTC
     function getEvmToBtcTransferPolicy(address token) public view returns (EvmToBtcTransferPolicy memory policy) {
         policy = evmToBtcTransferPoliciesByToken[token];
         if (policy.maxTokenAmount == 0) {
@@ -217,24 +252,26 @@ contract RuneBridge is NBTEBridgeAccessControllable, Freezable, Pausable {
         }
     }
 
+    /// @dev Is the transfer, uniquely identified by txhash, vout, rune, already processed?
     function isTransferFromBtcProcessed(bytes32 txHash, uint256 vout, uint256 rune) public view returns (bool) {
         return processedTransfersFromBtc[txHash][vout][rune];
     }
 
-    function _setTransferFromBtcProcessed(
-        bytes32 txHash,
-        uint256 vout,
-        uint256 rune
-    )
-    internal
-    {
-        // no validation here, calling functions will check it anyway before calling;
-        processedTransfersFromBtc[txHash][vout][rune] = true;
+    /// @dev Is the BTC address valid?
+    function isValidBtcAddress(string calldata btcAddress) public view returns (uint256) {
+        return btcAddressValidator.isValidBtcAddress(btcAddress);
     }
 
-    // Federator API
-    // -------------
+    // FEDERATOR API
+    // =============
 
+    /// @dev Accepts a transfer from the federator network, mints the corresponding Rune Tokens
+    /// @param to           The user to mint the tokens to
+    /// @param rune         The base26-encoded rune
+    /// @param runeAmount   The amount of runes to mint
+    /// @param btcTxId      The rune transfer Bitcoin transaction hash
+    /// @param btcTxVout    The rune transfer Bitcoin transaction output index
+    /// @param signatures   The signatures of the federators
     function acceptTransferFromBtc(
         address to,
         uint256 rune,
@@ -280,6 +317,7 @@ contract RuneBridge is NBTEBridgeAccessControllable, Freezable, Pausable {
         );
     }
 
+    /// @dev Get the message hash for accepting a transfer from the federator network
     function getAcceptTransferFromBtcMessageHash(
         address to,
         uint256 rune,
@@ -307,8 +345,20 @@ contract RuneBridge is NBTEBridgeAccessControllable, Freezable, Pausable {
         ));
     }
 
+    /// @dev Get the number of required federators for a transfer
     function numRequiredFederators() public view returns (uint256) {
         return accessControl.numRequiredFederators();
+    }
+
+    function _setTransferFromBtcProcessed(
+        bytes32 txHash,
+        uint256 vout,
+        uint256 rune
+    )
+    internal
+    {
+        // no validation here, calling functions will check it anyway before calling;
+        processedTransfersFromBtc[txHash][vout][rune] = true;
     }
 
     // Owner API
@@ -325,6 +375,7 @@ contract RuneBridge is NBTEBridgeAccessControllable, Freezable, Pausable {
     external
     onlyAdmin
     {
+        require(receiver != address(0), "Cannot withdraw to zero address");
         receiver.sendValue(amount);
         emit AdminWithdrawal(address(0), amount);
     }
@@ -342,6 +393,7 @@ contract RuneBridge is NBTEBridgeAccessControllable, Freezable, Pausable {
     external
     onlyAdmin
     {
+        require(receiver != address(0), "Cannot withdraw to zero address");
         token.safeTransfer(receiver, amount);
         emit AdminWithdrawal(address(token), amount);
     }
@@ -384,6 +436,12 @@ contract RuneBridge is NBTEBridgeAccessControllable, Freezable, Pausable {
         );
     }
 
+    /// @dev Register a new Rune on the bridge and deploy a new Rune Token
+    /// @dev Can only be called by admins.
+    /// @param name              The name of the new Rune Token (normally Rune name, but can be overridden)
+    /// @param symbol            The symbol of the new Rune Token (normally Rune symbol, but can be overridden)
+    /// @param rune              The base26-encoded rune
+    /// @param runeDivisibility  The divisibility (number of decimal places) of the Rune
     function registerRune(
         string memory name,
         string memory symbol,
@@ -411,6 +469,7 @@ contract RuneBridge is NBTEBridgeAccessControllable, Freezable, Pausable {
         );
     }
 
+    /// @dev Set the EVM to BTC transfer policy for a Rune Token
     function setEvmToBtcTransferPolicy(
         address token,
         uint256 maxTokenAmount,
@@ -442,6 +501,12 @@ contract RuneBridge is NBTEBridgeAccessControllable, Freezable, Pausable {
     )
     internal
     {
+        require(maxTokenAmount >= minTokenAmount, "max amount must be greater or equal than min amount");
+        require(dynamicFeeTokens < DYNAMIC_FEE_DIVISOR, "dynamic fee must be less than 100%");
+        // maxTokenAmount = 0 disables the policy
+        require(maxTokenAmount == 0 || flatFeeTokens <= maxTokenAmount, "flat fee must be less than max amount");
+        require(token == address(0) || isRuneRegistered(runesByToken[token]), "token not registered");
+
         EvmToBtcTransferPolicy storage policy = evmToBtcTransferPoliciesByToken[token];
         policy.maxTokenAmount = maxTokenAmount;
         policy.minTokenAmount = minTokenAmount;
