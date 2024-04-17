@@ -115,8 +115,8 @@ contract RuneBridge is NBTEBridgeAccessControllable, Freezable, Pausable {
     mapping(address => EvmToBtcTransferPolicy) public evmToBtcTransferPoliciesByToken;
 
     /// @dev Constructor
-    /// @param accessControl            Address of the NBTEBridgeBTCAccessControl contract.
-    /// @param newBtcAddressValidator   Address of the BTCAddressValidator contract.
+    /// @param _accessControl       Address of the NBTEBridgeBTCAccessControl contract.
+    /// @param _btcAddressValidator Address of the BTCAddressValidator contract.
     constructor(
         address _accessControl,
         address _btcAddressValidator
@@ -153,8 +153,8 @@ contract RuneBridge is NBTEBridgeAccessControllable, Freezable, Pausable {
     {
         require(tokenAmount > 0, "amount must be greater than 0");
 
-        require(isTokenRegistered(token), "rune not registered");
-        uint256 rune = token.rune();
+        uint256 rune = getRuneByToken(address(token)); // this validates that it's registered
+        require(rune == token.rune(), "rune mismatch"); // double validation for the paranoid
 
         require(btcAddressValidator.isValidBtcAddress(receiverBtcAddress), "invalid BTC address");
 
@@ -206,7 +206,7 @@ contract RuneBridge is NBTEBridgeAccessControllable, Freezable, Pausable {
         return runesByToken[token] != 0;
     }
 
-    /// @dev Number of runes registered on the bridge
+    /// @dev Number of Runes registered on the bridge
     function numRunesRegistered() public view returns (uint256) {
         return runeTokens.length;
     }
@@ -214,13 +214,13 @@ contract RuneBridge is NBTEBridgeAccessControllable, Freezable, Pausable {
     /// @dev Get the Rune Token that corresponds to a rune. Validates that the rune is registered
     function getTokenByRune(uint256 rune) public view returns (address token) {
         token = tokensByRune[rune];
-        require(token != address(0), "rune not found");
+        require(token != address(0), "rune not registered");
     }
 
     /// @dev Get the Rune that corresponds to a Rune Token. Validates that the token is registered
     function getRuneByToken(address token) public view returns (uint256 rune) {
         rune = runesByToken[token];
-        require(rune != 0, "token not found");
+        require(rune != 0, "token not registered");
     }
 
     /// @dev List all Rune Tokens deployed by the bridge
@@ -258,14 +258,14 @@ contract RuneBridge is NBTEBridgeAccessControllable, Freezable, Pausable {
     }
 
     /// @dev Is the BTC address valid?
-    function isValidBtcAddress(string calldata btcAddress) public view returns (uint256) {
+    function isValidBtcAddress(string calldata btcAddress) public view returns (bool) {
         return btcAddressValidator.isValidBtcAddress(btcAddress);
     }
 
     // FEDERATOR API
     // =============
 
-    /// @dev Accepts a transfer from the federator network, mints the corresponding Rune Tokens
+    /// @dev Accepts a transfer by the federator network, mints the corresponding Rune Tokens
     /// @param to           The user to mint the tokens to
     /// @param rune         The base26-encoded rune
     /// @param runeAmount   The amount of runes to mint
@@ -410,8 +410,8 @@ contract RuneBridge is NBTEBridgeAccessControllable, Freezable, Pausable {
         uint256 tokenAmount = address(token).balance;
         require(tokenAmount > 0, "zero balance");
 
-        require(isTokenRegistered(address(token)), "rune not registered");
-        uint256 rune = token.rune();
+        uint256 rune = getRuneByToken(address(token)); // this validates that it's registered
+        require(rune == token.rune(), "rune mismatch"); // double validation for the paranoid
 
         require(btcAddressValidator.isValidBtcAddress(receiverBtcAddress), "invalid BTC address");
 
@@ -451,8 +451,29 @@ contract RuneBridge is NBTEBridgeAccessControllable, Freezable, Pausable {
     external
     onlyAdmin
     {
+        _registerRune(
+            name,
+            symbol,
+            rune,
+            runeDivisibility
+        );
+    }
+
+    /// @dev internal helper for registering a new Rune
+    /// @param name              The name of the new Rune Token (normally Rune name, but can be overridden)
+    /// @param symbol            The symbol of the new Rune Token (normally Rune symbol, but can be overridden)
+    /// @param rune              The base26-encoded rune
+    /// @param runeDivisibility  The divisibility (number of decimal places) of the Rune
+    function _registerRune(
+        string memory name,
+        string memory symbol,
+        uint256 rune,
+        uint8 runeDivisibility
+    )
+    internal
+    {
         require(!isRuneRegistered(rune), "rune already registered");
-        require(rune <= type(uint128).max, "rune number too large");
+        _validateRune(rune);
         RuneToken token = new RuneToken(
             name,
             symbol,
@@ -467,6 +488,12 @@ contract RuneBridge is NBTEBridgeAccessControllable, Freezable, Pausable {
             rune,
             address(token)
         );
+    }
+
+    /// @dev Validate the rune number
+    function _validateRune(uint256 rune) internal pure {
+        require(rune <= type(uint128).max, "rune number too large");
+        require(rune != 0, "rune cannot be zero");
     }
 
     /// @dev Set the EVM to BTC transfer policy for a Rune Token

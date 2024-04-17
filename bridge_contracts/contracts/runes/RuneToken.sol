@@ -18,7 +18,7 @@ contract RuneToken is ERC20 {
     uint8 private tokenDecimals;
 
     /// @dev the divisor to convert between rune and token amounts, pre-calculated for gas savings
-    uint256 public runeAmountDivisor;
+    uint256 public  runeAmountDivisor;
 
     /// @dev emitted when new tokens are minted
     event Mint(address indexed to, uint256 amount);
@@ -73,9 +73,6 @@ contract RuneToken is ERC20 {
     public
     view
     returns (uint256) {
-        if (runeAmountDivisor == 1) {
-            return tokenAmount;
-        }
         // Note: this validation is disabled.
         // We have getRuneAmountAndRemainder for outside validation
         // require(
@@ -92,9 +89,6 @@ contract RuneToken is ERC20 {
     public
     view
     returns (uint256, uint256) {
-        if (runeAmountDivisor == 1) {
-            return tokenAmount;
-        }
         return (tokenAmount / runeAmountDivisor, tokenAmount % runeAmountDivisor);
     }
 
