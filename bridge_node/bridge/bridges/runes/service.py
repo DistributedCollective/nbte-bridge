@@ -625,6 +625,9 @@ class RuneBridgeService:
     def get_runes_to_evm_num_required_signers(self) -> int:
         return self.rune_bridge_contract.functions.numRequiredFederators().call()
 
+    def get_rune_tokens_to_btc_num_required_signers(self) -> int:
+        return self.ord_multisig.num_required_signers
+
     def get_evm_to_runes_num_required_signers(self) -> int:
         return self.ord_multisig.num_required_signers
 

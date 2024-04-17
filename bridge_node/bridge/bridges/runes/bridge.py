@@ -93,6 +93,7 @@ class RuneBridge(Bridge):
             self.service.send_rune_to_evm(deposit, signatures=signatures)
 
         token_deposits = self.service.scan_rune_token_deposits()
+        num_required_signatures = self.service.get_rune_tokens_to_btc_num_required_signers()
         logger.info("Found %s RuneToken->BTC deposits", len(token_deposits))
         for deposit in token_deposits:
             logger.info("Processing RuneToken->BTC deposit %s", deposit)
@@ -111,24 +112,34 @@ class RuneBridge(Bridge):
                 transfer=deposit,
                 unsigned_psbt_serialized=self.service.ord_multisig.serialize_psbt(unsigned_psbt),
             )
+            self_response = self.service.answer_sign_rune_token_to_btc_transfer_question(
+                message=message
+            )
+            self_signed_psbt = self.service.ord_multisig.deserialize_psbt(
+                self_response.signed_psbt_serialized
+            )
             tries_left = self.max_retries + 1
             while tries_left > 0:
                 tries_left -= 1
-                logger.info("Asking for signatures for RuneToken->BTC deposit %s")
+                logger.info("Asking for signatures for RuneToken->BTC deposit %s", deposit)
                 responses = self.network.ask(
                     question=self.sign_rune_token_to_btc_transfer_question,
                     message=message,
                 )
-                signed_psbts = [
+                signed_psbts = [self_signed_psbt]
+                signed_psbts.extend(
                     self.service.ord_multisig.deserialize_psbt(response.signed_psbt_serialized)
-                    for response in responses[:num_required_signatures]
-                ]
+                    for response in responses
+                )
+                signed_psbts = signed_psbts[:num_required_signatures]
                 # TODO: validate responses
                 if len(signed_psbts) >= num_required_signatures:
                     break
                 logger.warning(
-                    "Not enough signatures for transfer: %s",
+                    "Not enough signatures for transfer: %s (got %s, expected %s)",
                     deposit,
+                    len(signed_psbts),
+                    num_required_signatures,
                 )
                 time.sleep(self.max_retries - tries_left + 1)
             else:
