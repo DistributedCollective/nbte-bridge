@@ -48,13 +48,15 @@ class RuneBridge(Bridge):
             logger.info("Not leader, not doing anything")
             return
 
-        # TODO: make it more robust:
-        # - store these first in the DB
-        # - then retrieve from DB
+        # TODO: first scan and store to DB, then handle
+
+        self._handle_rune_transfers_to_evm()
+        self._handle_rune_token_transfers_to_btc()
+
+    def _handle_rune_transfers_to_evm(self):
+        num_required_signatures = self.service.get_runes_to_evm_num_required_signers()
 
         rune_deposits = self.service.scan_rune_deposits()
-        # self-sign is implicit
-        num_required_signatures = self.service.get_runes_to_evm_num_required_signers()
         logger.info("Found %s Rune->EVM deposits", len(rune_deposits))
         for deposit in rune_deposits:
             logger.info("Processing Rune->EVM deposit %s", deposit)
@@ -92,8 +94,10 @@ class RuneBridge(Bridge):
 
             self.service.send_rune_to_evm(deposit, signatures=signatures)
 
-        token_deposits = self.service.scan_rune_token_deposits()
+    def _handle_rune_token_transfers_to_btc(self):
         num_required_signatures = self.service.get_rune_tokens_to_btc_num_required_signers()
+
+        token_deposits = self.service.scan_rune_token_deposits()
         logger.info("Found %s RuneToken->BTC deposits", len(token_deposits))
         for deposit in token_deposits:
             logger.info("Processing RuneToken->BTC deposit %s", deposit)
