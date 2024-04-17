@@ -32,6 +32,7 @@ class SignRuneToEvmTransferQuestion:
 class SignRuneToEvmTransferAnswer:
     signature: str
     signer: str
+    message_hash: str
 
 
 @dataclasses.dataclass

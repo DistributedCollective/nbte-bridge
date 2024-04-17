@@ -7,6 +7,7 @@ from typing import (
     Protocol,
 )
 
+from hexbytes import HexBytes
 import eth_utils
 from eth_account.account import LocalAccount
 from eth_account.messages import encode_defunct
@@ -22,6 +23,7 @@ from bridge.common.btc.rpc import BitcoinRPC
 from .evm import load_rune_bridge_abi
 from .models import User, DepositAddress
 from ...common.evm.scanner import EvmEventScanner
+from ...common.evm.utils import recover_message
 from ...common.models.key_value_store import KeyValuePair
 from ...common.ord.client import OrdApiClient
 from ...common.ord.multisig import OrdMultisig, RuneTransfer
@@ -41,6 +43,10 @@ class TransferAmounts:
     fee_raw: int
     net_amount_decimal: Decimal
     net_amount_raw: int
+
+
+class ValidationError(ValueError):
+    pass
 
 
 class RuneBridgeServiceConfig(Protocol):
@@ -398,14 +404,14 @@ class RuneBridgeService:
         transfer = message.transfer
         rune_response = self.ord_client.get_rune(transfer.rune_name)
         if not rune_response:
-            raise ValueError(f"Rune {transfer.rune_name} not found (transfer {transfer})")
+            raise ValidationError(f"Rune {transfer.rune_name} not found (transfer {transfer})")
 
         rune = rune_from_str(transfer.rune_name)
         if not rune.n == transfer.rune_number:
-            raise ValueError(f"Rune number mismatch: {rune}.n != {transfer.rune_number}")
+            raise ValidationError(f"Rune number mismatch: {rune}.n != {transfer.rune_number}")
 
         if not self.rune_bridge_contract.functions.isRuneRegistered(rune.n).call():
-            raise ValueError(f"Rune {rune} not registered")
+            raise ValidationError(f"Rune {rune} not registered")
 
         divisibility = rune_response["entry"]["divisibility"]
         calculated_amounts = self._calculate_rune_to_evm_transfer_amounts(
@@ -413,16 +419,16 @@ class RuneBridgeService:
             divisibility=divisibility,
         )
         if transfer.amount_raw != calculated_amounts.amount_raw:
-            raise ValueError(
+            raise ValidationError(
                 f"Amount mismatch: {transfer.amount_decimal!r} != {calculated_amounts.amount_raw}"
             )
 
         if transfer.net_amount_raw != calculated_amounts.net_amount_raw:
-            raise ValueError(
+            raise ValidationError(
                 f"Net amount mismatch: {transfer.net_amount_raw} != {calculated_amounts.net_amount_raw}"
             )
         if transfer.net_amount_raw == 0:
-            raise ValueError("Net amount is zero")
+            raise ValidationError("Net amount is zero")
 
         balance_at_output = self.ord_multisig.get_rune_balance_at_output(
             txid=transfer.txid,
@@ -430,7 +436,7 @@ class RuneBridgeService:
             rune_name=transfer.rune_name,
         )
         if balance_at_output != transfer.amount_raw:
-            raise ValueError(
+            raise ValidationError(
                 f"Balance at output {transfer.txid}:{transfer.vout} is {balance_at_output}, "
                 f"expected {transfer.amount_raw}"
             )
@@ -439,9 +445,9 @@ class RuneBridgeService:
         # TODO: validate the deposit address belongs to the user
         # user = self.get_user_by_deposit_address(deposit_address=transfer.evm_address)
         # if not user:
-        #     raise ValueError(f"User not found for deposit address {transfer.evm_address}")
+        #     raise ValidationError(f"User not found for deposit address {transfer.evm_address}")
         # if not user.evm_address == transfer.evm_address:
-        #     raise ValueError(f"User EVM address mismatch: {user.evm_address} != {transfer.evm_address}")
+        #     raise ValidationError(f"User EVM address mismatch: {user.evm_address} != {transfer.evm_address}")
 
         message_hash = self.rune_bridge_contract.functions.getAcceptTransferFromBtcMessageHash(
             transfer.evm_address,
@@ -455,7 +461,48 @@ class RuneBridgeService:
         return messages.SignRuneToEvmTransferAnswer(
             signature=signed_message.signature.hex(),
             signer=self.evm_account.address,
+            message_hash=eth_utils.to_hex(message_hash),
         )
+
+    def prune_invalid_sign_rune_to_evm_transfer_answers(
+        self, *, message_hash: bytes | str, answers: list[messages.SignRuneToEvmTransferAnswer]
+    ) -> list[messages.SignRuneToEvmTransferAnswer]:
+        signers = set()
+        ret = []
+        for answer in answers:
+            if answer.signer in signers:
+                logger.warning("already signed by %s", answer.signer)
+                continue
+            try:
+                self.validate_sign_rune_to_evm_transfer_answer(
+                    message_hash=message_hash,
+                    answer=answer,
+                )
+            except ValidationError:
+                logger.exception("Validation error")
+                logger.info("Encountered validation error, pruning")
+            else:
+                ret.append(answer)
+                signers.add(answer.signer)
+        return ret
+
+    def validate_sign_rune_to_evm_transfer_answer(
+        self, *, message_hash: bytes | str, answer: messages.SignRuneToEvmTransferAnswer
+    ):
+        is_federator = self.rune_bridge_contract.functions.isFederator(answer.signer).call()
+        if not is_federator:
+            raise ValidationError(f"Signer {answer.signer} is not a federator")
+
+        message_hash = HexBytes(message_hash)
+        signable_message = encode_defunct(primitive=message_hash)
+        recovered = recover_message(
+            signable_message,
+            HexBytes(answer.signature),
+        )
+        if recovered != answer.signer:
+            raise ValidationError(
+                f"Recovered signer {recovered} does not match expected {answer.signer}"
+            )
 
     def answer_sign_rune_token_to_btc_transfer_question(
         self,

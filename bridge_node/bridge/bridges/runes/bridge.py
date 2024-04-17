@@ -3,7 +3,9 @@ import time
 
 from bridge.common.interfaces.bridge import Bridge
 from bridge.common.p2p.network import Network
-from .service import RuneBridgeService
+from .service import (
+    RuneBridgeService,
+)
 from . import messages
 from ...common.ord.transfers import RuneTransfer
 
@@ -62,6 +64,7 @@ class RuneBridge(Bridge):
             )
             self_response = self.service.answer_sign_rune_to_evm_transfer_question(message=message)
             self_signature = self_response.signature
+            message_hash = self_response.message_hash
             while tries_left > 0:
                 tries_left -= 1
                 logger.info("Asking for signatures for deposit %s", deposit)
@@ -69,12 +72,13 @@ class RuneBridge(Bridge):
                     question=self.sign_rune_to_evm_transfer_question,
                     message=message,
                 )
+                responses = self.service.prune_invalid_sign_rune_to_evm_transfer_answers(
+                    message_hash=message_hash,
+                    answers=responses,
+                )
                 signatures = [self_signature]
                 signatures.extend(response.signature for response in responses)
                 signatures = signatures[:num_required_signatures]
-                # TODO: validate received signatures
-                # - test sender is federator
-                # - test recovered matches sender
                 if len(signatures) >= num_required_signatures:
                     break
                 logger.warning(

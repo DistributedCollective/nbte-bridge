@@ -19,6 +19,63 @@
         "anonymous": false,
         "inputs": [
             {
+                "indexed": false,
+                "internalType": "address",
+                "name": "oldAccessControl",
+                "type": "address"
+            },
+            {
+                "indexed": false,
+                "internalType": "address",
+                "name": "newAccessControl",
+                "type": "address"
+            }
+        ],
+        "name": "AccessControlChanged",
+        "type": "event"
+    },
+    {
+        "anonymous": false,
+        "inputs": [
+            {
+                "indexed": true,
+                "internalType": "address",
+                "name": "token",
+                "type": "address"
+            },
+            {
+                "indexed": false,
+                "internalType": "uint256",
+                "name": "amount",
+                "type": "uint256"
+            }
+        ],
+        "name": "AdminWithdrawal",
+        "type": "event"
+    },
+    {
+        "anonymous": false,
+        "inputs": [
+            {
+                "indexed": false,
+                "internalType": "address",
+                "name": "oldAccessControl",
+                "type": "address"
+            },
+            {
+                "indexed": false,
+                "internalType": "address",
+                "name": "newAccessControl",
+                "type": "address"
+            }
+        ],
+        "name": "BTCAddressValidatorChanged",
+        "type": "event"
+    },
+    {
+        "anonymous": false,
+        "inputs": [
+            {
                 "indexed": true,
                 "internalType": "address",
                 "name": "token",
@@ -115,6 +172,57 @@
             {
                 "indexed": false,
                 "internalType": "uint256",
+                "name": "baseCurrencyFee",
+                "type": "uint256"
+            }
+        ],
+        "name": "RuneRegistrationFeeChanged",
+        "type": "event"
+    },
+    {
+        "anonymous": false,
+        "inputs": [
+            {
+                "indexed": false,
+                "internalType": "uint256",
+                "name": "rune",
+                "type": "uint256"
+            },
+            {
+                "indexed": false,
+                "internalType": "address",
+                "name": "requester",
+                "type": "address"
+            },
+            {
+                "indexed": false,
+                "internalType": "uint256",
+                "name": "baseCurrencyFee",
+                "type": "uint256"
+            }
+        ],
+        "name": "RuneRegistrationRequested",
+        "type": "event"
+    },
+    {
+        "anonymous": false,
+        "inputs": [
+            {
+                "indexed": false,
+                "internalType": "bool",
+                "name": "enabled",
+                "type": "bool"
+            }
+        ],
+        "name": "RuneRegistrationRequestsEnabled",
+        "type": "event"
+    },
+    {
+        "anonymous": false,
+        "inputs": [
+            {
+                "indexed": false,
+                "internalType": "uint256",
                 "name": "counter",
                 "type": "uint256"
             },
@@ -139,7 +247,7 @@
             {
                 "indexed": false,
                 "internalType": "uint256",
-                "name": "tokenAmount",
+                "name": "netTokenAmount",
                 "type": "uint256"
             },
             {
@@ -261,6 +369,39 @@
     {
         "inputs": [
             {
+                "internalType": "string",
+                "name": "name",
+                "type": "string"
+            },
+            {
+                "internalType": "string",
+                "name": "symbol",
+                "type": "string"
+            },
+            {
+                "internalType": "uint256",
+                "name": "rune",
+                "type": "uint256"
+            },
+            {
+                "internalType": "uint8",
+                "name": "runeDivisibility",
+                "type": "uint8"
+            },
+            {
+                "internalType": "bytes[]",
+                "name": "signatures",
+                "type": "bytes[]"
+            }
+        ],
+        "name": "acceptRuneRegistrationRequest",
+        "outputs": [],
+        "stateMutability": "nonpayable",
+        "type": "function"
+    },
+    {
+        "inputs": [
+            {
                 "internalType": "address",
                 "name": "to",
                 "type": "address"
@@ -376,6 +517,40 @@
                 "internalType": "bool",
                 "name": "",
                 "type": "bool"
+            }
+        ],
+        "stateMutability": "view",
+        "type": "function"
+    },
+    {
+        "inputs": [
+            {
+                "internalType": "string",
+                "name": "name",
+                "type": "string"
+            },
+            {
+                "internalType": "string",
+                "name": "symbol",
+                "type": "string"
+            },
+            {
+                "internalType": "uint256",
+                "name": "rune",
+                "type": "uint256"
+            },
+            {
+                "internalType": "uint8",
+                "name": "runeDivisibility",
+                "type": "uint8"
+            }
+        ],
+        "name": "getAcceptRuneRegistrationRequestMessageHash",
+        "outputs": [
+            {
+                "internalType": "bytes32",
+                "name": "",
+                "type": "bytes32"
             }
         ],
         "stateMutability": "view",
@@ -507,12 +682,98 @@
     {
         "inputs": [
             {
+                "internalType": "address",
+                "name": "addressToCheck",
+                "type": "address"
+            }
+        ],
+        "name": "isFederator",
+        "outputs": [
+            {
+                "internalType": "bool",
+                "name": "",
+                "type": "bool"
+            }
+        ],
+        "stateMutability": "view",
+        "type": "function"
+    },
+    {
+        "inputs": [
+            {
                 "internalType": "uint256",
                 "name": "rune",
                 "type": "uint256"
             }
         ],
         "name": "isRuneRegistered",
+        "outputs": [
+            {
+                "internalType": "bool",
+                "name": "",
+                "type": "bool"
+            }
+        ],
+        "stateMutability": "view",
+        "type": "function"
+    },
+    {
+        "inputs": [
+            {
+                "internalType": "address",
+                "name": "token",
+                "type": "address"
+            }
+        ],
+        "name": "isTokenRegistered",
+        "outputs": [
+            {
+                "internalType": "bool",
+                "name": "",
+                "type": "bool"
+            }
+        ],
+        "stateMutability": "view",
+        "type": "function"
+    },
+    {
+        "inputs": [
+            {
+                "internalType": "bytes32",
+                "name": "txHash",
+                "type": "bytes32"
+            },
+            {
+                "internalType": "uint256",
+                "name": "vout",
+                "type": "uint256"
+            },
+            {
+                "internalType": "uint256",
+                "name": "rune",
+                "type": "uint256"
+            }
+        ],
+        "name": "isTransferFromBtcProcessed",
+        "outputs": [
+            {
+                "internalType": "bool",
+                "name": "",
+                "type": "bool"
+            }
+        ],
+        "stateMutability": "view",
+        "type": "function"
+    },
+    {
+        "inputs": [
+            {
+                "internalType": "string",
+                "name": "btcAddress",
+                "type": "string"
+            }
+        ],
+        "name": "isValidBtcAddress",
         "outputs": [
             {
                 "internalType": "bool",
@@ -651,6 +912,64 @@
         "inputs": [
             {
                 "internalType": "uint256",
+                "name": "rune",
+                "type": "uint256"
+            }
+        ],
+        "name": "requestRuneRegistration",
+        "outputs": [],
+        "stateMutability": "payable",
+        "type": "function"
+    },
+    {
+        "inputs": [],
+        "name": "runeRegistrationFee",
+        "outputs": [
+            {
+                "internalType": "uint256",
+                "name": "",
+                "type": "uint256"
+            }
+        ],
+        "stateMutability": "view",
+        "type": "function"
+    },
+    {
+        "inputs": [
+            {
+                "internalType": "uint256",
+                "name": "",
+                "type": "uint256"
+            }
+        ],
+        "name": "runeRegistrationRequested",
+        "outputs": [
+            {
+                "internalType": "bool",
+                "name": "",
+                "type": "bool"
+            }
+        ],
+        "stateMutability": "view",
+        "type": "function"
+    },
+    {
+        "inputs": [],
+        "name": "runeRegistrationRequestsEnabled",
+        "outputs": [
+            {
+                "internalType": "bool",
+                "name": "",
+                "type": "bool"
+            }
+        ],
+        "stateMutability": "view",
+        "type": "function"
+    },
+    {
+        "inputs": [
+            {
+                "internalType": "uint256",
                 "name": "",
                 "type": "uint256"
             }
@@ -688,6 +1007,32 @@
     {
         "inputs": [
             {
+                "internalType": "contract INBTEBridgeAccessControl",
+                "name": "newAccessControl",
+                "type": "address"
+            }
+        ],
+        "name": "setAccessControl",
+        "outputs": [],
+        "stateMutability": "nonpayable",
+        "type": "function"
+    },
+    {
+        "inputs": [
+            {
+                "internalType": "contract IBTCAddressValidator",
+                "name": "newBtcAddressValidator",
+                "type": "address"
+            }
+        ],
+        "name": "setBtcAddressValidator",
+        "outputs": [],
+        "stateMutability": "nonpayable",
+        "type": "function"
+    },
+    {
+        "inputs": [
+            {
                 "internalType": "address",
                 "name": "token",
                 "type": "address"
@@ -719,6 +1064,32 @@
             }
         ],
         "name": "setEvmToBtcTransferPolicy",
+        "outputs": [],
+        "stateMutability": "nonpayable",
+        "type": "function"
+    },
+    {
+        "inputs": [
+            {
+                "internalType": "uint256",
+                "name": "fee",
+                "type": "uint256"
+            }
+        ],
+        "name": "setRuneRegistrationFee",
+        "outputs": [],
+        "stateMutability": "nonpayable",
+        "type": "function"
+    },
+    {
+        "inputs": [
+            {
+                "internalType": "bool",
+                "name": "enabled",
+                "type": "bool"
+            }
+        ],
+        "name": "setRuneRegistrationRequestsEnabled",
         "outputs": [],
         "stateMutability": "nonpayable",
         "type": "function"

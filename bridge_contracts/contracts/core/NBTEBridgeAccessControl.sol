@@ -92,6 +92,18 @@ contract NBTEBridgeAccessControl is INBTEBridgeAccessControl, AccessControlEnume
         _checkRole(ROLE_FEDERATOR, addressToCheck);
     }
 
+    /// @dev Is the given address a federator?
+    /// @param addressToCheck   The address to check.
+    function isFederator(
+        address addressToCheck
+    )
+    external
+    view
+    returns (bool)
+    {
+        return hasRole(ROLE_FEDERATOR, addressToCheck);
+    }
+
     /// @dev Check that there are enough valid federator signatures for the given message hash.
     /// If even one signature is invalid, or if there are not enough signatures, revert.
     /// @param _messageHash The message hash that's signed.

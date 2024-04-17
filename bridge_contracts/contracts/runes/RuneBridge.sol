@@ -468,6 +468,11 @@ contract RuneBridge is NBTEBridgeAccessControllable, Freezable, Pausable {
         return accessControl.numRequiredFederators();
     }
 
+    /// @dev Is the given address a federator?
+    function isFederator(address addressToCheck) external view returns (bool) {
+        return accessControl.isFederator(addressToCheck);
+    }
+
     function _setTransferFromBtcProcessed(
         bytes32 txHash,
         uint256 vout,
