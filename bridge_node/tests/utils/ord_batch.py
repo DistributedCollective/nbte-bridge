@@ -96,6 +96,7 @@ class BatchFileEtching(TypedDict):
     supply: Decimalish
     symbol: str
     terms: NotRequired[BatchFileEtchingTerms]
+    turbo: bool
 
 
 class BatchFileEtchingTerms(TypedDict):

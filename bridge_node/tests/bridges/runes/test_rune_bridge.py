@@ -15,7 +15,7 @@ def test_sanity_checks(
     bridge_util,
 ):
     rune_name = bridge_util.etch_and_register_test_rune(
-        prefix="ROUNDTRIP",
+        prefix="SANITYCHECK",
     )
     rune_side_token_contract = bridge_util.get_rune_token(rune_name)
     assert user_ord_wallet.get_rune_balance_decimal(rune_name) == 0
@@ -275,3 +275,337 @@ def test_fees_rune_to_evm(
 
 
 # TODO: test that nodes won't validate invalid transfers
+
+
+def test_runes_to_evm_no_double_spends(
+    bridge_util,
+    user_ord_wallet,
+    user_evm_wallet,
+):
+    rune = bridge_util.etch_and_register_test_rune(
+        prefix="EVMMULTISIG",
+        fund=(user_ord_wallet, 123),
+    )
+    deposit_address = bridge_util.get_deposit_address(user_evm_wallet.address)
+    bridge_util.transfer_runes_to_evm(
+        wallet=user_ord_wallet,
+        amount_decimal=123,
+        deposit_address=deposit_address,
+        rune=rune,
+    )
+
+    initial_balances = bridge_util.snapshot_balances(
+        user_ord_wallet=user_ord_wallet,
+        user_evm_wallet=user_evm_wallet,
+        rune=rune,
+    )
+    initial_balances.assert_values(
+        bridge_rune_balance_decimal=123,
+    )
+
+    bridge_util.run_bridge_iteration()
+    bridge_util.snapshot_balances_again(initial_balances).assert_values(
+        user_token_balance_decimal=123,
+        token_total_supply_decimal=123,
+        bridge_rune_balance_decimal=123,
+    )
+
+    for _ in range(5):
+        bridge_util.run_bridge_iteration()
+
+        # Balances stay the same
+        bridge_util.snapshot_balances_again(initial_balances).assert_values(
+            user_token_balance_decimal=123,
+            token_total_supply_decimal=123,
+            bridge_rune_balance_decimal=123,
+        )
+
+
+def test_rune_tokens_to_btc_no_double_spends(
+    bridge_util,
+    bridge_ord_multisig,
+    user_ord_wallet,
+    user_evm_wallet,
+    bob_service,
+    carol_service,
+    monkeypatch,
+    hardhat,
+):
+    rune = bridge_util.etch_and_register_test_rune(
+        prefix="ORDMULTISIG",
+        fund=(bridge_ord_multisig.change_address, 456),
+    )
+    rune_token = bridge_util.mint_rune_tokens(
+        rune,
+        amount_decimal=456,
+        receiver=user_evm_wallet.address,
+    )
+
+    user_btc_address = user_ord_wallet.get_receiving_address()
+    bridge_util.transfer_rune_tokens_to_btc(
+        sender=user_evm_wallet,
+        rune_token_address=rune_token.address,
+        amount_decimal=456,
+        receiver_address=user_btc_address,
+        receiver_wallet=user_ord_wallet,
+    )
+
+    initial_balances = bridge_util.snapshot_balances(
+        user_ord_wallet=user_ord_wallet,
+        user_evm_wallet=user_evm_wallet,
+        rune=rune,
+    )
+    initial_balances.assert_values(
+        bridge_rune_balance_decimal=456,
+    )
+
+    bridge_util.run_bridge_iteration()
+
+    for _ in range(5):
+        bridge_util.run_bridge_iteration()
+
+        # Balances stay the same
+        bridge_util.snapshot_balances_again(initial_balances).assert_values(
+            user_rune_balance_decimal=456,
+        )
+
+
+def test_rune_to_evm_transfers_are_not_processed_without_confirmations(
+    bridge_util,
+    user_ord_wallet,
+    user_evm_wallet,
+    rune_bridge_service,
+    dbsession,
+    ord,
+):
+    rune = bridge_util.etch_and_register_test_rune(
+        prefix="EVMMULTISIG",
+        fund=(user_ord_wallet, 1000),
+    )
+    deposit_address = bridge_util.get_deposit_address(user_evm_wallet.address)
+
+    transfer = bridge_util.transfer_runes_to_evm(
+        wallet=user_ord_wallet,
+        amount_decimal=1000,
+        deposit_address=deposit_address,
+        rune=rune,
+        mine=False,
+    )
+    bridge_util.run_bridge_iteration()
+    bridge_util.assert_runes_not_transferred_to_evm(transfer)
+
+    ord.mine_and_sync()
+    bridge_util.assert_runes_not_transferred_to_evm(transfer)
+
+    bridge_util.run_bridge_iteration()
+    bridge_util.assert_runes_transferred_to_evm(transfer)
+
+
+def test_get_pending_deposits_for_evm_address(
+    bridge_util,
+    user_ord_wallet,
+    user_evm_wallet,
+    rune_bridge_service,
+    dbsession,
+    ord,
+):
+    rune = bridge_util.etch_and_register_test_rune(
+        prefix="EEEEEEEEE",
+        symbol="E",
+        fund=(user_ord_wallet, 1000),
+    )
+    deposit_address = bridge_util.get_deposit_address(user_evm_wallet.address)
+
+    with dbsession.begin():
+        assert rune_bridge_service.get_last_scanned_bitcoin_block(dbsession) is None
+
+    bridge_util.run_bridge_iteration()
+
+    with dbsession.begin():
+        last_block = rune_bridge_service.get_last_scanned_bitcoin_block(dbsession)
+
+    assert isinstance(last_block, str)
+    bytes.fromhex(last_block)  # should not raise
+    assert len(last_block) == 64
+
+    with dbsession.begin():
+        pending_deposits = rune_bridge_service.get_pending_deposits_for_evm_address(
+            last_block=last_block,
+            dbsession=dbsession,
+            evm_address=user_evm_wallet.address,
+        )
+
+    assert pending_deposits == []
+
+    ord_response = user_ord_wallet.send_runes(
+        rune=rune,
+        amount_decimal=1000,
+        receiver=deposit_address,
+    )
+
+    with dbsession.begin():
+        pending_deposits = rune_bridge_service.get_pending_deposits_for_evm_address(
+            last_block=last_block,
+            dbsession=dbsession,
+            evm_address=user_evm_wallet.address,
+        )
+
+    assert pending_deposits == [
+        {
+            "amount_decimal": "0",
+            "btc_deposit_txid": ord_response.txid,
+            "btc_deposit_vout": 2,
+            "evm_transfer_tx_hash": None,
+            "fee_amount_decimal": "0",
+            "receive_amount_decimal": "0",
+            "rune_name": "",
+            "rune_symbol": "",
+            "status": "detected",
+        }
+    ]
+
+    bridge_util.run_bridge_iteration()
+
+    with dbsession.begin():
+        pending_deposits = rune_bridge_service.get_pending_deposits_for_evm_address(
+            last_block=last_block,
+            dbsession=dbsession,
+            evm_address=user_evm_wallet.address,
+        )
+
+    assert pending_deposits == [
+        {
+            "amount_decimal": "1000",
+            "btc_deposit_txid": ord_response.txid,
+            "btc_deposit_vout": 2,
+            "evm_transfer_tx_hash": None,
+            "fee_decimal": "0",
+            "receive_amount_decimal": "1000",
+            "rune_name": rune,
+            "rune_symbol": "E",
+            "status": "seen",
+        }
+    ]
+
+    ord.mine_and_sync()
+
+    bridge_util.run_bridge_iteration()
+
+    with dbsession.begin():
+        new_last_block = rune_bridge_service.get_last_scanned_bitcoin_block(dbsession)
+    assert new_last_block != last_block
+
+    with dbsession.begin():
+        pending_deposits = rune_bridge_service.get_pending_deposits_for_evm_address(
+            last_block=last_block,
+            dbsession=dbsession,
+            evm_address=user_evm_wallet.address,
+        )
+
+    # Have to assert manually because of evm_transfer_tx_hash
+    # assert pending_deposits == [
+    #     {
+    #         'amount_decimal': '1000',
+    #         'btc_deposit_txid': '010be37d54469cc159781bcd8519711a1d8ac46ea70c7aad4bd4b3658fb47298',
+    #         'btc_deposit_vout': 2,
+    #         'evm_transfer_tx_hash': '0xa1cc885b84b3a09f23b4a3454839d1938f94db5d1c2b8ffbdb8fd25d6e975a03',
+    #         'fee_decimal': '0',
+    #         'receive_amount_decimal': '1000',
+    #         'rune_name': 'EVMMULTISIGZYMRUMBQS',
+    #         'rune_symbol': 'E',
+    #         'status': 'confirmed',
+    #     }
+    # ]
+    assert len(pending_deposits) == 1
+    deposit = pending_deposits[0]
+    assert deposit["status"] == "confirmed"
+    assert deposit["amount_decimal"] == "1000"
+    assert deposit["btc_deposit_txid"] == ord_response.txid
+    assert deposit["btc_deposit_vout"] == 2
+    assert deposit["evm_transfer_tx_hash"] is not None
+    assert deposit["evm_transfer_tx_hash"].startswith("0x")
+    assert deposit["fee_decimal"] == "0"
+    assert deposit["receive_amount_decimal"] == "1000"
+    assert deposit["rune_name"] == rune
+    assert deposit["rune_symbol"] == "E"
+
+
+@pytest.mark.xfail
+def test_runes_to_evm_transfers_are_resumed(
+    bridge_util,
+    user_ord_wallet,
+    user_evm_wallet,
+    bob_service,
+    carol_service,
+    monkeypatch,
+):
+    rune = bridge_util.etch_and_register_test_rune(
+        prefix="EVMMULTISIG",
+        fund=(user_ord_wallet, 1000),
+    )
+    deposit_address = bridge_util.get_deposit_address(user_evm_wallet.address)
+    transfer = bridge_util.transfer_runes_to_evm(
+        wallet=user_ord_wallet,
+        amount_decimal=1000,
+        deposit_address=deposit_address,
+        rune=rune,
+    )
+
+    for service in [bob_service, carol_service]:
+        monkeypatch.setattr(
+            service, "answer_sign_rune_to_evm_transfer_question", lambda *args, **kwargs: None
+        )
+
+    bridge_util.run_bridge_iteration()
+
+    bridge_util.assert_runes_not_transferred_to_evm(transfer)
+
+    monkeypatch.undo()
+
+    bridge_util.run_bridge_iteration()
+
+    bridge_util.assert_runes_transferred_to_evm(transfer)
+
+
+@pytest.mark.xfail
+def test_rune_tokens_to_btc_transfers_are_resumed(
+    bridge_util,
+    bridge_ord_multisig,
+    user_ord_wallet,
+    user_evm_wallet,
+    bob_service,
+    carol_service,
+    monkeypatch,
+    hardhat,
+):
+    rune = bridge_util.etch_and_register_test_rune(
+        prefix="ORDMULTISIG",
+        fund=(bridge_ord_multisig.change_address, 1000),
+    )
+    rune_token = bridge_util.mint_rune_tokens(
+        rune,
+        amount_decimal=1000,
+        receiver=user_evm_wallet.address,
+    )
+
+    user_btc_address = user_ord_wallet.get_receiving_address()
+    transfer = bridge_util.transfer_rune_tokens_to_btc(
+        sender=user_evm_wallet,
+        rune_token_address=rune_token.address,
+        amount_decimal=1000,
+        receiver_address=user_btc_address,
+        receiver_wallet=user_ord_wallet,
+    )
+
+    for service in [bob_service, carol_service]:
+        monkeypatch.setattr(
+            service, "answer_sign_rune_to_evm_transfer_question", lambda *args, **kwargs: None
+        )
+
+    bridge_util.run_bridge_iteration()
+
+    bridge_util.assert_rune_tokens_not_transferred_to_btc(transfer)
+
+    monkeypatch.undo()
+
+    bridge_util.assert_rune_tokens_transferred_to_btc(transfer)

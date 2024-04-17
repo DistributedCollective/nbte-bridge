@@ -1,4 +1,5 @@
 import contextlib
+import time
 from dataclasses import dataclass
 from decimal import Decimal
 import logging
@@ -135,8 +136,12 @@ class RuneBridgeUtil:
     ) -> Contract:
         if not symbol:
             symbol = rune[0]
-        rune_response = self._ord.api_client.get_rune(rune)
-        if not rune_response:
+        for _ in range(5):
+            rune_response = self._ord.api_client.get_rune(rune)
+            if rune_response:
+                break
+            time.sleep(0.5)
+        else:
             raise ValueError(f"rune {rune} not found")
         with measure_time("register rune"):
             self._rune_bridge_contract.functions.registerRune(

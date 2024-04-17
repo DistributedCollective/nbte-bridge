@@ -280,7 +280,7 @@ class RuneBridgeService:
     def get_pending_deposits_for_evm_address(
         self,
         evm_address: str,
-        last_block: int,
+        last_block: str,
         dbsession: Session,
     ) -> list[dict]:
         # TODO: temporary code, remove

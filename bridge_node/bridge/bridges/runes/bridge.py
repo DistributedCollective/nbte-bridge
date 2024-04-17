@@ -108,7 +108,6 @@ class RuneBridge(Bridge):
                     RuneTransfer(
                         rune=deposit.rune_name,
                         receiver=deposit.receiver_address,
-                        # TODO: handle divisibility
                         amount=deposit.net_rune_amount,
                     )
                 ]
