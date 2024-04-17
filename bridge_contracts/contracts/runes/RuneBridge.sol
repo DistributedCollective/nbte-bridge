@@ -45,6 +45,21 @@ contract RuneBridge is NBTEBridgeAccessControllable, Freezable, Pausable {
         address token
     );
 
+    event AdminWithdrawal(
+        address indexed token,
+        uint256 amount
+    );
+
+    event AccessControlChanged(
+        address oldAccessControl,
+        address newAccessControl
+    );
+
+    event BTCAddressValidatorChanged(
+        address oldAccessControl,
+        address newAccessControl
+    );
+
     struct EvmToBtcTransferPolicy {
         uint256 maxTokenAmount;  // if this is zero, the transfer policy is treated as unset
         uint256 minTokenAmount;
@@ -305,8 +320,8 @@ contract RuneBridge is NBTEBridgeAccessControllable, Freezable, Pausable {
     external
     onlyAdmin
     {
-        // TODO: emit event
         receiver.sendValue(amount);
+        emit AdminWithdrawal(address(0), amount);
     }
 
     /// @dev A utility for withdrawing accumulated fees, and tokens accidentally sent to the contract.
@@ -322,8 +337,8 @@ contract RuneBridge is NBTEBridgeAccessControllable, Freezable, Pausable {
     external
     onlyAdmin
     {
-        // TODO: emit event
         token.safeTransfer(receiver, amount);
+        emit AdminWithdrawal(address(token), amount);
     }
 
     /// @dev Transfer full balance of a Rune Token (probably collected as fees)
@@ -448,6 +463,7 @@ contract RuneBridge is NBTEBridgeAccessControllable, Freezable, Pausable {
     onlyAdmin
     {
         require(address(newBtcAddressValidator) != address(0), "Cannot set to zero address");
+        emit BTCAddressValidatorChanged(address(btcAddressValidator), address(newBtcAddressValidator));
         btcAddressValidator = newBtcAddressValidator;
     }
 
@@ -461,6 +477,7 @@ contract RuneBridge is NBTEBridgeAccessControllable, Freezable, Pausable {
     onlyAdmin
     {
         require(address(newAccessControl) != address(0), "Cannot set to zero address");
+        emit AccessControlChanged(address(accessControl), address(newAccessControl));
         accessControl = newAccessControl;
     }
 
