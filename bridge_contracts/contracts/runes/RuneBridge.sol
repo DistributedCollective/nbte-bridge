@@ -48,7 +48,7 @@ contract RuneBridge is NBTEBridgeAccessControllable, Freezable, Pausable {
         address indexed to,             // the user
         address indexed token,          // the Rune Token the user received
         uint256 indexed rune,           // the base26-encoded Rune
-        //uint256 transferredRuneAmount,  // the total amount of runes sent by the user
+        //uint256 transferredRuneAmount,  // the total amount of Runes sent by the user
         uint256 netTokenAmount,         // the amount of tokens the receiver received
         bytes32 btcTxId,                // the bitcoin tx hash of the transaction from the user
         uint256 btcTxVout               // the vout index of the transaction from the user
@@ -203,7 +203,7 @@ contract RuneBridge is NBTEBridgeAccessControllable, Freezable, Pausable {
 
     /// @dev Is the token a Rune Token deployed by the Bridge_
     function isTokenRegistered(address token) public view returns (bool) {
-        return runesByToken[rune] != address(0);
+        return runesByToken[token] != 0;
     }
 
     /// @dev Number of runes registered on the bridge
