@@ -100,10 +100,12 @@ def test_round_trip_happy_case(
     )
 
 
+@pytest.mark.parametrize("mine_between", [True, False])
 def test_multiple_runes_can_be_transferred(
     bridge_util,
     user_ord_wallet,
     user_evm_wallet,
+    mine_between,
 ):
     rune_a = bridge_util.etch_and_register_test_rune(
         prefix="MULTIAAA",
@@ -120,12 +122,14 @@ def test_multiple_runes_can_be_transferred(
         amount_decimal=400,
         deposit_address=deposit_address,
         rune=rune_a,
+        mine=mine_between,
     )
     transfer_b = bridge_util.transfer_runes_to_evm(
         wallet=user_ord_wallet,
         amount_decimal=600,
         deposit_address=deposit_address,
         rune=rune_b,
+        mine=True,
     )
 
     bridge_util.run_bridge_iteration()
@@ -399,6 +403,83 @@ def test_rune_to_evm_transfers_are_not_processed_without_confirmations(
 
     bridge_util.run_bridge_iteration()
     bridge_util.assert_runes_transferred_to_evm(transfer)
+
+
+def test_unsupported_rune(
+    bridge_util,
+    user_ord_wallet,
+    user_evm_wallet,
+    rune_bridge_service,
+    root_ord_wallet,
+    dbsession,
+    ord,
+):
+    rune = root_ord_wallet.etch_test_rune(
+        prefix="UNSUPPORTED",
+    ).rune
+    root_ord_wallet.send_runes(
+        rune=rune,
+        amount_decimal=1000,
+        receiver=user_ord_wallet.get_receiving_address(),
+    )
+    ord.mine_and_sync()
+    deposit_address = bridge_util.get_deposit_address(user_evm_wallet.address)
+
+    transfer = bridge_util.transfer_runes_to_evm(
+        wallet=user_ord_wallet,
+        amount_decimal=1000,
+        deposit_address=deposit_address,
+        rune=rune,
+    )
+    bridge_util.run_bridge_iteration()
+    bridge_util.assert_runes_not_transferred_to_evm(transfer)
+
+    # test that it doesn't mess things up totally
+    rune2 = bridge_util.etch_and_register_test_rune(
+        prefix="SUPPORTED",
+        fund=(user_ord_wallet, 1000),
+    )
+    transfer2 = bridge_util.transfer_runes_to_evm(
+        wallet=user_ord_wallet,
+        amount_decimal=1000,
+        deposit_address=deposit_address,
+        rune=rune2,
+    )
+    bridge_util.run_bridge_iteration()
+    bridge_util.assert_runes_transferred_to_evm(transfer2)
+
+
+def test_ord_indexing(
+    ord,
+    root_ord_wallet,
+    user_ord_wallet,
+    bitcoind,
+):
+    # Just a sanity check to see if ord indexes transactions with zero confirmations
+    rune = root_ord_wallet.etch_test_rune(
+        prefix="INDEXING",
+    ).rune
+    block_number = bitcoind.rpc.call("getblockcount")
+    print("block", block_number)
+    response = root_ord_wallet.send_runes(
+        rune=rune,
+        amount_decimal=1000,
+        receiver=user_ord_wallet.get_receiving_address(),
+    )
+    import time
+
+    time.sleep(5)
+    assert bitcoind.rpc.call("getblockcount") == block_number
+
+    ord.sync_with_bitcoind()
+
+    outp = ord.api_client.get_output(response.txid, 2)
+    assert not outp["indexed"]
+
+    ord.mine_and_sync()
+    outp = ord.api_client.get_output(response.txid, 2)
+    assert outp["indexed"]
+    assert bitcoind.rpc.call("getblockcount") == block_number + 1
 
 
 def test_get_pending_deposits_for_evm_address(
