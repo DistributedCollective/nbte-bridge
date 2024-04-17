@@ -86,7 +86,7 @@ class RuneBridgeService:
     def init(self):
         with self.transaction_manager.transaction() as tx:
             dbsession = tx.find_service(Session)
-            bridge = dbsession.query(Bridge).filter_by(name=self.config.bridge_id).one_or_none()
+            bridge = dbsession.query(Bridge).filter_by(name=self.bridge_name).one_or_none()
             if not bridge:
                 bridge = Bridge(name=self.config.bridge_id)
                 dbsession.add(bridge)
@@ -98,6 +98,10 @@ class RuneBridgeService:
         if self._bridge_id is None:
             raise ValueError("Bridge ID not set - service is not initialized")
         return self._bridge_id
+
+    @property
+    def bridge_name(self) -> str:
+        return self.config.bridge_id
 
     def generate_deposit_address(self, *, evm_address: str, dbsession: Session) -> str:
         # TODO: dbsession now passed as parameter, seems ugly?
@@ -130,8 +134,8 @@ class RuneBridgeService:
 
         return deposit_address.btc_address
 
-    def scan_rune_deposits(self) -> list[messages.RuneToEvmTransfer]:
-        last_block_key = f"{self.bridge_id}:btc:deposits:last_scanned_block"
+    def scan_rune_deposits(self):
+        last_block_key = f"{self.bridge_name}:btc:deposits:last_scanned_block"
         with self.transaction_manager.transaction() as tx:
             key_value_store = tx.find_service(KeyValueStore)
             last_bitcoin_block = key_value_store.get_value(last_block_key, default_value=None)
@@ -273,7 +277,7 @@ class RuneBridgeService:
 
     def get_last_scanned_bitcoin_block(self, dbsession: Session) -> str | None:
         # TODO: temporary code, remove
-        last_block_key = f"{self.bridge_id}:btc:deposits:last_scanned_block"
+        last_block_key = f"{self.bridge_name}:btc:deposits:last_scanned_block"
         val = dbsession.query(KeyValuePair).filter_by(key=last_block_key).one_or_none()
         return val.value if val else None
 
@@ -540,7 +544,7 @@ class RuneBridgeService:
     def _get_rune_to_evm_transfer_key_value_store_key(
         self, transfer: messages.RuneToEvmTransfer
     ) -> str:
-        return f"{self.bridge_id}:rune-to-evm-transfer:{transfer.txid}:{transfer.vout}:{transfer.rune_name}"
+        return f"{self.bridge_name}:rune-to-evm-transfer:{transfer.txid}:{transfer.vout}:{transfer.rune_name}"
 
     def _update_rune_to_evm_transfer_key_value_store_data(
         self,
@@ -608,7 +612,7 @@ class RuneBridgeService:
                 dbsession=dbsession,
                 block_safety_margin=self.config.evm_block_safety_margin,
                 key_value_store=key_value_store,
-                key_value_store_namespace=self.bridge_id,
+                key_value_store_namespace=self.bridge_name,
                 default_start_block=self.config.evm_default_start_block,
             )
             scanner.scan_new_events()
