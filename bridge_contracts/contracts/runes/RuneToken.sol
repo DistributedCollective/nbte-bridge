@@ -17,7 +17,7 @@ contract RuneToken is ERC20 {
     /// @dev the decimal places of the token
     uint8 private tokenDecimals;
 
-    /// dev the divisor to convert between rune and token amounts, pre-calculated for gas savings
+    /// @dev the divisor to convert between rune and token amounts, pre-calculated for gas savings
     uint256 public runeAmountDivisor;
 
     /// @dev emitted when new tokens are minted
