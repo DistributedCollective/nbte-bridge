@@ -61,6 +61,22 @@ contract RuneBridge is NBTEBridgeAccessControllable, Freezable, Pausable {
         address token                   // the freshly deployed Rune Token
     );
 
+    /// @dev Emitted when a user requests the registration of a new Rune
+    event RuneRegistrationRequested(
+        uint256 rune,                   // the base26-encoded Rune
+        address requester,              // the user who requested the registration
+        uint256 baseCurrencyFee         // the amount of base currency paid as fees
+    );
+
+    /// @dev Emitted when Rune registration requests are enabled or disabled
+    event RuneRegistrationRequestsEnabled(
+        bool enabled
+    );
+
+    /// @dev Emitted when the base currency fee for registering a new Rune is changed
+    event RuneRegistrationFeeChanged(
+        uint256 baseCurrencyFee
+    );
 
     /// @dev Emitted when an admin withdraws funds (fees or accidentally sent tokens) from the contract
     event AdminWithdrawal(
@@ -108,11 +124,26 @@ contract RuneBridge is NBTEBridgeAccessControllable, Freezable, Pausable {
     /// @dev deployed rune tokens
     address[] public runeTokens;
 
+    /// @dev Can users currently request the registration of new Runes?
+    bool public runeRegistrationRequestsEnabled;
+
+    /// @dev The base currency fee for registering a new Rune
+    uint256 public runeRegistrationFee = 0.0016 ether;
+
+    /// @dev Mapping rune => registration requested
+    mapping(uint256 => bool) public runeRegistrationRequested;
+
     /// @dev Mapping txHash => vout => rune => processed?
     mapping(bytes32 => mapping(uint256 => mapping(uint256 => bool))) processedTransfersFromBtc;
 
     /// @dev EVM to BTC transfer policies by token. Index 0x0 is the default policy
     mapping(address => EvmToBtcTransferPolicy) public evmToBtcTransferPoliciesByToken;
+
+    /// @dev Checks that the Rune registration requests are enabled
+    modifier whenRuneRegistrationRequestsEnabled() {
+        require(runeRegistrationRequestsEnabled, "rune registration requests disabled");
+        _;
+    }
 
     /// @dev Constructor
     /// @param _accessControl       Address of the NBTEBridgeBTCAccessControl contract.
@@ -196,7 +227,29 @@ contract RuneBridge is NBTEBridgeAccessControllable, Freezable, Pausable {
         );
     }
 
-    /// @dev Is the rune registered on the Bridge_
+    /// @dev Request the registration of a new Rune on the bridge
+    /// @param rune The base26-encoded rune
+    function requestRuneRegistration(
+        uint256 rune
+    )
+    public
+    payable
+    whenRuneRegistrationRequestsEnabled
+    whenNotPaused
+    {
+        require(!isRuneRegistered(rune), "rune already registered");
+        require(!runeRegistrationRequested[rune], "registration already requested");
+        require(msg.value == runeRegistrationFee, "incorrect base currency fee");
+
+        runeRegistrationRequested[rune] = true;
+        emit RuneRegistrationRequested(
+            rune,
+            msg.sender,
+            msg.value
+        );
+    }
+
+    /// @dev Is the Rune registered on the Bridge_
     function isRuneRegistered(uint256 rune) public view returns (bool) {
         return tokensByRune[rune] != address(0);
     }
@@ -317,6 +370,46 @@ contract RuneBridge is NBTEBridgeAccessControllable, Freezable, Pausable {
         );
     }
 
+    /// @dev Accepts a Rune registration request by the federation network, registers the Rune and deploys Rune token
+    /// @param name              The name of the new Rune Token (normally Rune name, but can be overridden)
+    /// @param symbol            The symbol of the new Rune Token (normally Rune symbol, but can be overridden)
+    /// @param rune              The base26-encoded rune
+    /// @param runeDivisibility  The divisibility (number of decimal places) of the Rune
+    /// @param signatures   The signatures of the federators
+    function acceptRuneRegistrationRequest(
+        string memory name,
+        string memory symbol,
+        uint256 rune,
+        uint8 runeDivisibility,
+        bytes[] memory signatures
+    )
+    external
+    whenNotFrozen
+    {
+        require(runeRegistrationRequested[rune], "registration not requested");
+
+        // validate signatures. this also checks that the sender is a federator
+        bytes32 messageHash = getAcceptRuneRegistrationRequestMessageHash(
+            name,
+            symbol,
+            rune,
+            runeDivisibility
+        );
+        accessControl.checkFederatorSignaturesWithImplicitSelfSign(
+            messageHash,
+            signatures,
+            msg.sender
+        );
+
+        // this validates that the rune is not already registered
+        _registerRune(
+            name,
+            symbol,
+            rune,
+            runeDivisibility
+        );
+    }
+
     /// @dev Get the message hash for accepting a transfer from the federator network
     function getAcceptTransferFromBtcMessageHash(
         address to,
@@ -342,6 +435,31 @@ contract RuneBridge is NBTEBridgeAccessControllable, Freezable, Pausable {
             btcTxId,
             ":",
             btcTxVout
+        ));
+    }
+
+    /// @dev Get the message hash for accepting a Rune registration request from the federator network
+    function getAcceptRuneRegistrationRequestMessageHash(
+        string memory name,
+        string memory symbol,
+        uint256 rune,
+        uint8 runeDivisibility
+    )
+    public
+    view
+    returns (bytes32)
+    {
+        return keccak256(abi.encodePacked(
+            "acceptRuneRegistrationRequest:",
+            address(this),
+            ":",
+            name,
+            ":",
+            symbol,
+            ":",
+            rune,
+            ":",
+            runeDivisibility
         ));
     }
 
@@ -548,6 +666,28 @@ contract RuneBridge is NBTEBridgeAccessControllable, Freezable, Pausable {
             flatFeeTokens,
             dynamicFeeTokens
         );
+    }
+
+    /// @dev Enable or disable Rune registration requests
+    function setRuneRegistrationRequestsEnabled(
+        bool enabled
+    )
+    external
+    onlyAdmin
+    {
+        runeRegistrationRequestsEnabled = enabled;
+        emit RuneRegistrationRequestsEnabled(enabled);
+    }
+
+    /// @dev Update the base currency fee for rune registration requests
+    function setRuneRegistrationFee(
+        uint256 fee
+    )
+    external
+    onlyAdmin
+    {
+        runeRegistrationFee = fee;
+        emit RuneRegistrationFeeChanged(fee);
     }
 
     /// @dev Updates the Bitcoin address validator used.
