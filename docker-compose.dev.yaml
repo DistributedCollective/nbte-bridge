@@ -125,9 +125,12 @@ services:
       context: bridge_node
     restart: always
     depends_on:
-      - postgres
-      - hardhat
-      - alice-tap
+      postgres:
+        condition: service_healthy
+      hardhat:
+        condition: service_started
+      alice-tap:
+        condition: service_started
     ports:
       - 127.0.0.1:8181:8080
     # TODO: needs to be added later, this does not work without pyramid
@@ -142,8 +145,6 @@ services:
       - "traefik.http.routers.alice-bridge.rule=PathPrefix(`/api/`)"
       - "traefik.http.services.alice-bridge.loadbalancer.server.port=8080"
       - "traefik.enable=true"
-
-
     environment:
       # NOTE: the private keys and other secrets are supposed to be here -- they are not used in the real world, only regtest. Don't report them.
       - BRIDGE_NODE_ID=alice-node
@@ -187,9 +188,12 @@ services:
       context: bridge_node
     restart: always
     depends_on:
-      - postgres
-      - alice-bridge
-      - bob-tap
+      postgres:
+        condition: service_healthy
+      alice-bridge:
+        condition: service_started
+      bob-tap:
+        condition: service_started
     ports:
       - 127.0.0.1:8182:8080
     volumes:

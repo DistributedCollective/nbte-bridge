@@ -71,6 +71,9 @@ python_files = ["test_*.py", "tests.py", "*_tests.py"]
 markers = [
     "integration: marks tests as integration test, requiring startup of the slow integration testing harness (deselect with '-m \"not integration\"')",
 ]
+filterwarnings = [
+  "ignore:Secrets file not found.*:UserWarning:.*",
+]
 
 [tool.coverage.run]
 branch = true

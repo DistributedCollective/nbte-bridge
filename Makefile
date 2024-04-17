@@ -17,6 +17,10 @@ install-poetry:
 serve:
 	docker compose -f docker-compose.dev.yaml up -d --build
 
+.PHONY: serve-testnet
+serve-testnet:
+	python server/serve_with_secrets.py docker-compose.testnet.yaml
+
 .PHONY: lint
 lint:
 	cd bridge_node && poetry run ruff check

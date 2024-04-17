@@ -1,7 +1,27 @@
+from getpass import getpass
+import json
+import logging
+import os
 import environ
 from anemic.ioc import service
 import socket
 from typing import Literal
+
+logger = logging.getLogger(__name__)
+
+
+def wait_for_secrets():
+    """
+    Wait for the user to provide decrypted secrets as a single-line JSON string.
+    In practice, this should be done by running server/serve_with_secrets.py.
+
+    Requires the BRIDGE_ENCRYPTED_SECRETS environment variable to be set to 1.
+    """
+    try:
+        return json.loads(getpass("Provide decrypted secrets: "))
+    except json.JSONDecodeError as e:
+        logger.error(f"Invalid JSON provided: {e}")
+        exit(1)
 
 
 def comma_separated(s: str):
@@ -31,11 +51,6 @@ class Config:
     tap_host = environ.var()
     tap_macaroon_path = environ.var()
     tap_tls_cert_path = environ.var()
-    # TODO: handle secrets properly
-    evm_private_key = environ.var()  # TODO: should be secret
-    btc_rpc_url = (
-        environ.var()
-    )  # TODO: should be secret, it has the auth in it (or then let's separate auth)
 
     # Rune bridge config
     runes_rune_bridge_contract_address = environ.var()
@@ -46,13 +61,36 @@ class Config:
     runes_ord_api_url = environ.var()
     runes_btc_base_derivation_path = environ.var(default="m/13/0/0")
 
-    # Rune bridge secrets
-    # TODO: these should be secret
-    secret_runes_evm_private_key = environ.var()  # TODO: secret
-    secret_runes_btc_master_xpriv = environ.var()
     secret_runes_btc_master_xpubs = environ.var(converter=comma_separated)
-    secret_runes_btc_rpc_auth = environ.var(default="")
-    secret_runes_ord_api_auth = environ.var(default="")
+
+    if os.environ.get("BRIDGE_ENCRYPTED_SECRETS", False):
+        secrets = wait_for_secrets()
+
+        btc_rpc_url = default = secrets["bridge_btc_rpc_url"]
+        evm_private_key = default = secrets["bridge_evm_private_key"]
+
+        secret_runes_evm_private_key = secrets["bridge_secret_runes_evm_private_key"]
+        secret_runes_btc_master_xpriv = secrets["bridge_secret_runes_btc_master_xpriv"]
+
+        secret_runes_btc_rpc_auth = secrets.get("bridge_secret_runes_btc_rpc_auth", "")
+        secret_runes_ord_api_auth = secrets.get("bridge_secret_runes_ord_api_auth", "")
+    else:
+        logging.warning(
+            "Secrets file not found, proceeding without. This should not happen in production."
+        )
+        btc_rpc_url = (
+            environ.var()
+        )  # TODO: should be secret, it has the auth in it (or then let's separate auth)
+
+        # TODO: handle secrets properly
+        evm_private_key = environ.var()  # TODO: should be secret
+
+        # Rune bridge secrets
+        # TODO: these should be secret
+        secret_runes_evm_private_key = environ.var()  # TODO: secret
+        secret_runes_btc_master_xpriv = environ.var()
+        secret_runes_btc_rpc_auth = environ.var(default="")
+        secret_runes_ord_api_auth = environ.var(default="")
 
 
 @service(interface_override=Config, scope="global")
