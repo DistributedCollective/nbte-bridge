@@ -521,44 +521,6 @@ contract RuneBridge is NBTEBridgeAccessControllable, Freezable, Pausable {
         emit AdminWithdrawal(address(token), amount);
     }
 
-    /// @dev Transfer full balance of a Rune Token (probably collected as fees)
-    ///      to a BTC address, without double-spending fees
-    function transferTokenBalanceToBtc(
-        RuneToken token,
-        string calldata receiverBtcAddress
-    )
-    external
-    onlyAdmin
-    {
-        uint256 tokenAmount = address(token).balance;
-        require(tokenAmount > 0, "zero balance");
-
-        uint256 rune = getRuneByToken(address(token)); // this validates that it's registered
-        require(rune == token.rune(), "rune mismatch"); // double validation for the paranoid
-
-        require(btcAddressValidator.isValidBtcAddress(receiverBtcAddress), "invalid BTC address");
-
-        // do the double conversion to account for decimal differences
-        uint256 runeAmount = token.getRuneAmount(tokenAmount);
-        tokenAmount = token.getTokenAmount(runeAmount);
-        require(tokenAmount > 0, "received token amount is zero");
-
-        token.burn(tokenAmount);
-
-        numTransfersTotal++;
-        emit RuneTransferToBtc(
-            numTransfersTotal,
-            msg.sender,
-            address(token),
-            rune,
-            tokenAmount,
-            runeAmount,
-            receiverBtcAddress,
-            0,
-            0
-        );
-    }
-
     /// @dev Register a new Rune on the bridge and deploy a new Rune Token
     /// @dev Can only be called by admins.
     /// @param name              The name of the new Rune Token (normally Rune name, but can be overridden)
