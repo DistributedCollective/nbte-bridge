@@ -8,12 +8,12 @@ from typing import (
     Protocol,
 )
 
-import pyord
-from hexbytes import HexBytes
 import eth_utils
+import pyord
+import sqlalchemy as sa
 from eth_account.account import LocalAccount
 from eth_account.messages import encode_defunct
-import sqlalchemy as sa
+from hexbytes import HexBytes
 from sqlalchemy.orm import (
     Session,
 )
@@ -22,28 +22,33 @@ from web3.contract import Contract
 from web3.types import EventData
 
 from bridge.common.btc.rpc import BitcoinRPC
+from . import messages
 from .evm import load_rune_bridge_abi
 from .models import (
-    RuneTokenDepositStatus,
-    User,
-    DepositAddress,
     Bridge,
+    DepositAddress,
+    IncomingBtcTx,
+    IncomingBtcTxStatus,
     Rune,
     RuneDeposit,
     RuneDepositStatus,
-    IncomingBtcTx,
-    IncomingBtcTxStatus,
     RuneTokenDeposit,
+    RuneTokenDepositStatus,
+    User,
 )
 from ...common.evm.scanner import EvmEventScanner
 from ...common.evm.utils import recover_message
 from ...common.models.key_value_store import KeyValuePair
 from ...common.ord.client import OrdApiClient
-from ...common.ord.multisig import OrdMultisig, RuneTransfer
-from ...common.ord.types import rune_from_str
+from ...common.ord.multisig import (
+    OrdMultisig,
+    RuneTransfer,
+)
+from ...common.ord.types import (
+    rune_from_str,
+)
 from ...common.services.key_value_store import KeyValueStore
 from ...common.services.transactions import TransactionManager
-from . import messages
 
 logger = logging.getLogger(__name__)
 
@@ -331,7 +336,6 @@ class RuneBridgeService:
                     continue
 
                 for spaced_rune_name, balance_entry in ord_output["runes"]:
-                    # TODO: validate postage, but still store in DB (done?)
                     pyord_rune = rune_from_str(spaced_rune_name)
                     rune = (
                         dbsession.query(Rune)
@@ -826,6 +830,19 @@ class RuneBridgeService:
     ) -> messages.SignRuneTokenToBtcTransferAnswer:
         unsigned_psbt = self.ord_multisig.deserialize_psbt(message.unsigned_psbt_serialized)
         # TODO: recreate the psbt here
+
+        hex_tx = unsigned_psbt.unsigned_tx.serialize().hex()
+        runestone = pyord.Runestone.decipher_hex(hex_tx)
+        if not runestone:
+            raise ValidationError("Could not decipher runestone from hex tx")
+        if runestone.is_cenotaph:
+            raise ValidationError(f"Runestone is a cenotaph: {runestone}")
+        if len(runestone.edicts) != 1:
+            raise ValidationError(f"Expected 1 edict, got {len(runestone.edicts)}")
+        # edict = runestone.edicts[0]
+        # psbt_output = unsigned_psbt.outputs[edict.output]
+        # TODO: actually validate it
+
         # TODO: validate the transfer happened on the smart contract side
         signed_psbt = self.ord_multisig.sign_psbt(unsigned_psbt)
         return messages.SignRuneTokenToBtcTransferAnswer(

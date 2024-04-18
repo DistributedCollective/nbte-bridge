@@ -189,6 +189,10 @@ class OrdMultisig:
             if not rune_response:
                 raise LookupError(f"Rune {transfer.rune} not found (transfer {transfer})")
             rune_id = pyord.RuneId.from_str(rune_response["id"])
+            if transfer.amount == 0:
+                raise ValueError(
+                    "Zero transfer amounts are not supported as they have a special meaning in Edicts"
+                )
             edicts.append(
                 pyord.Edict(
                     id=rune_id,
@@ -341,6 +345,7 @@ class OrdMultisig:
 
             # Get the next utxo that doesn't have ord balances
             # If no more utxos found, we cannot fund the PSBT
+            # TODO: this is probably not necessary as all the extra runes will go to the default output anyway
             try:
                 while True:
                     utxo = utxos.pop(0)
@@ -419,6 +424,13 @@ class OrdMultisig:
         sign_result = psbt.sign(KeyStore(), finalize=True)
         if not sign_result.is_final:
             raise ValueError("Failed to finalize PSBT")
+        tx = psbt.extract_transaction()
+        tx_hex = tx.serialize().hex()
+        runestone = pyord.Runestone.decipher_hex(tx_hex)
+        if not runestone:
+            raise ValueError(f"Failed to extract Runestone from psbt {psbt}")
+        if runestone.is_cenotaph:
+            raise ValueError(f"Runestone is cenotaph: {runestone}")
         return psbt
 
     def broadcast_psbt(self, psbt: PSBT):
