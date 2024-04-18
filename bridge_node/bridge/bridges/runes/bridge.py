@@ -1,13 +1,10 @@
 import logging
-import time
 
 from bridge.common.interfaces.bridge import Bridge
 from bridge.common.p2p.network import Network
 from .service import (
     RuneBridgeService,
 )
-from . import messages
-from ...common.ord.transfers import RuneTransfer
 
 logger = logging.getLogger(__name__)
 
@@ -49,20 +46,23 @@ class RuneBridge(Bridge):
             logger.info("Not leader, not doing anything")
             return
 
-        num_deposits = self.service.scan_rune_deposits()
-        logger.info("Found %s Rune->EVM deposits", num_deposits)
+        num_rune_deposits = self.service.scan_rune_deposits()
+        logger.info("Found %s Rune->EVM transfers", num_rune_deposits)
+        num_rune_token_deposits = self.service.scan_rune_token_deposits()
+        logger.info("Found %s Rune Token->BTC transfers", num_rune_token_deposits)
 
         self.service.confirm_sent_rune_deposits()
 
-        self._handle_rune_transfers_to_evm()
-
-        self._handle_rune_token_transfers_to_btc()
-
-    def _handle_rune_transfers_to_evm(self):
         if self.service.is_bridge_frozen():
-            logger.info("Bridge is frozen, cannot handle deposits to EVM")
+            logger.info("Bridge is frozen, not handling deposits")
             return
 
+        self._handle_rune_transfers_to_evm()
+        self._handle_rune_token_transfers_to_btc()
+
+    # TODO: the _handle* methods are written differently and it's ugly
+
+    def _handle_rune_transfers_to_evm(self):
         for deposit_id in self.service.get_accepted_rune_deposit_ids():
             try:
                 logger.info("Processing Rune->EVM deposit %s", deposit_id)
@@ -89,66 +89,17 @@ class RuneBridge(Bridge):
                 logger.exception("Failed to process deposit %s: %s", deposit_id, e)
 
     def _handle_rune_token_transfers_to_btc(self):
-        num_required_signatures = self.service.get_rune_tokens_to_btc_num_required_signers()
+        def ask_signatures(message):
+            return self.network.ask(
+                question=self.sign_rune_token_to_btc_transfer_question,
+                message=message,
+            )
 
-        token_deposits = self.service.scan_rune_token_deposits()
-        logger.info("Found %s RuneToken->BTC deposits", len(token_deposits))
-        for deposit in token_deposits:
-            logger.info("Processing RuneToken->BTC deposit %s", deposit)
-            # TODO: abstract these behind the service better
-            unsigned_psbt = self.service.ord_multisig.create_rune_psbt(
-                transfers=[
-                    RuneTransfer(
-                        rune=deposit.rune_name,
-                        receiver=deposit.receiver_address,
-                        amount=deposit.net_rune_amount,
-                    )
-                ]
+        for deposit_id in self.service.get_accepted_rune_token_deposit_ids():
+            self.service.handle_accepted_rune_token_deposit(
+                deposit_id,
+                ask_signatures=ask_signatures,
             )
-            message = messages.SignRuneTokenToBtcTransferQuestion(
-                transfer=deposit,
-                unsigned_psbt_serialized=self.service.ord_multisig.serialize_psbt(unsigned_psbt),
-            )
-            self_response = self.service.answer_sign_rune_token_to_btc_transfer_question(
-                message=message
-            )
-            self_signed_psbt = self.service.ord_multisig.deserialize_psbt(
-                self_response.signed_psbt_serialized
-            )
-            tries_left = self.max_retries + 1
-            while tries_left > 0:
-                tries_left -= 1
-                logger.info("Asking for signatures for RuneToken->BTC deposit %s", deposit)
-                responses = self.network.ask(
-                    question=self.sign_rune_token_to_btc_transfer_question,
-                    message=message,
-                )
-                signed_psbts = [self_signed_psbt]
-                signed_psbts.extend(
-                    self.service.ord_multisig.deserialize_psbt(response.signed_psbt_serialized)
-                    for response in responses
-                )
-                signed_psbts = signed_psbts[:num_required_signatures]
-                # TODO: validate responses
-                if len(signed_psbts) >= num_required_signatures:
-                    break
-                logger.warning(
-                    "Not enough signatures for transfer: %s (got %s, expected %s)",
-                    deposit,
-                    len(signed_psbts),
-                    num_required_signatures,
-                )
-                time.sleep(self.max_retries - tries_left + 1)
-            else:
-                logger.error("Failed to get enough signatures for transfer: %s", deposit)
-                continue
-
-            signed_psbts.append(self.service.ord_multisig.sign_psbt(unsigned_psbt))
-            finalized_psbt = self.service.ord_multisig.combine_and_finalize_psbt(
-                initial_psbt=unsigned_psbt,
-                signed_psbts=signed_psbts,
-            )
-            self.service.ord_multisig.broadcast_psbt(finalized_psbt)
 
     def _sign_rune_to_evm_transfer_answer(self, message):
         # TODO: This is wrapped to make it easier to patch...

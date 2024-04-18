@@ -721,7 +721,6 @@ def test_rune_to_evm_transfers_are_resumed(
     bridge_util.assert_runes_transferred_to_evm(transfer)
 
 
-@pytest.mark.xfail
 def test_rune_tokens_to_btc_transfers_are_resumed(
     bridge_util,
     bridge_ord_multisig,
@@ -753,7 +752,7 @@ def test_rune_tokens_to_btc_transfers_are_resumed(
 
     for service in [bob_service, carol_service]:
         monkeypatch.setattr(
-            service, "answer_sign_rune_to_evm_transfer_question", lambda *args, **kwargs: None
+            service, "answer_sign_rune_token_to_btc_transfer_question", lambda *args, **kwargs: None
         )
 
     bridge_util.run_bridge_iteration()
@@ -761,5 +760,7 @@ def test_rune_tokens_to_btc_transfers_are_resumed(
     bridge_util.assert_rune_tokens_not_transferred_to_btc(transfer)
 
     monkeypatch.undo()
+
+    bridge_util.run_bridge_iteration()
 
     bridge_util.assert_rune_tokens_transferred_to_btc(transfer)

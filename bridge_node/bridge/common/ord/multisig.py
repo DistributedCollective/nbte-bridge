@@ -164,10 +164,13 @@ class OrdMultisig:
         signed_psbt = self.sign_psbt(psbt, finalize=True)
         return self.broadcast_psbt(signed_psbt)
 
-    def create_rune_psbt(self, transfers: list[RuneTransfer]):
+    def create_rune_psbt(
+        self,
+        transfers: list[RuneTransfer],
+        *,
         # TODO: estimate the sat per vb feerate
-        fee_rate_sat_per_vbyte = 50
-
+        fee_rate_sat_per_vbyte: int = 50,
+    ):
         # We always have a change output, and we always have it at index 1
         # The first output (index 0) is the Runestone OP_RETURN
         # Change from runes goes to the first non-OP_RETURN output so having this

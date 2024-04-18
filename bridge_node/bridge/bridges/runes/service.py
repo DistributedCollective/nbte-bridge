@@ -4,9 +4,11 @@ import logging
 import time
 from decimal import Decimal
 from typing import (
+    Callable,
     Protocol,
 )
 
+import pyord
 from hexbytes import HexBytes
 import eth_utils
 from eth_account.account import LocalAccount
@@ -22,6 +24,7 @@ from web3.types import EventData
 from bridge.common.btc.rpc import BitcoinRPC
 from .evm import load_rune_bridge_abi
 from .models import (
+    RuneTokenDepositStatus,
     User,
     DepositAddress,
     Bridge,
@@ -30,6 +33,7 @@ from .models import (
     RuneDepositStatus,
     IncomingBtcTx,
     IncomingBtcTxStatus,
+    RuneTokenDeposit,
 )
 from ...common.evm.scanner import EvmEventScanner
 from ...common.evm.utils import recover_message
@@ -821,7 +825,8 @@ class RuneBridgeService:
         message: messages.SignRuneTokenToBtcTransferQuestion,
     ) -> messages.SignRuneTokenToBtcTransferAnswer:
         unsigned_psbt = self.ord_multisig.deserialize_psbt(message.unsigned_psbt_serialized)
-        # TODO: validation
+        # TODO: recreate the psbt here
+        # TODO: validate the transfer happened on the smart contract side
         signed_psbt = self.ord_multisig.sign_psbt(unsigned_psbt)
         return messages.SignRuneTokenToBtcTransferAnswer(
             signed_psbt_serialized=self.ord_multisig.serialize_psbt(signed_psbt),
@@ -833,26 +838,62 @@ class RuneBridgeService:
     ) -> str:
         return f"{self.bridge_name}:rune-to-evm-transfer:{transfer.txid}:{transfer.vout}:{transfer.rune_name}"
 
-    def scan_rune_token_deposits(self) -> list[messages.RuneTokenToBtcTransfer]:
-        events: list[messages.RuneTokenToBtcTransfer] = []
-
-        def callback(batch: list[EventData]):
-            for event in batch:
-                if event["event"] == "RuneTransferToBtc":
-                    events.append(
-                        messages.RuneTokenToBtcTransfer(
-                            receiver_address=event["args"]["receiverBtcAddress"],
-                            rune_name=event["args"]["rune"],
-                            token_address=event["args"]["token"],
-                            net_rune_amount=event["args"]["netRuneAmount"],
-                        )
-                    )
-                else:
-                    logger.warning("Unknown event: %s", event)
-
+    def scan_rune_token_deposits(self) -> int:
         with self.transaction_manager.transaction() as tx:
             dbsession = tx.find_service(Session)
             key_value_store = tx.find_service(KeyValueStore)
+
+            num_transfers = 0
+
+            def callback(batch: list[EventData]):
+                nonlocal num_transfers
+                for event in batch:
+                    print(event)
+                    if event["event"] == "RuneTransferToBtc":
+                        rune = (
+                            dbsession.query(Rune)
+                            .filter_by(
+                                bridge_id=self.bridge_id,
+                                n=event["args"]["rune"],
+                            )
+                            .one_or_none()
+                        )
+                        if not rune:
+                            pyord_rune = pyord.Rune(n=event["args"]["rune"])
+                            rune_response = self.ord_client.get_rune(pyord_rune.name)
+                            if not rune_response:
+                                raise RuntimeError(f"Rune {pyord_rune.name} not found in ord")
+                            rune_entry = rune_response["entry"]
+                            rune = Rune(
+                                bridge_id=self.bridge_id,
+                                n=pyord_rune.n,
+                                name=pyord_rune.name,
+                                symbol=rune_entry["symbol"],
+                                spaced_name=rune_entry["spaced_rune"],
+                                divisibility=rune_entry["divisibility"],
+                                turbo=rune_entry["turbo"],
+                            )
+                            logger.info("Created new rune: %s", rune)
+                            dbsession.add(rune)
+                            dbsession.flush()
+                        deposit = RuneTokenDeposit(
+                            bridge_id=self.bridge_id,
+                            evm_block_number=event["blockNumber"],
+                            evm_tx_hash=event["transactionHash"].hex(),
+                            evm_log_index=event["logIndex"],
+                            rune_id=rune.id,
+                            receiver_btc_address=event["args"]["receiverBtcAddress"],
+                            token_address=event["args"]["token"],
+                            net_rune_amount_raw=event["args"]["netRuneAmount"],
+                            transferred_token_amount=event["args"]["transferredTokenAmount"],
+                            status=RuneTokenDepositStatus.ACCEPTED,
+                        )
+                        dbsession.add(deposit)
+                        dbsession.flush()
+                        num_transfers += 1
+                    else:
+                        logger.warning("Unknown event: %s", event)
+
             scanner = EvmEventScanner(
                 web3=self.web3,
                 events=[
@@ -866,21 +907,112 @@ class RuneBridgeService:
                 default_start_block=self.config.evm_default_start_block,
             )
             scanner.scan_new_events()
-        return events
 
-    def send_rune_token_to_btc(self, deposit: messages.RuneTokenToBtcTransfer):
-        logger.info("Sending to BTC: %s", deposit)
-        # TODO: multisig transfers
-        self.ord_multisig.send_runes(
+        return num_transfers
+
+    def get_accepted_rune_token_deposit_ids(self):
+        with self.transaction_manager.transaction() as tx:
+            dbsession = tx.find_service(Session)
+            deposits = (
+                dbsession.query(RuneTokenDeposit)
+                .filter_by(
+                    bridge_id=self.bridge_id,
+                    status=RuneTokenDepositStatus.ACCEPTED,
+                )
+                .order_by(
+                    RuneTokenDeposit.id,
+                )
+            )
+            return [deposit.id for deposit in deposits]
+
+    def handle_accepted_rune_token_deposit(
+        self,
+        deposit_id: int,
+        ask_signatures: Callable[
+            [messages.SignRuneTokenToBtcTransferQuestion],
+            list[messages.SignRuneTokenToBtcTransferAnswer],
+        ],
+    ):
+        with self.transaction_manager.transaction() as tx:
+            dbsession = tx.find_service(Session)
+            deposit = (
+                dbsession.query(RuneTokenDeposit)
+                .filter_by(
+                    bridge_id=self.bridge_id,
+                    id=deposit_id,
+                )
+                .one()
+            )
+            logger.info("Processing RuneToken->BTC deposit %s", deposit)
+            if deposit.status != RuneTokenDepositStatus.ACCEPTED:
+                raise ValidationError(f"Deposit {deposit} not accepted (got {deposit.status})")
+            if deposit.net_rune_amount_raw == 0:
+                raise ValidationError("Net amount is zero")
+            transfer = messages.RuneTokenToBtcTransfer(
+                receiver_address=deposit.receiver_btc_address,
+                rune_name=deposit.rune.n,
+                token_address=deposit.token_address,
+                net_rune_amount=deposit.net_rune_amount_raw,
+            )
+
+        num_required_signatures = self.get_rune_tokens_to_btc_num_required_signers()
+        unsigned_psbt = self.ord_multisig.create_rune_psbt(
             transfers=[
                 RuneTransfer(
-                    rune=deposit.rune_name,
-                    receiver=deposit.receiver_address,
-                    # TODO: handle divisibility etc, it might not always be the same as wei
-                    amount=deposit.net_rune_amount,
+                    rune=transfer.rune_name,
+                    receiver=transfer.receiver_address,
+                    amount=transfer.net_rune_amount,
                 )
             ]
         )
+        message = messages.SignRuneTokenToBtcTransferQuestion(
+            transfer=transfer,
+            unsigned_psbt_serialized=self.ord_multisig.serialize_psbt(unsigned_psbt),
+        )
+        self_response = self.answer_sign_rune_token_to_btc_transfer_question(message=message)
+        self_signed_psbt = self.ord_multisig.deserialize_psbt(self_response.signed_psbt_serialized)
+        logger.info("Asking for signatures for RuneToken->BTC transfer %s", transfer)
+        responses = ask_signatures(message)
+        signed_psbts = [self_signed_psbt]
+        signed_psbts.extend(
+            self.ord_multisig.deserialize_psbt(response.signed_psbt_serialized)
+            for response in responses
+        )
+        signed_psbts = signed_psbts[:num_required_signatures]
+
+        # TODO: validate responses
+
+        if len(signed_psbts) < num_required_signatures:
+            logger.info(
+                "Not enough signatures for transfer: %s (got %s, expected %s)",
+                transfer,
+                len(signed_psbts),
+                num_required_signatures,
+            )
+            return
+
+        finalized_psbt = self.ord_multisig.combine_and_finalize_psbt(
+            initial_psbt=unsigned_psbt,
+            signed_psbts=signed_psbts,
+        )
+
+        with self.transaction_manager.transaction() as tx:
+            dbsession = tx.find_service(Session)
+            deposit = dbsession.get(RuneTokenDeposit, deposit_id)
+            assert deposit.status == RuneTokenDepositStatus.ACCEPTED
+            deposit.status = RuneTokenDepositStatus.SENDING_TO_BTC
+            deposit.finalized_psbt = self.ord_multisig.serialize_psbt(finalized_psbt)
+            dbsession.flush()
+
+        txid = self.ord_multisig.broadcast_psbt(finalized_psbt)
+
+        with self.transaction_manager.transaction() as tx:
+            dbsession = tx.find_service(Session)
+            deposit = dbsession.get(RuneTokenDeposit, deposit_id)
+            assert deposit.status == RuneTokenDepositStatus.SENDING_TO_BTC
+            deposit.status = RuneTokenDepositStatus.SENT_TO_BTC
+            deposit.btc_tx_id = txid
+            dbsession.flush()
 
     def get_user_by_deposit_address(self, deposit_address: str) -> User | None:
         with self.transaction_manager.transaction() as tx:

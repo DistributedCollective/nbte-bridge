@@ -20,6 +20,7 @@ from bridge.common.models.meta import Base
 from bridge.common.models.types import (
     EVMAddress,
     Uint128,
+    Uint256,
 )
 
 
@@ -237,7 +238,7 @@ class RuneDeposit(Base):
     def __repr__(self):
         rune_name = self.rune.spaced_name
         net_amount = self.rune.decimal_amount(self.net_amount_raw)
-        return f"RuneDeposit({net_amount} {rune_name} => {self.user.evm_address} ({self.tx_id}:{self.vout}, status={self.status}))"
+        return f"RuneDeposit(id={self.id}, {net_amount} {rune_name} => {self.user.evm_address} ({self.tx_id}:{self.vout}, status={self.status}))"
 
     @property
     def fee_raw(self) -> int:
@@ -262,14 +263,18 @@ class RuneTokenDeposit(Base):
     id = Column(BigInteger, primary_key=True)
     bridge_id = Column(Integer, ForeignKey("bridge.id"), nullable=False)
 
+    evm_block_number = Column(BigInteger, nullable=True)
     evm_tx_hash = Column(Text, nullable=True)
     evm_log_index = Column(Integer, nullable=True)
-
     receiver_btc_address = Column(Text, nullable=False)
+    transferred_token_amount = Column(Uint256, nullable=False)
     net_rune_amount_raw = Column(Uint128, nullable=False)
     token_address = Column(EVMAddress, nullable=False)
     rune_id = Column(Integer, ForeignKey("rune.id"), nullable=False)
     rune = relationship(Rune)
+
+    btc_tx_id = Column(Text, nullable=True)
+    finalized_psbt = Column(Text, nullable=True)
 
     status = Column(
         Integer,
@@ -277,13 +282,15 @@ class RuneTokenDeposit(Base):
         default=RuneTokenDepositStatus.DETECTED.value,
     )
 
+    # TODO: signatures....
+
     created_at = Column(
         DateTime(timezone=True),
         nullable=False,
         server_default=func.now(),
     )
 
-    (
+    __table_args__ = (
         UniqueConstraint(
             "evm_tx_hash",
             "evm_log_index",
@@ -291,5 +298,6 @@ class RuneTokenDeposit(Base):
         ),
     )
 
-    serialized_psbt = Column(Text, nullable=False)
-    # TODO: PSBT signers
+    def __repr__(self):
+        # nice repr
+        return f"RuneTokenDeposit(id={self.id}, f{self.rune.decimal_amount(self.net_rune_amount_raw)} {self.rune.name} => {self.receiver_btc_address})"
