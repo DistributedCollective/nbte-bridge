@@ -30,10 +30,12 @@ class UintMixin:
 
 class Uint256(UintMixin, types.TypeDecorator):
     MAX_VALUE = 2**256 - 1
+    cache_ok = True
 
 
 class Uint128(UintMixin, types.TypeDecorator):
     MAX_VALUE = 2**128 - 1
+    cache_ok = True
 
 
 class EVMAddress(types.TypeDecorator):

@@ -1,4 +1,5 @@
 import contextlib
+import time
 from dataclasses import dataclass
 from decimal import Decimal
 import logging
@@ -17,6 +18,7 @@ from web3.types import EventData
 from bridge.bridges.runes.bridge import RuneBridge
 from bridge.bridges.runes.evm import load_rune_bridge_abi
 from bridge.bridges.runes.models import (
+    Bridge,
     DepositAddress,
     User,
 )
@@ -134,8 +136,12 @@ class RuneBridgeUtil:
     ) -> Contract:
         if not symbol:
             symbol = rune[0]
-        rune_response = self._ord.api_client.get_rune(rune)
-        if not rune_response:
+        for _ in range(5):
+            rune_response = self._ord.api_client.get_rune(rune)
+            if rune_response:
+                break
+            time.sleep(0.5)
+        else:
             raise ValueError(f"rune {rune} not found")
         with measure_time("register rune"):
             self._rune_bridge_contract.functions.registerRune(
@@ -158,6 +164,7 @@ class RuneBridgeUtil:
         deposit_address: str,
         rune: str,
         mine: bool = True,
+        postage: str | int = None,
     ) -> RunesToEVMTransfer:
         evm_block_number = self._web3.eth.block_number
         logger.info(
@@ -170,6 +177,7 @@ class RuneBridgeUtil:
             rune=rune,
             amount_decimal=amount_decimal,
             receiver=deposit_address,
+            postage=postage,
         )
         if mine:
             self._ord.mine_and_sync()
@@ -385,6 +393,8 @@ class RuneBridgeUtil:
         events = self._get_rune_token_transfer_events(transfer)
         assert len(events) == 1, f"Expected 1 Transfer event, got {len(events)}"
         event = events[-1]
+        # TODO: handle fees
+        # TODO: handle different decimals
         expected_amount_wei = to_wei(transfer.amount_decimal)
         assert (
             event["args"]["value"] == expected_amount_wei
@@ -478,11 +488,19 @@ class RuneBridgeUtil:
 
     def _get_evm_address_from_deposit_address(self, deposit_address: str) -> str | None:
         with self._dbsession.begin():
+            bridge = self._dbsession.scalars(
+                sa.select(Bridge).filter(
+                    Bridge.name == self._rune_bridge.bridge_id,
+                )
+            ).one_or_none()
+            if not bridge:
+                logger.warning("Bridge %s not found", self._rune_bridge.bridge_id)
+                return None
             obj = self._dbsession.scalars(
                 sa.select(DepositAddress)
                 .join(User)
                 .filter(
-                    User.bridge_id == self._rune_bridge.bridge_id,
+                    User.bridge_id == bridge.id,
                     DepositAddress.btc_address == deposit_address,
                 )
             ).one_or_none()

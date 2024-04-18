@@ -16,7 +16,9 @@ class RuneBridgeConfig:
     evm_block_safety_margin: int = 0
     evm_default_start_block: int = 1
     runes_to_evm_fee_percentage_decimal: Decimal = Decimal("0.4")
-    runes_to_evm_min_postage: int = 10_000
+    btc_min_confirmations: int = 1
+    btc_min_postage_sat: int = 10_000
+    btc_listsinceblock_buffer: int = 1  # TODO: update to 6?
 
 
 @dataclass(repr=False)

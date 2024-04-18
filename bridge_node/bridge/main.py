@@ -12,7 +12,10 @@ from bridge.common.services.transactions import register_transaction_manager
 from bridge.decimalcontext import set_decimal_context
 
 
-logging.basicConfig(level=os.getenv("LOG_LEVEL", logging.INFO))
+logging.basicConfig(
+    level=os.getenv("LOG_LEVEL", logging.INFO),
+    format="%(asctime)s:%(name)s:%(levelname)s:%(message)s",
+)
 
 
 def main():

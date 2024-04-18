@@ -25,11 +25,11 @@ class RuneEntry(TypedDict):
     mint: Any
     mints: int
     number: int
-    rune: str
-    spacers: int
+    spaced_rune: str
     supply: int
     symbol: str
     timestamp: int
+    turbo: bool
 
 
 class RuneResponse(TypedDict):

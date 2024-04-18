@@ -8,9 +8,11 @@ class RuneToEvmTransfer:
     evm_address: str
     amount_raw: int
     amount_decimal: Decimal
+    net_amount_raw: int
     txid: str
     vout: int
     rune_name: str
+    rune_number: int
 
 
 @dataclasses.dataclass
@@ -30,6 +32,7 @@ class SignRuneToEvmTransferQuestion:
 class SignRuneToEvmTransferAnswer:
     signature: str
     signer: str
+    message_hash: str
 
 
 @dataclasses.dataclass
