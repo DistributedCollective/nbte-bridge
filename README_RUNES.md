@@ -67,4 +67,3 @@ The federation network uses the `RuneBridge` contract for the following purposes
 
 - Mint new Rune Tokens to users, when transfers to Rune deposit addresses are detected in the Bitcoin network
 - Accept Rune Registration requests.
-

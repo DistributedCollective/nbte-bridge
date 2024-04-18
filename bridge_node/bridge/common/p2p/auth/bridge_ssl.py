@@ -15,8 +15,7 @@ logger = logging.getLogger(__name__)
 
 
 class SecureContext(Protocol):
-    def validate_handshake(self, conn, data):
-        ...
+    def validate_handshake(self, conn, data): ...
 
 
 class SecureContextFactory(Protocol):
@@ -25,8 +24,7 @@ class SecureContextFactory(Protocol):
         *,
         privkey: str,
         fetch_peer_addresses: Callable[[], list[str]],
-    ) -> SecureContext:
-        ...
+    ) -> SecureContext: ...
 
 
 class PyroSecureContext:

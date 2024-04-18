@@ -18,11 +18,9 @@ MIN_RANDOMPART_LENGTH = 8
 class FundableWallet(Protocol):
     name: str
 
-    def get_balance_btc(self) -> Decimal:
-        ...
+    def get_balance_btc(self) -> Decimal: ...
 
-    def get_receiving_address(self) -> str:
-        ...
+    def get_receiving_address(self) -> str: ...
 
 
 class BitcoindService(compose.ComposeService):
