@@ -20,6 +20,10 @@ from sqlalchemy.orm import (
 from web3 import Web3
 from web3.contract import Contract
 from web3.types import EventData
+from web3.exceptions import (
+    TransactionIndexingInProgress,
+    TransactionNotFound,
+)
 
 from bridge.common.btc.rpc import BitcoinRPC
 from . import messages
@@ -704,7 +708,11 @@ class RuneBridgeService:
             dbsession = tx.find_service(Session)
             deposit = dbsession.get(RuneDeposit, deposit_id)
             if deposit.status == RuneDepositStatus.SENT_TO_EVM:
-                receipt = self.web3.eth.get_transaction_receipt(deposit.evm_tx_hash)
+                try:
+                    receipt = self.web3.eth.get_transaction_receipt(deposit.evm_tx_hash)
+                except (TransactionNotFound, TransactionIndexingInProgress):
+                    receipt = None
+
                 if receipt:
                     if receipt["status"]:
                         deposit.status = RuneDepositStatus.CONFIRMED_IN_EVM

@@ -1137,24 +1137,6 @@
         "type": "function"
     },
     {
-        "inputs": [
-            {
-                "internalType": "contract RuneToken",
-                "name": "token",
-                "type": "address"
-            },
-            {
-                "internalType": "string",
-                "name": "receiverBtcAddress",
-                "type": "string"
-            }
-        ],
-        "name": "transferTokenBalanceToBtc",
-        "outputs": [],
-        "stateMutability": "nonpayable",
-        "type": "function"
-    },
-    {
         "inputs": [],
         "name": "unfreeze",
         "outputs": [],

@@ -206,6 +206,26 @@ task(`${PREFIX}list-tokens`)
     }));
 
 
+task(`${PREFIX}set-access-control`)
+    .addParam("bridgeAddress", "RuneBridge contract address")
+    .addParam("newAccessControl", "RuneBridge contract address")
+    .setAction(jsonAction(async ({
+        bridgeAddress,
+        newAccessControl
+    }, hre) => {
+        const ethers = hre.ethers;
+
+        const bridge = await ethers.getContractAt("RuneBridge", bridgeAddress);
+        const tx = await bridge.setAccessControl(newAccessControl);
+        console.log('tx hash:', tx.hash, 'waiting for tx...');
+        await tx.wait();
+
+        return {
+            success: true,
+        }
+    }));
+
+
 task(`${PREFIX}check-token-balances`)
     .addParam('bridge', 'Rune Bridge Address')
     .addParam('user', 'User address')
