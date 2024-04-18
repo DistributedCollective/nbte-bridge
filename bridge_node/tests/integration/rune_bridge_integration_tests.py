@@ -12,7 +12,7 @@ from .utils import wait_for_condition, from_wei, to_wei
 logger = logging.getLogger(__name__)
 
 
-RUNE_BRIDGE_ADDRESS = "0x610178dA211FEF7D417bC0e6FeD39F05609AD788"
+RUNE_BRIDGE_ADDRESS = "0xB7f8BC63BbcaD18155201308C8f3540b07f84F5e"
 RUNE_NAME = "MYRUNEISGOODER"
 RUNE = pyord.Rune.from_str(RUNE_NAME)
 
@@ -127,6 +127,7 @@ def test_integration_rune_bridge(
     user_evm_account,
     user_ord_wallet,
     user_evm_token,
+    user_web3,
     bridge_api,
     bitcoin_rpc,
     user_rune_bridge_contract,
@@ -158,7 +159,18 @@ def test_integration_rune_bridge(
     assert from_wei(user_evm_token.functions.totalSupply().call() - initial_total_supply) == 1000
 
     user_btc_address = user_ord_wallet.get_new_address()
-    user_rune_bridge_contract.functions.transferToBtc(
+    tx = user_evm_token.functions.approve(
+        user_rune_bridge_contract.address,
+        to_wei(1000),
+    ).transact(
+        {
+            "gas": 10_000_000,
+        }
+    )
+    receipt = user_web3.eth.wait_for_transaction_receipt(tx)
+    assert receipt.status == 1
+
+    tx = user_rune_bridge_contract.functions.transferToBtc(
         user_evm_token.address,
         to_wei(1000),
         user_btc_address,
@@ -167,6 +179,8 @@ def test_integration_rune_bridge(
             "gas": 10_000_000,
         }
     )
+    receipt = user_web3.eth.wait_for_transaction_receipt(tx)
+    assert receipt.status == 1
 
     def callback():
         bitcoind.mine()
