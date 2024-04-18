@@ -105,14 +105,24 @@ class IncomingBtcTxStatus(IntEnum):
 
 
 class RuneDepositStatus(IntEnum):
-    DETECTED = 1
-    ACCEPTED = 2
-    SENDING_TO_EVM = 3
-    SENT_TO_EVM = 4
-    CONFIRMED_IN_EVM = 5
-    REJECTED = 50
-    SENDING_TO_EVM_FAILED = 100
-    EVM_TRANSACTION_FAILED = 101
+    DETECTED = 10
+    ACCEPTED = 20
+    SENDING_TO_EVM = 30
+    SENT_TO_EVM = 40
+    CONFIRMED_IN_EVM = 50
+    REJECTED = -1
+    SENDING_TO_EVM_FAILED = -2
+    EVM_TRANSACTION_FAILED = -3
+
+
+class RuneTokenDepositStatus(IntEnum):
+    DETECTED = 10
+    ACCEPTED = 20
+    SENDING_TO_BTC = 30
+    SENT_TO_BTC = 40
+    MINED_IN_BTC = 50
+    REJECTED = -1
+    SENDING_TO_BTC_FAILED = -2
 
 
 class IncomingBtcTx(Base):
@@ -244,3 +254,42 @@ class RuneDeposit(Base):
             # RuneDepositStatus.EVM_TRANSFER_FAILED: "evm_transfer_failed",
         }
         return status_map.get(self.status, "Processing")
+
+
+class RuneTokenDeposit(Base):
+    __tablename__ = "rune_token_deposit"
+
+    id = Column(BigInteger, primary_key=True)
+    bridge_id = Column(Integer, ForeignKey("bridge.id"), nullable=False)
+
+    evm_tx_hash = Column(Text, nullable=True)
+    evm_log_index = Column(Integer, nullable=True)
+
+    receiver_btc_address = Column(Text, nullable=False)
+    net_rune_amount_raw = Column(Uint128, nullable=False)
+    token_address = Column(EVMAddress, nullable=False)
+    rune_id = Column(Integer, ForeignKey("rune.id"), nullable=False)
+    rune = relationship(Rune)
+
+    status = Column(
+        Integer,
+        nullable=False,
+        default=RuneTokenDepositStatus.DETECTED.value,
+    )
+
+    created_at = Column(
+        DateTime(timezone=True),
+        nullable=False,
+        server_default=func.now(),
+    )
+
+    (
+        UniqueConstraint(
+            "evm_tx_hash",
+            "evm_log_index",
+            name="uq_rune_token_deposit_tx_hash_log_index",
+        ),
+    )
+
+    serialized_psbt = Column(Text, nullable=False)
+    # TODO: PSBT signers

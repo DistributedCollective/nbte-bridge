@@ -49,33 +49,44 @@ class RuneBridge(Bridge):
             logger.info("Not leader, not doing anything")
             return
 
-        rune_deposits = self.service.scan_rune_deposits()
-        logger.info("Found %s Rune->EVM deposits", len(rune_deposits))
+        num_deposits = self.service.scan_rune_deposits()
+        logger.info("Found %s Rune->EVM deposits", num_deposits)
+
+        self.service.confirm_sent_rune_deposits()
 
         self._handle_rune_transfers_to_evm()
 
         self._handle_rune_token_transfers_to_btc()
 
     def _handle_rune_transfers_to_evm(self):
-        self.service.confirm_sent_rune_deposits()
+        if self.service.is_bridge_frozen():
+            logger.info("Bridge is frozen, cannot handle deposits to EVM")
+            return
 
         for deposit_id in self.service.get_accepted_rune_deposit_ids():
-            logger.info("Processing Rune->EVM deposit %s", deposit_id)
-            message = self.service.get_sign_rune_to_evm_transfer_question(deposit_id)
-            self_response = self.service.answer_sign_rune_to_evm_transfer_question(message=message)
-            message_hash = self_response.message_hash
-            logger.info("Asking for signatures for deposit %s", message)
-            responses = self.network.ask(
-                question=self.sign_rune_to_evm_transfer_question,
-                message=message,
-            )
-            ready_to_send = self.service.update_rune_deposit_signatures(
-                deposit_id, message_hash=message_hash, answers=[self_response] + responses
-            )
-            if ready_to_send:
-                self.service.send_rune_deposit_to_evm(deposit_id)
-            else:
-                logger.info("Not enough signatures for deposit %s", deposit_id)
+            try:
+                logger.info("Processing Rune->EVM deposit %s", deposit_id)
+                if not self.service.validate_rune_deposit_for_sending(deposit_id):
+                    continue
+                message = self.service.get_sign_rune_to_evm_transfer_question(deposit_id)
+                self_response = self.service.answer_sign_rune_to_evm_transfer_question(
+                    message=message
+                )
+                message_hash = self_response.message_hash
+                logger.info("Asking for signatures for deposit %s", message)
+                responses = self.network.ask(
+                    question=self.sign_rune_to_evm_transfer_question,
+                    message=message,
+                )
+                ready_to_send = self.service.update_rune_deposit_signatures(
+                    deposit_id, message_hash=message_hash, answers=[self_response] + responses
+                )
+                if ready_to_send:
+                    self.service.send_rune_deposit_to_evm(deposit_id)
+                else:
+                    logger.info("Not enough signatures for deposit %s", deposit_id)
+            except Exception as e:
+                logger.exception("Failed to process deposit %s: %s", deposit_id, e)
 
     def _handle_rune_token_transfers_to_btc(self):
         num_required_signatures = self.service.get_rune_tokens_to_btc_num_required_signers()
