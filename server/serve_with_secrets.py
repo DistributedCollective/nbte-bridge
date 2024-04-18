@@ -16,13 +16,21 @@ def decrypt_secrets_file(path):
         contents = json.load(f)
 
         if cu.is_encrypted(contents):
-            pwd = getpass(f"Password for decrypting {path}: ")
+            tries = 0
 
-            try:
-                contents = cu.decrypt_secrets(pwd.encode(), contents)
-            except Exception as e:
-                print(f"Error decrypting secrets: {e}")
-                exit(1)
+            while True:
+                try:
+                    pwd = getpass(f"Password for decrypting {path}: ")
+                    contents = cu.decrypt_secrets(pwd.encode(), contents)
+                    break
+                except Exception as e:
+                    tries += 1
+                    print(f"Error decrypting secrets: {e}.")
+
+                    if tries >= 3:
+                        exit(1)
+
+                    print("Please try again.")
 
         return contents
 
@@ -49,7 +57,30 @@ if __name__ == "__main__":
         print("Error starting bridge nodes")
         exit(1)
 
-    for node in ["bridge-node-1", "bridge-node-2", "bridge-node-3"]:
+    get_bridge_container_ids = subprocess.run(
+        [
+            "docker",
+            "compose",
+            "-f",
+            args.compose,
+            "ps",
+            "--format",
+            "{{.Service}} {{.Labels}}",
+        ],
+        stdout=subprocess.PIPE,
+        text=True,
+    )
+
+    container_infos = get_bridge_container_ids.stdout.splitlines()
+    bridge_container_ids = [
+        info.split()[0]
+        for info in container_infos
+        if "node.type=bridge" in info.split()[1]
+    ]
+
+    print(bridge_container_ids)
+
+    for node in bridge_container_ids:
         # Get config file name from input
         config_file = input(f"Path to config file for {node}: ")
 
@@ -59,9 +90,13 @@ if __name__ == "__main__":
             ["docker", "compose", "-f", args.compose, "attach", node],
             stdin=subprocess.PIPE,
             text=True,
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
         )
         print(f"Sending config {config} to {node}...")
+
         proc.stdin.write(config + "\n")
         time.sleep(2)
-        proc.terminate()
+        proc.kill()
+
         print("Done.")
