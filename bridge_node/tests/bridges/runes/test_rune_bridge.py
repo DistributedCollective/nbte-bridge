@@ -138,6 +138,55 @@ def test_multiple_runes_can_be_transferred(
     bridge_util.assert_runes_transferred_to_evm(transfer_b)
 
 
+def test_runes_can_be_transferred_sequentially(
+    bridge_util,
+    user_ord_wallet,
+    user_evm_wallet,
+):
+    expected_rune_balance = 10000
+    expected_token_balance = 0
+    transfer_amount = 1000
+
+    rune = bridge_util.etch_and_register_test_rune(
+        prefix="SEQUENTIAL",
+        fund=(user_ord_wallet, expected_rune_balance),
+    )
+
+    deposit_address = bridge_util.get_deposit_address(user_evm_wallet.address)
+    initial_balances = bridge_util.snapshot_balances(
+        user_ord_wallet=user_ord_wallet,
+        user_evm_wallet=user_evm_wallet,
+        rune=rune,
+    )
+    initial_balances.assert_values(
+        user_token_balance_decimal=expected_token_balance,
+        token_total_supply_decimal=expected_token_balance,
+        user_rune_balance_decimal=expected_rune_balance,
+        bridge_rune_balance_decimal=expected_token_balance,
+    )
+
+    for _ in range(5):
+        transfer = bridge_util.transfer_runes_to_evm(
+            wallet=user_ord_wallet,
+            amount_decimal=1000,
+            deposit_address=deposit_address,
+            rune=rune,
+        )
+        bridge_util.run_bridge_iteration()
+
+        bridge_util.assert_runes_transferred_to_evm(transfer)
+
+        expected_rune_balance -= transfer_amount
+        expected_token_balance += transfer_amount
+
+        bridge_util.snapshot_balances_again(initial_balances).assert_values(
+            user_token_balance_decimal=expected_token_balance,
+            token_total_supply_decimal=expected_token_balance,
+            user_rune_balance_decimal=expected_rune_balance,
+            bridge_rune_balance_decimal=expected_token_balance,
+        )
+
+
 @pytest.mark.parametrize(
     "enable_bob,enable_carol,expected_transfer_happened",
     [

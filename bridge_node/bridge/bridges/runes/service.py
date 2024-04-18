@@ -579,7 +579,7 @@ class RuneBridgeService:
         if not self.rune_bridge_contract.functions.isRuneRegistered(rune_number).call():
             logger.info("Rune %s for deposit %s is not registered", rune_name, deposit_repr)
             return False
-        if deposit.postage < self.config.btc_min_postage_sat:
+        if postage < self.config.btc_min_postage_sat:
             logger.info("Deposit %s has insufficient postage %s", deposit_repr, postage)
             return False
         return True
