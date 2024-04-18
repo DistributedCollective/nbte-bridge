@@ -65,7 +65,7 @@ contract RuneToken is ERC20 {
          return tokenDecimals;
      }
 
-    /// @dev Convert amount in Rune Tokens to amount in Runes (as the token and rune might have different decimals
+    /// @dev Convert amount in Rune Tokens to amount in Runes (as the token and rune might have different decimals)
     /// @dev Doesn't validate that there's no remainder
     function getRuneAmount(
         uint256 tokenAmount
