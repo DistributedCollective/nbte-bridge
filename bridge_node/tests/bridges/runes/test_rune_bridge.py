@@ -519,6 +519,7 @@ def test_too_low_postage(
         amount_decimal=1000,
         deposit_address=deposit_address,
         rune=rune,
+        postage=9900,
     )
     bridge_util.run_bridge_iteration()
     bridge_util.assert_runes_not_transferred_to_evm(transfer)

@@ -164,6 +164,7 @@ class RuneBridgeUtil:
         deposit_address: str,
         rune: str,
         mine: bool = True,
+        postage: str | int = None,
     ) -> RunesToEVMTransfer:
         evm_block_number = self._web3.eth.block_number
         logger.info(
@@ -176,6 +177,7 @@ class RuneBridgeUtil:
             rune=rune,
             amount_decimal=amount_decimal,
             receiver=deposit_address,
+            postage=postage,
         )
         if mine:
             self._ord.mine_and_sync()
