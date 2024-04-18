@@ -37,8 +37,8 @@ contract BTCAddressValidator is IBTCAddressValidator, NBTEBridgeAccessControllab
         string memory _bech32Prefix,
         string[] memory _nonBech32Prefixes
     )
-    NBTEBridgeAccessControllable(_accessControl)
     {
+        _setAccessControl(_accessControl);
         _setBech32Prefix(_bech32Prefix);
         supportsLegacy = _nonBech32Prefixes.length > 0;
         nonBech32Prefixes = _nonBech32Prefixes;

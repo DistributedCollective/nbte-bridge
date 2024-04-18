@@ -1,7 +1,9 @@
 import {
     loadFixture,
 } from "@nomicfoundation/hardhat-toolbox/network-helpers";
-import { ethers } from "hardhat";
+import { expect } from 'chai';
+import { ethers, upgrades } from "hardhat";
+import { getImplementationAddress, getAdminAddress } from '@openzeppelin/upgrades-core';
 
 describe("RuneBridge", function () {
     async function runeBridgeFixture() {
@@ -17,15 +19,31 @@ describe("RuneBridge", function () {
         );
 
         const RuneBridge = await ethers.getContractFactory("RuneBridge");
-        const runeBridge = await RuneBridge.deploy(
-            await accessControl.getAddress(),
-            await btcAddressValidator.getAddress(),
+        const runeBridge = await upgrades.deployProxy(
+            RuneBridge,
+            [
+                await accessControl.getAddress(),
+                await btcAddressValidator.getAddress(),
+            ],
         );
+
+        const runeBridgeAddress = await runeBridge.getAddress();
+        console.log("RuneBridge proxy", runeBridgeAddress);
+        console.log("Implementation", await getImplementationAddress(ethers.provider, runeBridgeAddress));
+        console.log("ProxyAdmin", await getAdminAddress(ethers.provider, runeBridgeAddress));
 
         return { runeBridge, btcAddressValidator, accessControl };
     }
 
     it("deploys", async function () {
-        await loadFixture(runeBridgeFixture);
+        const { runeBridge } = await loadFixture(runeBridgeFixture);
+        expect(await runeBridge.numRunesRegistered()).to.equal(0);
+        expect(await runeBridge.registerRune(
+            "Foo",
+            "Bar",
+            1,
+            2
+        ));
+        expect(await runeBridge.numRunesRegistered()).to.equal(1);
     });
 });

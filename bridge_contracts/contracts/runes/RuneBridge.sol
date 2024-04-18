@@ -5,7 +5,8 @@ import {NBTEBridgeAccessControllable} from "../shared/NBTEBridgeAccessControllab
 import {IBTCAddressValidator} from "../shared/IBTCAddressValidator.sol";
 import {INBTEBridgeAccessControl} from "../shared/INBTEBridgeAccessControl.sol";
 import {Freezable} from "../shared/Freezable.sol";
-import {Pausable} from "@openzeppelin/contracts/security/Pausable.sol";
+import {PausableUpgradeable} from "@openzeppelin/contracts-upgradeable/security/PausableUpgradeable.sol";
+import {Initializable} from "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol";
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import {Address} from "@openzeppelin/contracts/utils/Address.sol";
@@ -15,7 +16,7 @@ import {RuneToken} from "./RuneToken.sol";
 /// @title The main Rune Bridge contract
 /// @notice Allows the federator network to mint new Rune Tokens based on rune deposits, and accepts the Rune Tokens
 //          back, which will burn them and instruct the federator network to release Runes.
-contract RuneBridge is NBTEBridgeAccessControllable, Freezable, Pausable {
+contract RuneBridge is Initializable, NBTEBridgeAccessControllable, Freezable, PausableUpgradeable {
     using SafeERC20 for IERC20;
     using SafeERC20 for RuneToken;
     using Address for address payable;
@@ -128,7 +129,7 @@ contract RuneBridge is NBTEBridgeAccessControllable, Freezable, Pausable {
     bool public runeRegistrationRequestsEnabled;
 
     /// @dev The base currency fee for registering a new Rune
-    uint256 public runeRegistrationFee = 0.0016 ether;
+    uint256 public runeRegistrationFee;
 
     /// @dev Mapping rune => registration requested
     mapping(uint256 => bool) public runeRegistrationRequested;
@@ -139,23 +140,32 @@ contract RuneBridge is NBTEBridgeAccessControllable, Freezable, Pausable {
     /// @dev EVM to BTC transfer policies by token. Index 0x0 is the default policy
     mapping(address => EvmToBtcTransferPolicy) public evmToBtcTransferPoliciesByToken;
 
+    // @dev storage gap for upgradeability
+    uint256[50] private __gap;
+
     /// @dev Checks that the Rune registration requests are enabled
     modifier whenRuneRegistrationRequestsEnabled() {
         require(runeRegistrationRequestsEnabled, "rune registration requests disabled");
         _;
     }
 
-    /// @dev Constructor
+    /// @dev The initializer
     /// @param _accessControl       Address of the NBTEBridgeBTCAccessControl contract.
     /// @param _btcAddressValidator Address of the BTCAddressValidator contract.
-    constructor(
+    function initialize(
         address _accessControl,
         address _btcAddressValidator
     )
-    NBTEBridgeAccessControllable(_accessControl)
+    public
+    initializer
     {
+        _setAccessControl(_accessControl);
         btcAddressValidator = IBTCAddressValidator(_btcAddressValidator);
-        // set default transfer policy
+
+        // set default transfer policy and rune registration fee
+
+        runeRegistrationFee = 0.0016 ether;
+
         _setEvmToBtcTransferPolicy(
             address(0),
             1_000_000 ether,
@@ -682,7 +692,7 @@ contract RuneBridge is NBTEBridgeAccessControllable, Freezable, Pausable {
     {
         require(address(newAccessControl) != address(0), "Cannot set to zero address");
         emit AccessControlChanged(address(accessControl), address(newAccessControl));
-        accessControl = newAccessControl;
+        _setAccessControl(address(newAccessControl));
     }
 
     // FREEZE / PAUSE API
