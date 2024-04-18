@@ -47,6 +47,7 @@ logger = logging.getLogger(__name__)
 
 
 class OrdMultisig:
+    DUST_SAT = 1000  # dust limit in satoshis
     signer_xpub: str
 
     def __init__(
@@ -163,10 +164,13 @@ class OrdMultisig:
         signed_psbt = self.sign_psbt(psbt, finalize=True)
         return self.broadcast_psbt(signed_psbt)
 
-    def create_rune_psbt(self, transfers: list[RuneTransfer]):
+    def create_rune_psbt(
+        self,
+        transfers: list[RuneTransfer],
+        *,
         # TODO: estimate the sat per vb feerate
-        fee_rate_sat_per_vbyte = 50
-
+        fee_rate_sat_per_vbyte: int = 50,
+    ):
         # We always have a change output, and we always have it at index 1
         # The first output (index 0) is the Runestone OP_RETURN
         # Change from runes goes to the first non-OP_RETURN output so having this
@@ -185,6 +189,10 @@ class OrdMultisig:
             if not rune_response:
                 raise LookupError(f"Rune {transfer.rune} not found (transfer {transfer})")
             rune_id = pyord.RuneId.from_str(rune_response["id"])
+            if transfer.amount == 0:
+                raise ValueError(
+                    "Zero transfer amounts are not supported as they have a special meaning in Edicts"
+                )
             edicts.append(
                 pyord.Edict(
                     id=rune_id,
@@ -218,7 +226,7 @@ class OrdMultisig:
                 index=0,
             ),
         )
-        # This ist the rune_change_output at index 1
+        # This is the rune_change_output at index 1
         # We always add a 10 000 sat empty output for rune change
         # TODO: this is not ideal if we don't get change in runes
         psbt.add_output(
@@ -317,7 +325,7 @@ class OrdMultisig:
         output_amount_sat = sum(txout.nValue for txout in psbt.unsigned_tx.vout)
         # Change must be either 0 (no output generated) or at least this,
         # else it gets rejected as dust
-        min_change_output_value_sat = TARGET_POSTAGE_SAT
+        min_change_output_value_sat = self.DUST_SAT
 
         while True:
             tx_size_vbyte = estimate_p2wsh_multisig_tx_virtual_size(
@@ -337,6 +345,7 @@ class OrdMultisig:
 
             # Get the next utxo that doesn't have ord balances
             # If no more utxos found, we cannot fund the PSBT
+            # TODO: this is probably not necessary as all the extra runes will go to the default output anyway
             try:
                 while True:
                     utxo = utxos.pop(0)
@@ -415,6 +424,13 @@ class OrdMultisig:
         sign_result = psbt.sign(KeyStore(), finalize=True)
         if not sign_result.is_final:
             raise ValueError("Failed to finalize PSBT")
+        tx = psbt.extract_transaction()
+        tx_hex = tx.serialize().hex()
+        runestone = pyord.Runestone.decipher_hex(tx_hex)
+        if not runestone:
+            raise ValueError(f"Failed to extract Runestone from psbt {psbt}")
+        if runestone.is_cenotaph:
+            raise ValueError(f"Runestone is cenotaph: {runestone}")
         return psbt
 
     def broadcast_psbt(self, psbt: PSBT):

@@ -83,7 +83,7 @@ services:
       server
       --http
       --http-port 80
-      --polling-interval 5s
+      --polling-interval 1s
 
     depends_on:
       bitcoind:

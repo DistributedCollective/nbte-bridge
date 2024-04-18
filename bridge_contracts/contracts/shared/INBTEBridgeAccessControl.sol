@@ -12,6 +12,10 @@ interface INBTEBridgeAccessControl {
     /// @param addressToCheck   The address to check.
     function checkFederator(address addressToCheck) external view;
 
+    /// @dev Is the given address a federator?
+    /// @param addressToCheck   The address to check.
+    function isFederator(address addressToCheck) external view returns (bool);
+
     /// @dev Make sure that the given address is a guard, else revert.
     /// @param addressToCheck   The address to check.
     function checkGuard(address addressToCheck) external view;

@@ -179,15 +179,21 @@ class OrdWallet:
         receiver: str,
         amount_decimal: Decimalish,
         fee_rate: Decimalish = 1,
+        postage: str | int = None,
     ) -> TransferInfo:
         amount_decimal = Decimal(amount_decimal)  # Test that it can be converted to decimal
-        ret = self.cli(
+        args = [
             "send",
             "--fee-rate",
             fee_rate,
             receiver,
             f"{amount_decimal}:{rune}",
-        )
+        ]
+        if postage:
+            if isinstance(postage, int):
+                postage = f"{postage}sat"
+            args.extend(["--postage", postage])
+        ret = self.cli(*args)
         return TransferInfo(
             txid=ret["txid"],
             psbt=ret["psbt"],
