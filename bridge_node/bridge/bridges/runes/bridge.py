@@ -41,17 +41,15 @@ class RuneBridge(Bridge):
             )
 
     def run_iteration(self) -> None:
-        if not self.network.is_leader():
-            # TODO: right now, only the leader will run these
-            logger.info("Not leader, not doing anything")
-            return
-
         num_rune_deposits = self.service.scan_rune_deposits()
         logger.info("Found %s Rune->EVM transfers", num_rune_deposits)
         num_rune_token_deposits = self.service.scan_rune_token_deposits()
         logger.info("Found %s Rune Token->BTC transfers", num_rune_token_deposits)
 
         self.service.confirm_sent_rune_deposits()
+
+        if not self.network.is_leader():
+            return
 
         if self.service.is_bridge_frozen():
             logger.info("Bridge is frozen, not handling deposits")
@@ -86,7 +84,7 @@ class RuneBridge(Bridge):
                 else:
                     logger.info("Not enough signatures for deposit %s", deposit_id)
             except Exception as e:
-                logger.exception("Failed to process deposit %s: %s", deposit_id, e)
+                logger.exception("Failed to process Rune->EVM transfer %s: %s", deposit_id, e)
 
     def _handle_rune_token_transfers_to_btc(self):
         def ask_signatures(message):
@@ -96,10 +94,13 @@ class RuneBridge(Bridge):
             )
 
         for deposit_id in self.service.get_accepted_rune_token_deposit_ids():
-            self.service.handle_accepted_rune_token_deposit(
-                deposit_id,
-                ask_signatures=ask_signatures,
-            )
+            try:
+                self.service.handle_accepted_rune_token_deposit(
+                    deposit_id,
+                    ask_signatures=ask_signatures,
+                )
+            except Exception as e:
+                logger.exception("Failed to process Rune Token -> BTC transfer %s: %s", deposit_id, e)
 
     def _sign_rune_to_evm_transfer_answer(self, message):
         # TODO: This is wrapped to make it easier to patch...

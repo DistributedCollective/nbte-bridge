@@ -21,6 +21,8 @@ class RuneTokenToBtcTransfer:
     net_rune_amount: int
     token_address: str
     rune_name: str
+    event_tx_hash: str
+    event_log_index: int
 
 
 @dataclasses.dataclass
@@ -39,6 +41,7 @@ class SignRuneToEvmTransferAnswer:
 class SignRuneTokenToBtcTransferQuestion:
     transfer: RuneTokenToBtcTransfer
     unsigned_psbt_serialized: str
+    fee_rate_sat_per_vbyte: int
 
 
 @dataclasses.dataclass

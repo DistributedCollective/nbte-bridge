@@ -294,6 +294,7 @@ def runes_setup(
             )
 
     leader_wiring = federator_wirings[0]
+    follower_wirings = federator_wirings[1:]
 
     # Fund the multisig wallet, only needs to be done once (not for each multisig)
     bitcoind.fund_addresses(leader_wiring.multisig.change_address)
@@ -317,6 +318,7 @@ def runes_setup(
         bridge_ord_multisig=leader_wiring.multisig,
         rune_bridge_contract=rune_bridge_contract,
         federator_wirings=federator_wirings,
+        follower_bridges=[w.bridge for w in follower_wirings[1:]],
     )
 
     logger.info("Restoring EVM snapshot %s", snapshot_id)
@@ -404,6 +406,11 @@ def rune_bridge(runes_setup) -> RuneBridge:
 
 
 @pytest.fixture()
+def follower_bridges(runes_setup) -> list[RuneBridge]:
+    return runes_setup.follower_bridges
+
+
+@pytest.fixture()
 def rune_bridge_service(runes_setup) -> RuneBridgeService:
     return runes_setup.rune_bridge_service
 
@@ -439,6 +446,7 @@ def bridge_util(
     rune_bridge_contract,
     rune_bridge_service,
     bridge_ord_multisig,
+    follower_bridges,
 ) -> RuneBridgeUtil:
     return RuneBridgeUtil(
         ord=ord,
@@ -450,4 +458,5 @@ def bridge_util(
         rune_bridge=rune_bridge,
         rune_bridge_service=rune_bridge_service,
         rune_bridge_contract=rune_bridge_contract,
+        follower_bridges=follower_bridges,
     )

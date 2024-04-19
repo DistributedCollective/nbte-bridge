@@ -730,6 +730,26 @@ class RuneBridgeService:
         message: messages.SignRuneToEvmTransferQuestion,
     ) -> messages.SignRuneToEvmTransferAnswer:
         transfer = message.transfer
+        # with self.transaction_manager.transaction() as tx:
+        #     dbsession = tx.find_service(Session)
+        #     deposit = (
+        #         dbsession.query(RuneDeposit)
+        #         .filter_by(
+        #             bridge_id=self.bridge_id,
+        #             tx_id=transfer.txid,
+        #             vout=transfer.vout,
+        #             rune_number=transfer.rune_number,
+        #         )
+        #         .one_or_none()
+        #     )
+        #     if not deposit:
+        #         raise ValidationError(f"Deposit {transfer.txid}:{transfer.vout}:{transfer.rune_number} not found")
+        #     if deposit.status != RuneDepositStatus.ACCEPTED:
+        #         raise ValidationError(f"Deposit {deposit} not accepted (got {deposit.status})")
+        #     if deposit.user.evm_address != transfer.evm_address:
+        #         # TODO: cannot do this yet
+        #         raise ValidationError(f"Deposit {deposit} EVM address mismatch")
+
         rune_response = self.ord_client.get_rune(transfer.rune_name)
         if not rune_response:
             raise ValidationError(f"Rune {transfer.rune_name} not found (transfer {transfer})")
@@ -836,6 +856,18 @@ class RuneBridgeService:
         self,
         message: messages.SignRuneTokenToBtcTransferQuestion,
     ) -> messages.SignRuneTokenToBtcTransferAnswer:
+        with self.transaction_manager.transaction() as tx:
+            dbsession = tx.find_service(Session)
+            deposit = (
+                dbsession.query(RuneTokenDeposit)
+                .filter_by(
+                    bridge_id=self.bridge_id,
+                )
+                .one()
+            )
+            if deposit.status != RuneTokenDepositStatus.ACCEPTED:
+                raise ValidationError(f"Deposit {deposit} not accepted (got {deposit.status})")
+
         unsigned_psbt = self.ord_multisig.deserialize_psbt(message.unsigned_psbt_serialized)
         # TODO: recreate the psbt here
 
@@ -978,9 +1010,12 @@ class RuneBridgeService:
                 rune_name=deposit.rune.n,
                 token_address=deposit.token_address,
                 net_rune_amount=deposit.net_rune_amount_raw,
+                event_tx_hash=deposit.evm_tx_hash,
+                event_log_index=deposit.evm_log_index,
             )
 
         num_required_signatures = self.get_rune_tokens_to_btc_num_required_signers()
+        fee_rate_sat_per_vbyte  = 50  # TODO get from somewhere or calculate
         unsigned_psbt = self.ord_multisig.create_rune_psbt(
             transfers=[
                 RuneTransfer(
@@ -988,11 +1023,13 @@ class RuneBridgeService:
                     receiver=transfer.receiver_address,
                     amount=transfer.net_rune_amount,
                 )
-            ]
+            ],
+            fee_rate_sat_per_vbyte=fee_rate_sat_per_vbyte,
         )
         message = messages.SignRuneTokenToBtcTransferQuestion(
             transfer=transfer,
             unsigned_psbt_serialized=self.ord_multisig.serialize_psbt(unsigned_psbt),
+            fee_rate_sat_per_vbyte=fee_rate_sat_per_vbyte,
         )
         self_response = self.answer_sign_rune_token_to_btc_transfer_question(message=message)
         self_signed_psbt = self.ord_multisig.deserialize_psbt(self_response.signed_psbt_serialized)

@@ -78,6 +78,7 @@ class RuneBridgeUtil:
         hardhat: HardhatService,
         bitcoind: BitcoindService,
         rune_bridge: RuneBridge,
+        follower_bridges: list[RuneBridge],
         rune_bridge_service: RuneBridgeService,
         rune_bridge_contract: Contract,
         root_ord_wallet: OrdWallet,
@@ -89,6 +90,7 @@ class RuneBridgeUtil:
         self._hardhat = hardhat
         self._bitcoind = bitcoind
         self._rune_bridge = rune_bridge
+        self._follower_bridges = follower_bridges
         self._rune_bridge_service = rune_bridge_service
         self._rune_bridge_contract = rune_bridge_contract
         self._root_ord_wallet = root_ord_wallet
@@ -101,6 +103,10 @@ class RuneBridgeUtil:
     # USE CASES
 
     def run_bridge_iteration(self, *, mine: bool = True):
+        # Run these first so they can validate
+        for bridge in self._follower_bridges:
+            bridge.run_iteration()
+
         self._rune_bridge.run_iteration()
         if mine:
             self.mine()
