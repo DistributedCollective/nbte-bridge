@@ -4,6 +4,8 @@ volumes/
 # ignore default docker-compose.yaml, symlink it freely
 docker-compose.yaml
 
+secrets/
+
 # Mostly copied from
 # https://github.com/github/gitignore/blob/main/Python.gitignore
 # Byte-compiled / optimized / DLL files

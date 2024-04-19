@@ -1099,3 +1099,27 @@ class RuneBridgeService:
             address=address,
             abi=load_rune_bridge_abi("RuneToken"),
         )
+
+    def get_rune_deposits(self):
+        with self.transaction_manager.transaction() as tx:
+            dbsession = tx.find_service(Session)
+            deposits = (
+                dbsession.query(RuneDeposit)
+                .order_by(
+                    RuneDeposit.created_at.desc(),
+                )
+                .all()
+            )
+            return deposits
+
+    def get_rune_token_deposits(self):
+        with self.transaction_manager.transaction() as tx:
+            dbsession = tx.find_service(Session)
+            deposits = (
+                dbsession.query(RuneTokenDeposit)
+                .order_by(
+                    RuneTokenDeposit.created_at.desc(),
+                )
+                .all()
+            )
+            return deposits
