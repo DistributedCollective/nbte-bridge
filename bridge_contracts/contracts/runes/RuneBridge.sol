@@ -602,7 +602,7 @@ contract RuneBridge is Initializable, NBTEBridgeAccessControllable, Freezable, P
     internal
     pure
     {
-        require(rune <= type(uint128).max, "rune number too large");
+        require(rune <= type(uint128).max, "rune too large");
         require(rune != 0, "rune cannot be zero");  // runesByToken[address(0)] == 0 means unregistered
     }
 

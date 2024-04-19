@@ -53,7 +53,7 @@ describe("RuneBridge", function () {
             ],
         );
 
-        // disable policy for easier testing
+        // disable fees for easier testing
         await runeBridge.setEvmToBtcTransferPolicy(
             ADDRESS_ZERO,
             ethers.parseEther("1000000000"),
@@ -61,7 +61,8 @@ describe("RuneBridge", function () {
             0,
             0,
             0,
-        )
+        );
+        await runeBridge.setRuneRegistrationFee(0);
 
         const RuneToken = await ethers.getContractFactory("RuneToken");
 
@@ -76,6 +77,7 @@ describe("RuneBridge", function () {
         const runeToken = RuneToken.attach(runeTokenAddress);
 
         const userRuneBridge = runeBridge.connect(user) as typeof runeBridge;
+        const userRuneToken = runeToken.connect(user) as typeof runeToken;
 
         return {
             runeBridge,
@@ -84,6 +86,7 @@ describe("RuneBridge", function () {
             accessControl,
             rune,
             runeToken,
+            userRuneToken,
         };
     }
 
@@ -106,7 +109,6 @@ describe("RuneBridge", function () {
 
         totalSupply = await runeToken.totalSupply();
         expect(totalSupply).to.equal(10);
-
 
         await setRuneTokenBalance(runeToken, user, 20);
 
@@ -183,11 +185,94 @@ describe("RuneBridge", function () {
             );
         });
 
+        it('reverts when paused', async () => {
+            const { runeBridge, runeToken } = await loadFixture(runeBridgeFixture);
+
+            await setRuneTokenBalance(runeToken, owner, 1000);
+            await runeToken.approve(await runeBridge.getAddress(), 1000);
+
+            await runeBridge.pause();
+            await expect(runeBridge.transferToBtc(
+                await runeToken.getAddress(),
+                100,
+                btcAddress,
+            )).to.be.revertedWith("Pausable: paused");
+        });
+
+        it('is callable by a normal user', async () => {
+            const { runeBridge, userRuneToken, userRuneBridge } = await loadFixture(runeBridgeFixture);
+
+            await setRuneTokenBalance(userRuneToken, user, 1000);
+
+            await expect(userRuneBridge.transferToBtc(
+                await userRuneToken.getAddress(),
+                100,
+                btcAddress,
+            )).to.emit(runeBridge, "RuneTransferToBtc");
+        });
+
         // TODO: it handles fees
-        // TODO: not callable when paused
+        it('handles fees', async () => {
+            const { runeBridge, runeToken } = await loadFixture(runeBridgeFixture);
+
+            await setRuneTokenBalance(runeToken, owner, 1000);
+            await runeToken.approve(await runeBridge.getAddress(), 1000);
+        });
     });
 
-    //     function requestRuneRegistration(
+    describe("requestRuneRegistration", () => {
+        it("works", async function () {
+            const { runeBridge, userRuneBridge } = await loadFixture(runeBridgeFixture);
+
+            await runeBridge.setRuneRegistrationRequestsEnabled(true);
+            await expect(userRuneBridge.requestRuneRegistration(
+                1234,
+            )).to.emit(runeBridge, "RuneRegistrationRequested").withArgs(
+                1234,
+                await user.getAddress(),
+                0,
+            );
+        });
+
+        it("reverts for already registered runes", async function () {
+            const { runeBridge, userRuneBridge, rune } = await loadFixture(runeBridgeFixture);
+
+            await runeBridge.setRuneRegistrationRequestsEnabled(true);
+            await expect(userRuneBridge.requestRuneRegistration(
+                rune,
+            )).to.be.revertedWith("rune already registered");
+        });
+
+        it('reverts if registration is already requested', async () => {
+            const { runeBridge, userRuneBridge } = await loadFixture(runeBridgeFixture);
+
+            await runeBridge.setRuneRegistrationRequestsEnabled(true);
+            await userRuneBridge.requestRuneRegistration(1234);
+            await expect(userRuneBridge.requestRuneRegistration(1234)).to.be.revertedWith("registration already requested");
+        });
+
+        it('reverts if registration is disabled', async () => {
+            const { runeBridge, userRuneBridge } = await loadFixture(runeBridgeFixture);
+
+            await runeBridge.setRuneRegistrationRequestsEnabled(false);
+            await expect(userRuneBridge.requestRuneRegistration(1234)).to.be.revertedWith("rune registration requests disabled");
+        });
+
+        it('reverts by default because registration requests are disabled', async () => {
+            const { userRuneBridge } = await loadFixture(runeBridgeFixture);
+
+            await expect(userRuneBridge.requestRuneRegistration(1234)).to.be.revertedWith("rune registration requests disabled");
+        });
+
+        it('reverts for invalid rune numbers', async () => {
+            const { runeBridge, userRuneBridge } = await loadFixture(runeBridgeFixture);
+
+            await runeBridge.setRuneRegistrationRequestsEnabled(true);
+            await expect(userRuneBridge.requestRuneRegistration(0)).to.be.revertedWith("rune cannot be zero");
+            await expect(userRuneBridge.requestRuneRegistration(2n**128n)).to.be.revertedWith("rune too large");
+        });
+    });
+
     //     function acceptRuneRegistrationRequest(
     //     function getAcceptRuneRegistrationRequestMessageHash(
 
