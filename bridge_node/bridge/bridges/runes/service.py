@@ -1110,6 +1110,10 @@ class RuneBridgeService:
                 )
                 .all()
             )
+
+            for item in deposits:
+                dbsession.expunge(item)
+
             return deposits
 
     def get_rune_token_deposits(self):
@@ -1122,4 +1126,8 @@ class RuneBridgeService:
                 )
                 .all()
             )
+
+            for item in deposits:
+                dbsession.expunge(item)
+
             return deposits
