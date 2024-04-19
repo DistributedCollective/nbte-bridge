@@ -222,8 +222,11 @@ def test_2_of_3_send_runes(
     assert test_wallet.get_rune_balance_decimal(rune_a) == transfer_amount
     assert test_wallet.get_rune_balance_decimal(rune_b) == 0
     for multisig in [multisig1, multisig2]:
-        assert to_decimal(multisig.get_rune_balance(rune_a), 18) == supply - transfer_amount
-        assert to_decimal(multisig.get_rune_balance(rune_b), 18) == supply
+        assert (
+            to_decimal(multisig.get_rune_balance(rune_a, wait_for_indexing=True), 18)
+            == supply - transfer_amount
+        )
+        assert to_decimal(multisig.get_rune_balance(rune_b, wait_for_indexing=True), 18) == supply
 
 
 # This test is flaky and needs revisiting
@@ -243,7 +246,7 @@ def test_ord_multisig_send_runes_from_derived_address(
     ord.mine_and_sync()
 
     # Sanity check
-    assert to_decimal(multisig.get_rune_balance(etching.rune), 18) == 0
+    assert to_decimal(multisig.get_rune_balance(etching.rune, wait_for_indexing=True), 18) == 0
     assert test_wallet.get_rune_balance_decimal(etching.rune) == 0
 
     derived_address = multisig.derive_address(42)
@@ -256,7 +259,7 @@ def test_ord_multisig_send_runes_from_derived_address(
     )
     ord.mine_and_sync()
 
-    assert to_decimal(multisig.get_rune_balance(etching.rune), 18) == supply
+    assert to_decimal(multisig.get_rune_balance(etching.rune, wait_for_indexing=True), 18) == supply
 
     transfer_amount = Decimal("98.7")
     multisig.send_runes(
@@ -270,7 +273,10 @@ def test_ord_multisig_send_runes_from_derived_address(
     )
     ord.mine_and_sync()
 
-    assert to_decimal(multisig.get_rune_balance(etching.rune), 18) == supply - transfer_amount
+    assert (
+        to_decimal(multisig.get_rune_balance(etching.rune, wait_for_indexing=True), 18)
+        == supply - transfer_amount
+    )
     assert test_wallet.get_rune_balance_decimal(etching.rune) == transfer_amount
 
 

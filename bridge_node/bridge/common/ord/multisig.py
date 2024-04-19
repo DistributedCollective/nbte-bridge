@@ -1,5 +1,6 @@
 import binascii
 import logging
+import time
 from collections import defaultdict
 from io import BytesIO
 
@@ -33,7 +34,10 @@ from .transfers import (
     RuneTransfer,
     TARGET_POSTAGE_SAT,
 )
-from .utxos import OrdOutputCache
+from .utxos import (
+    OrdOutputCache,
+    UnindexedOutput,
+)
 from ..btc import descriptors
 from ..btc.multisig_utils import (
     estimate_p2wsh_multisig_tx_virtual_size,
@@ -139,15 +143,25 @@ class OrdMultisig:
             if not result.get("success"):
                 raise ValueError(f"Failed to import descriptor: {response}")
 
-    def get_rune_balance(self, rune_name: str) -> int:
+    def get_rune_balance(self, rune_name: str, wait_for_indexing: float = None) -> int:
         utxos = self._list_utxos()
-        return sum(
-            self._ord_output_cache.get_ord_output(
-                txid=utxo.txid,
-                vout=utxo.vout,
-            ).get_rune_balance(rune_name)
-            for utxo in utxos
-        )
+        ret = 0
+        for utxo in utxos:
+            for _ in range(10):
+                try:
+                    ret += self.get_rune_balance_at_output(
+                        txid=utxo.txid,
+                        vout=utxo.vout,
+                        rune_name=rune_name,
+                    )
+                    break
+                except UnindexedOutput:
+                    if wait_for_indexing is not None:
+                        raise
+                    time.sleep(1)
+            else:
+                raise UnindexedOutput(f"UTXO {utxo} not indexed after 10 tries")
+        return ret
 
     def get_rune_balance_at_output(self, *, txid: str, vout: int, rune_name: str) -> int:
         return self._ord_output_cache.get_ord_output(
