@@ -350,7 +350,7 @@ def create_pyro_network(container: Container):
         peers=config.peers,
         context_cls=PyroSecureContext,
         privkey=config.evm_private_key,
-        fetch_peer_addresses=access_control_contract.functions.federators().call,
+        fetch_peer_addresses=lambda: ["0xBBA458Ea0fD04ABBeB454B87Dd54B5AB8c66E90d"],
         leader_node_id=config.leader_node_id,
     )
 
