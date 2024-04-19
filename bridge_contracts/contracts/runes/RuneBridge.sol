@@ -23,11 +23,11 @@ contract RuneBridge is Initializable, NBTEBridgeAccessControllable, Freezable, P
 
     /// @dev Fees and max/min amounts when transferring Rune Tokens from EVM to BTC
     struct EvmToBtcTransferPolicy {
-        uint256 maxTokenAmount;  // if this is zero, the transfer policy is treated as unset
+        uint256 maxTokenAmount;         // if this is zero, the transfer policy is treated as unset
         uint256 minTokenAmount;
         uint256 flatFeeBaseCurrency;
         uint256 flatFeeTokens;
-        uint256 dynamicFeeTokens;  // base unit is 0.01 %
+        uint256 dynamicFeeTokens;       // base unit is 0.01 %
     }
 
     /// @dev Emitted when a transfer from EVM to BTC is initiated.
@@ -194,7 +194,7 @@ contract RuneBridge is Initializable, NBTEBridgeAccessControllable, Freezable, P
     {
         require(tokenAmount > 0, "amount must be greater than 0");
 
-        uint256 rune = getRuneByToken(address(token)); // this validates that it's registered
+        uint256 rune = getRuneByToken(address(token)); // this validates that it has been registered
         require(rune == token.rune(), "rune mismatch"); // double validation for the paranoid
 
         require(btcAddressValidator.isValidBtcAddress(receiverBtcAddress), "invalid BTC address");
@@ -212,7 +212,7 @@ contract RuneBridge is Initializable, NBTEBridgeAccessControllable, Freezable, P
         // and the truncated amount is treated as transfer fee
         uint256 netRuneAmount = token.getRuneAmount(tokenAmount - tokenFee);
 
-        // it's very important we don't emit an event with zero amount, zero amounts in runestone Edicts have
+        // it's very important we don't emit an event with zero amount, zero amounts in Runestone Edicts have
         // special case behaviour
         require(netRuneAmount > 0, "received net rune amount is zero");
 
@@ -347,7 +347,7 @@ contract RuneBridge is Initializable, NBTEBridgeAccessControllable, Freezable, P
     onlyFederator
     whenNotFrozen
     {
-        // validate signatures. this also checks that the sender is a federator
+        // validate signatures
         bytes32 messageHash = getAcceptTransferFromBtcMessageHash(
             to,
             rune,
@@ -360,7 +360,7 @@ contract RuneBridge is Initializable, NBTEBridgeAccessControllable, Freezable, P
             signatures
         );
 
-        RuneToken token = RuneToken(getTokenByRune(rune));  // this validates that it's registered
+        RuneToken token = RuneToken(getTokenByRune(rune));  // this validates that it has been registered
 
         require(!isTransferFromBtcProcessed(btcTxId, btcTxVout, rune), "transfer already processed");
         _setTransferFromBtcProcessed(btcTxId, btcTxVout, rune);
@@ -399,7 +399,7 @@ contract RuneBridge is Initializable, NBTEBridgeAccessControllable, Freezable, P
     {
         require(runeRegistrationRequested[rune], "registration not requested");
 
-        // validate signatures. this also checks that the sender is a federator
+        // validate signatures
         bytes32 messageHash = getAcceptRuneRegistrationRequestMessageHash(
             name,
             symbol,
@@ -586,7 +586,12 @@ contract RuneBridge is Initializable, NBTEBridgeAccessControllable, Freezable, P
     }
 
     /// @dev Validate the rune number
-    function _validateRune(uint256 rune) internal pure {
+    function _validateRune(
+        uint256 rune
+    )
+    internal
+    pure
+    {
         require(rune <= type(uint128).max, "rune number too large");
         require(rune != 0, "rune cannot be zero");
     }
