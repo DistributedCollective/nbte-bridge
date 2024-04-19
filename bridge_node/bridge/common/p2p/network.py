@@ -1,3 +1,4 @@
+import socket
 import logging
 import threading
 import dataclasses
@@ -340,9 +341,11 @@ def create_pyro_network(container: Container):
         ],
     )
 
+    hostname = socket.gethostname()
     network = PyroNetwork(
         node_id=config.node_id,
-        host=config.hostname,
+        # host=config.hostname,
+        host=hostname,
         port=config.port,
         peers=config.peers,
         context_cls=PyroSecureContext,
