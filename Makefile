@@ -17,8 +17,12 @@ install-poetry:
 serve:
 	docker compose -f docker-compose.dev.yaml up -d --build
 
+.PHONY: create-shared-ca-cert
+create-shared-ca-cert:
+	mkdir -p secrets/certs/ && cd secrets/certs/ && ../../bridge_node/scripts/create_ca_cert.sh
+
 .PHONY: serve-encrypted
-serve-testnet:
+serve-encrypted:
 	python server/serve_with_secrets.py docker-compose.encrypted.yaml
 
 .PHONY: lint

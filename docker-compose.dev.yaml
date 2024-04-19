@@ -141,6 +141,7 @@ services:
     volumes:
       - ./volumes/lnd/alice-lnd:/var/bridge/lnd
       - ./volumes/tapd/alice-tap:/var/bridge/tapd
+      # - ./secrets/certs/:/srv/bridge_backend/certs/
     labels:
       - "node.type=bridge"
       - "traefik.http.routers.alice-bridge.rule=PathPrefix(`/api/`)"
@@ -199,6 +200,7 @@ services:
     volumes:
       - ./volumes/lnd/bob-lnd:/var/bridge/lnd
       - ./volumes/tapd/bob-tap:/var/bridge/tapd
+      # - ./secrets/certs/:/srv/bridge_backend/certs/
     environment:
       # NOTE: the private keys and other secrets are supposed to be here -- they are not used in the real world, only regtest. Don't report them.
       - BRIDGE_NODE_ID=bob-node
