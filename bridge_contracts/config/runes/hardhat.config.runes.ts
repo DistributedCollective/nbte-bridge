@@ -1,6 +1,8 @@
 import {task, types} from "hardhat/config";
 import "@nomicfoundation/hardhat-toolbox";
 import {jsonAction} from '../base';
+import {ethers, upgrades} from 'hardhat';
+import {getAdminAddress, getImplementationAddress} from '@openzeppelin/upgrades-core';
 
 const PREFIX = 'runes-'
 
@@ -15,10 +17,11 @@ task(`${PREFIX}deploy-regtest`)
         runeName,
         runeSymbol,
     }, hre) => {
-        const ethers = hre.ethers;
+        const { ethers, upgrades } = hre;
 
-        const bridge = await ethers.deployContract(
-            "RuneBridge",
+        const RuneBridge = await ethers.getContractFactory("RuneBridge");
+        const bridge = await upgrades.deployProxy(
+            RuneBridge,
             [
                 accessControl,
                 addressValidator,
@@ -29,6 +32,10 @@ task(`${PREFIX}deploy-regtest`)
         console.log(
             `RuneBridge deployed to ${bridge.target}`
         );
+        const implementationAddress = await getImplementationAddress(ethers.provider, bridge.target as any);
+        console.log(`Implementation deployed to ${implementationAddress}`);
+        const proxyAdminAddress = await getAdminAddress(ethers.provider, bridge.target as any);
+        console.log(`ProxyAdmin deployed to ${proxyAdminAddress}`);
 
         if (runeName) {
             if (!runeSymbol) {
@@ -58,23 +65,27 @@ task(`${PREFIX}deploy-regtest`)
 
         return {
             addresses: {
-                RuneBridge: bridge.target
+                RuneBridge: bridge.target,
+                RuneBridgeProxy: bridge.target,
+                RuneBridgeImplementation: implementationAddress,
+                ProxyAdmin: proxyAdminAddress,
             }
         }
     }));
 
 
-task(`deploy-rune-bridge`)
+task(`deploy-rune-bridge-behind-proxy`)
     .addParam('accessControl', 'NBTEBridgeAccessControl address')
     .addParam('addressValidator', 'BTCAddressValidator address')
     .setAction(jsonAction(async ({
         accessControl,
         addressValidator,
     }, hre) => {
-        const ethers = hre.ethers;
+        const { ethers, upgrades } = hre;
 
-        const bridge = await ethers.deployContract(
-            "RuneBridge",
+        const RuneBridge = await ethers.getContractFactory("RuneBridge");
+        const bridge = await upgrades.deployProxy(
+            RuneBridge,
             [
                 accessControl,
                 addressValidator,
@@ -85,11 +96,64 @@ task(`deploy-rune-bridge`)
         console.log(
             `RuneBridge deployed to ${bridge.target}`
         );
+        const implementationAddress = await getImplementationAddress(ethers.provider, bridge.target as any);
+        console.log(`Implementation deployed to ${implementationAddress}`);
+        const proxyAdminAddress = await getAdminAddress(ethers.provider, bridge.target as any);
+        console.log(`ProxyAdmin deployed to ${proxyAdminAddress}`);
 
         return {
             address: bridge.target,
+            proxyAddress: bridge.target,
+            implementationAddress: implementationAddress,
+            proxyAdminAddress: proxyAdminAddress,
         }
     }));
+
+
+task(`upgrade-rune-bridge`)
+    .addParam("bridgeAddress", "RuneBridge contract address")
+    .addParam("action", "Action to perform, either validate or upgrade")
+    .setAction(jsonAction(async ({
+        bridgeAddress,
+        action,
+    }, hre) => {
+        const { ethers, upgrades } = hre;
+
+        const currentImplementation = await getImplementationAddress(ethers.provider, bridgeAddress);
+        console.log(`Current implementation: ${currentImplementation}`);
+        const currentProxyAdmin = await getAdminAddress(ethers.provider, bridgeAddress);
+        console.log(`CurrentProxyAdmin: ${currentProxyAdmin}`);
+
+        const RuneBridge = await ethers.getContractFactory("RuneBridge");
+        if (action === 'upgrade') {
+            console.log("Upgrading");
+            await upgrades.upgradeProxy(
+                bridgeAddress,
+                RuneBridge,
+            );
+        } else if (action === 'validate') {
+            console.log("Validating upgrade");
+            await upgrades.validateUpgrade(
+                bridgeAddress,
+                RuneBridge,
+            );
+            console.log("All good?");
+            return {
+                success: true,
+            }
+        } else {
+            throw new Error(`Unknown action: ${action}`);
+        }
+
+        const newImplementationAddress = await getImplementationAddress(ethers.provider, bridgeAddress as any);
+        console.log(`New implementation deployed to ${newImplementationAddress}`);
+
+        return {
+            success: true,
+            newImplementationAddress,
+        }
+    }));
+
 
 task(`${PREFIX}register-rune`)
     .addParam("bridgeAddress", "RuneBridge contract address")

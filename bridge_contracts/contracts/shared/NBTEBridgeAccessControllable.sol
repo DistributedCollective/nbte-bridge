@@ -4,15 +4,17 @@ pragma solidity 0.8.19;
 import "./INBTEBridgeAccessControl.sol";
 
 /// @title An utility mixin to inherit contracts that require access control from.
+/// @dev Works with upgradeable contracts
 abstract contract NBTEBridgeAccessControllable {
     /// @dev The NBTEBridgeAccessControl address.
     INBTEBridgeAccessControl public accessControl;
 
-    /// @dev The constructor.
+    /// @dev Initializer to set the access control, because this contract needs to work with upgradeable contracts
     /// @param _accessControl   The NBTEBridgeAccessControl address.
-    constructor(
+    function _setAccessControl(
         address _accessControl
     )
+    internal
     {
         accessControl = INBTEBridgeAccessControl(_accessControl);
     }

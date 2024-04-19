@@ -1,11 +1,15 @@
-from getpass import getpass
 import json
 import logging
 import os
-import environ
-from anemic.ioc import service
 import socket
+
+from decimal import Decimal
+from getpass import getpass
 from typing import Literal
+
+import environ
+
+from anemic.ioc import service
 
 logger = logging.getLogger(__name__)
 
@@ -60,6 +64,7 @@ class Config:
     runes_btc_rpc_wallet_url = environ.var()
     runes_ord_api_url = environ.var()
     runes_btc_base_derivation_path = environ.var(default="m/13/0/0")
+    runes_to_evm_fee_percentage_decimal = environ.var(default="0.4", converter=Decimal)
 
     secret_runes_btc_master_xpubs = environ.var(converter=comma_separated)
 

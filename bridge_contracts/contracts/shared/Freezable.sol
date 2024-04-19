@@ -27,13 +27,6 @@ abstract contract Freezable {
     bool private _frozen;
 
     /**
-     * @dev Initializes the contract in unfrozen state.
-     */
-    constructor() {
-        _frozen = false;
-    }
-
-    /**
      * @dev Returns true if the contract is frozen, and false otherwise.
      */
     function frozen() public view virtual returns (bool) {

@@ -43,4 +43,44 @@ describe("RuneToken", function () {
         expect(await testToken.decimals()).to.equal(18);
         expect(await testToken.rune()).to.equal(12345);
     });
+
+    describe('mintTo', function () {
+        it('mints tokens', async function () {
+            const testToken = await loadFixture(testTokenFixture);
+            const user = (await ethers.getSigners())[1];
+            const address = await user.getAddress();
+            await expect(testToken.mintTo(address, 1000)).to.changeTokenBalance(
+                testToken,
+                user,
+                1000
+            );
+            expect(await testToken.balanceOf(address)).to.equal(1000);
+            expect(await testToken.totalSupply()).to.equal(1000);
+        });
+
+        it('reverts if not called by minter', async function () {
+            const testToken = await loadFixture(testTokenFixture);
+            const anotherUser = (await ethers.getSigners())[1];
+            await expect(
+                (
+                    testToken.connect(
+                        anotherUser
+                    ) as typeof testToken
+                ).mintTo(
+                    await anotherUser.getAddress(),
+                    1000,
+                )
+            ).to.be.revertedWith('only callable by minter');
+        });
+    });
+
+    describe('changeMinter', () => {
+        it('is only callable by the minter', async () => {
+            const testToken = await loadFixture(testTokenFixture);
+            const [_, other] = await ethers.getSigners();
+            await expect(
+                (testToken.connect(other) as typeof testToken).changeMinter(await other.getAddress())
+            ).to.be.revertedWith('only callable by minter');
+        });
+    });
 });

@@ -1,6 +1,6 @@
-import { HardhatUserConfig } from "hardhat/config";
-import {task, types} from "hardhat/config";
+import {HardhatUserConfig, task, types} from "hardhat/config";
 import "@nomicfoundation/hardhat-toolbox";
+import "@openzeppelin/hardhat-upgrades";
 import { jsonAction } from './config/base';
 import './config/tap/hardhat.config.tap';
 import './config/runes/hardhat.config.runes';

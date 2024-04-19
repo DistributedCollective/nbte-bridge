@@ -5,7 +5,8 @@ import {NBTEBridgeAccessControllable} from "../shared/NBTEBridgeAccessControllab
 import {IBTCAddressValidator} from "../shared/IBTCAddressValidator.sol";
 import {INBTEBridgeAccessControl} from "../shared/INBTEBridgeAccessControl.sol";
 import {Freezable} from "../shared/Freezable.sol";
-import {Pausable} from "@openzeppelin/contracts/security/Pausable.sol";
+import {PausableUpgradeable} from "@openzeppelin/contracts-upgradeable/security/PausableUpgradeable.sol";
+import {Initializable} from "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol";
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import {Address} from "@openzeppelin/contracts/utils/Address.sol";
@@ -15,18 +16,18 @@ import {RuneToken} from "./RuneToken.sol";
 /// @title The main Rune Bridge contract
 /// @notice Allows the federator network to mint new Rune Tokens based on rune deposits, and accepts the Rune Tokens
 //          back, which will burn them and instruct the federator network to release Runes.
-contract RuneBridge is NBTEBridgeAccessControllable, Freezable, Pausable {
+contract RuneBridge is Initializable, NBTEBridgeAccessControllable, Freezable, PausableUpgradeable {
     using SafeERC20 for IERC20;
     using SafeERC20 for RuneToken;
     using Address for address payable;
 
     /// @dev Fees and max/min amounts when transferring Rune Tokens from EVM to BTC
     struct EvmToBtcTransferPolicy {
-        uint256 maxTokenAmount;  // if this is zero, the transfer policy is treated as unset
+        uint256 maxTokenAmount;         // if this is zero, the transfer policy is treated as unset
         uint256 minTokenAmount;
         uint256 flatFeeBaseCurrency;
         uint256 flatFeeTokens;
-        uint256 dynamicFeeTokens;  // base unit is 0.01 %
+        uint256 dynamicFeeTokens;       // base unit is 0.01 %
     }
 
     /// @dev Emitted when a transfer from EVM to BTC is initiated.
@@ -128,7 +129,7 @@ contract RuneBridge is NBTEBridgeAccessControllable, Freezable, Pausable {
     bool public runeRegistrationRequestsEnabled;
 
     /// @dev The base currency fee for registering a new Rune
-    uint256 public runeRegistrationFee = 0.0016 ether;
+    uint256 public runeRegistrationFee;
 
     /// @dev Mapping rune => registration requested
     mapping(uint256 => bool) public runeRegistrationRequested;
@@ -139,23 +140,32 @@ contract RuneBridge is NBTEBridgeAccessControllable, Freezable, Pausable {
     /// @dev EVM to BTC transfer policies by token. Index 0x0 is the default policy
     mapping(address => EvmToBtcTransferPolicy) public evmToBtcTransferPoliciesByToken;
 
+    // @dev storage gap for upgradeability
+    uint256[50] private __gap;
+
     /// @dev Checks that the Rune registration requests are enabled
     modifier whenRuneRegistrationRequestsEnabled() {
         require(runeRegistrationRequestsEnabled, "rune registration requests disabled");
         _;
     }
 
-    /// @dev Constructor
+    /// @dev The initializer
     /// @param _accessControl       Address of the NBTEBridgeBTCAccessControl contract.
     /// @param _btcAddressValidator Address of the BTCAddressValidator contract.
-    constructor(
+    function initialize(
         address _accessControl,
         address _btcAddressValidator
     )
-    NBTEBridgeAccessControllable(_accessControl)
+    public
+    initializer
     {
+        _setAccessControl(_accessControl);
         btcAddressValidator = IBTCAddressValidator(_btcAddressValidator);
-        // set default transfer policy
+
+        // set default transfer policy and rune registration fee
+
+        runeRegistrationFee = 0.0016 ether;
+
         _setEvmToBtcTransferPolicy(
             address(0),
             1_000_000 ether,
@@ -184,7 +194,7 @@ contract RuneBridge is NBTEBridgeAccessControllable, Freezable, Pausable {
     {
         require(tokenAmount > 0, "amount must be greater than 0");
 
-        uint256 rune = getRuneByToken(address(token)); // this validates that it's registered
+        uint256 rune = getRuneByToken(address(token)); // this validates that it has been registered
         require(rune == token.rune(), "rune mismatch"); // double validation for the paranoid
 
         require(btcAddressValidator.isValidBtcAddress(receiverBtcAddress), "invalid BTC address");
@@ -202,7 +212,7 @@ contract RuneBridge is NBTEBridgeAccessControllable, Freezable, Pausable {
         // and the truncated amount is treated as transfer fee
         uint256 netRuneAmount = token.getRuneAmount(tokenAmount - tokenFee);
 
-        // it's very important we don't emit an event with zero amount, zero amounts in runestone Edicts have
+        // it's very important we don't emit an event with zero amount, zero amounts in Runestone Edicts have
         // special case behaviour
         require(netRuneAmount > 0, "received net rune amount is zero");
 
@@ -237,6 +247,7 @@ contract RuneBridge is NBTEBridgeAccessControllable, Freezable, Pausable {
     whenRuneRegistrationRequestsEnabled
     whenNotPaused
     {
+        _validateRune(rune);
         require(!isRuneRegistered(rune), "rune already registered");
         require(!runeRegistrationRequested[rune], "registration already requested");
         require(msg.value == runeRegistrationFee, "incorrect base currency fee");
@@ -251,11 +262,17 @@ contract RuneBridge is NBTEBridgeAccessControllable, Freezable, Pausable {
 
     /// @dev Is the Rune registered on the Bridge_
     function isRuneRegistered(uint256 rune) public view returns (bool) {
+        if (rune == 0) {
+            return false;
+        }
         return tokensByRune[rune] != address(0);
     }
 
     /// @dev Is the token a Rune Token deployed by the Bridge_
     function isTokenRegistered(address token) public view returns (bool) {
+        if (token == address(0)) {
+            return false;
+        }
         return runesByToken[token] != 0;
     }
 
@@ -266,12 +283,14 @@ contract RuneBridge is NBTEBridgeAccessControllable, Freezable, Pausable {
 
     /// @dev Get the Rune Token that corresponds to a rune. Validates that the rune is registered
     function getTokenByRune(uint256 rune) public view returns (address token) {
+        require(rune != 0, "rune cannot be zero");
         token = tokensByRune[rune];
         require(token != address(0), "rune not registered");
     }
 
     /// @dev Get the Rune that corresponds to a Rune Token. Validates that the token is registered
     function getRuneByToken(address token) public view returns (uint256 rune) {
+        require(token != address(0), "token cannot be zero");
         rune = runesByToken[token];
         require(rune != 0, "token not registered");
     }
@@ -299,6 +318,7 @@ contract RuneBridge is NBTEBridgeAccessControllable, Freezable, Pausable {
 
     /// @dev Get the transfer policy when transferring Rune Tokens to BTC
     function getEvmToBtcTransferPolicy(address token) public view returns (EvmToBtcTransferPolicy memory policy) {
+        require(token == address(0) || isTokenRegistered(token), "token not registered");
         policy = evmToBtcTransferPoliciesByToken[token];
         if (policy.maxTokenAmount == 0) {
             policy = evmToBtcTransferPoliciesByToken[address(0)];
@@ -337,7 +357,7 @@ contract RuneBridge is NBTEBridgeAccessControllable, Freezable, Pausable {
     onlyFederator
     whenNotFrozen
     {
-        // validate signatures. this also checks that the sender is a federator
+        // validate signatures
         bytes32 messageHash = getAcceptTransferFromBtcMessageHash(
             to,
             rune,
@@ -350,7 +370,7 @@ contract RuneBridge is NBTEBridgeAccessControllable, Freezable, Pausable {
             signatures
         );
 
-        RuneToken token = RuneToken(getTokenByRune(rune));  // this validates that it's registered
+        RuneToken token = RuneToken(getTokenByRune(rune));  // this validates that it has been registered
 
         require(!isTransferFromBtcProcessed(btcTxId, btcTxVout, rune), "transfer already processed");
         _setTransferFromBtcProcessed(btcTxId, btcTxVout, rune);
@@ -389,7 +409,7 @@ contract RuneBridge is NBTEBridgeAccessControllable, Freezable, Pausable {
     {
         require(runeRegistrationRequested[rune], "registration not requested");
 
-        // validate signatures. this also checks that the sender is a federator
+        // validate signatures
         bytes32 messageHash = getAcceptRuneRegistrationRequestMessageHash(
             name,
             symbol,
@@ -576,9 +596,14 @@ contract RuneBridge is NBTEBridgeAccessControllable, Freezable, Pausable {
     }
 
     /// @dev Validate the rune number
-    function _validateRune(uint256 rune) internal pure {
-        require(rune <= type(uint128).max, "rune number too large");
-        require(rune != 0, "rune cannot be zero");
+    function _validateRune(
+        uint256 rune
+    )
+    internal
+    pure
+    {
+        require(rune <= type(uint128).max, "rune too large");
+        require(rune != 0, "rune cannot be zero");  // runesByToken[address(0)] == 0 means unregistered
     }
 
     /// @dev Set the EVM to BTC transfer policy for a Rune Token
@@ -617,7 +642,7 @@ contract RuneBridge is NBTEBridgeAccessControllable, Freezable, Pausable {
         require(dynamicFeeTokens < DYNAMIC_FEE_DIVISOR, "dynamic fee must be less than 100%");
         // maxTokenAmount = 0 disables the policy
         require(maxTokenAmount == 0 || flatFeeTokens <= maxTokenAmount, "flat fee must be less than max amount");
-        require(token == address(0) || isRuneRegistered(runesByToken[token]), "token not registered");
+        require(token == address(0) || isTokenRegistered(token), "token not registered");
 
         EvmToBtcTransferPolicy storage policy = evmToBtcTransferPoliciesByToken[token];
         policy.maxTokenAmount = maxTokenAmount;
@@ -682,7 +707,7 @@ contract RuneBridge is NBTEBridgeAccessControllable, Freezable, Pausable {
     {
         require(address(newAccessControl) != address(0), "Cannot set to zero address");
         emit AccessControlChanged(address(accessControl), address(newAccessControl));
-        accessControl = newAccessControl;
+        _setAccessControl(address(newAccessControl));
     }
 
     // FREEZE / PAUSE API
