@@ -4,13 +4,13 @@ import {
 import { expect } from 'chai';
 import { ethers, upgrades } from "hardhat";
 import { Signer } from 'ethers';
+import { setBalance } from "@nomicfoundation/hardhat-network-helpers";
 import {
     reasonNotAdmin,
     reasonNotGuard,
     reasonNotPauser,
     setRuneTokenBalance,
 } from "./utils";
-import {RuneToken} from '../../typechain-types';
 
 const ADDRESS_ZERO = "0x0000000000000000000000000000000000000000";
 const ADDRESS_RANDOM = "0x0000000000000000000000000000000000000123";
@@ -21,11 +21,10 @@ describe("RuneBridge", function () {
     let federator2: Signer;
     let federator3: Signer;
     let user: Signer;
-    let user2: Signer;
     let federators: Signer[];
 
     beforeEach(async function () {
-        [owner, federator1, federator2, federator3, user, user2] = await ethers.getSigners();
+        [owner, federator1, federator2, federator3, user] = await ethers.getSigners();
         federators = [federator1, federator2, federator3];
     });
 
@@ -203,6 +202,7 @@ describe("RuneBridge", function () {
             const { runeBridge, userRuneToken, userRuneBridge } = await loadFixture(runeBridgeFixture);
 
             await setRuneTokenBalance(userRuneToken, user, 1000);
+            await userRuneToken.approve(await runeBridge.getAddress(), 1000);
 
             await expect(userRuneBridge.transferToBtc(
                 await userRuneToken.getAddress(),
@@ -212,12 +212,6 @@ describe("RuneBridge", function () {
         });
 
         // TODO: it handles fees
-        it('handles fees', async () => {
-            const { runeBridge, runeToken } = await loadFixture(runeBridgeFixture);
-
-            await setRuneTokenBalance(runeToken, owner, 1000);
-            await runeToken.approve(await runeBridge.getAddress(), 1000);
-        });
     });
 
     describe("requestRuneRegistration", () => {
@@ -273,14 +267,68 @@ describe("RuneBridge", function () {
         });
     });
 
-    //     function acceptRuneRegistrationRequest(
-    //     function getAcceptRuneRegistrationRequestMessageHash(
+    describe("acceptTransferFromBtc", () => {
+        // TODO: only callable by federator
+        // TODO: test it actually accepts the transfer
+        // TODO: test it checks that it's not processed
+    })
 
-    //     function acceptTransferFromBtc(
-    //     function getAcceptTransferFromBtcMessageHash(
+    describe("acceptRuneRegistrationRequest", () => {
+        // TODO: only callable by federator
+        // TODO: test it actually accepts the request
+    })
 
-    //     function withdrawBaseCurrency(
-    //     function withdrawTokens(
+    describe("withdrawBaseCurrency", () => {
+        it('is only callable by an admin', async () => {
+            const { userRuneBridge } = await loadFixture(runeBridgeFixture);
+
+            await setBalance(await userRuneBridge.getAddress(), 100);
+            await expect(userRuneBridge.withdrawBaseCurrency(100, await user.getAddress())).to.be.revertedWith(
+                reasonNotAdmin(await user.getAddress())
+            );
+        });
+
+        it('sent base currency fees can be withdrawn', async () => {
+            const { runeBridge, userRuneBridge, userRuneToken } = await loadFixture(runeBridgeFixture);
+
+            await setBalance(await runeBridge.getAddress(), 200);
+            await expect(runeBridge.withdrawBaseCurrency(200, await owner.getAddress())).to.changeEtherBalance(
+                owner,
+                200
+            );
+        });
+    });
+
+    describe("withdrawTokens", () => {
+        it('is only callable by an admin', async () => {
+            const { userRuneToken, userRuneBridge } = await loadFixture(runeBridgeFixture);
+
+            await expect(userRuneBridge.withdrawTokens(
+                await userRuneToken.getAddress(),
+                100,
+                await userRuneBridge.getAddress()
+            )).to.be.revertedWith(
+                reasonNotAdmin(await user.getAddress())
+            );
+        });
+
+        it('sent tokens can be withdrawn', async () => {
+            const { runeBridge, userRuneBridge, userRuneToken } = await loadFixture(runeBridgeFixture);
+
+            await setRuneTokenBalance(userRuneToken, user, 100);
+            await userRuneToken.transfer(await runeBridge.getAddress(), 100);
+
+            await expect(runeBridge.withdrawTokens(
+                await userRuneToken.getAddress(),
+                100,
+                await owner.getAddress()
+            )).to.changeTokenBalances(
+                userRuneToken,
+                [runeBridge, owner],
+                [-100, 100]
+            );
+        });
+    });
 
     describe('registerRune', async () => {
         it('registers rune when called by an admin', async () => {
@@ -317,6 +365,25 @@ describe("RuneBridge", function () {
                 rune,
                 2
             )).to.be.revertedWith("rune already registered");
+        });
+
+        it('deploys tokens', async () => {
+            const { runeBridge } = await loadFixture(runeBridgeFixture);
+
+            const RuneToken = await ethers.getContractFactory("RuneToken");
+
+
+            await runeBridge.registerRune(
+                "Foo",
+                "Bar",
+                123,
+                17
+            );
+            let token = RuneToken.attach(await runeBridge.getTokenByRune(123));
+            expect(await token.name()).to.equal("Foo");
+            expect(await token.symbol()).to.equal("Bar");
+            expect(await token.rune()).to.equal(123);
+            expect(await token.decimals()).to.equal(18); // at least 18
         });
     });
 
@@ -570,6 +637,9 @@ describe("RuneBridge", function () {
             )).to.be.false;
         });
     });
+
+    //     function getAcceptRuneRegistrationRequestMessageHash(
+    //     function getAcceptTransferFromBtcMessageHash(
 
     // These just delegate to other contracts
     //     function isValidBtcAddress(string calldata btcAddress) public view returns (bool) {

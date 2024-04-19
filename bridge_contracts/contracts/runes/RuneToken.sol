@@ -73,8 +73,7 @@ contract RuneToken is ERC20 {
     public
     view
     returns (uint256) {
-        // Note: this validation is disabled.
-        // We have getRuneAmountAndRemainder for outside validation
+        // Note: this validation is disabled. We have getRuneAmountAndRemainder for outside validation.
         // require(
         //     tokenAmount % runeAmountDivisor == 0,
         //     "amount too precise"
