@@ -247,6 +247,7 @@ contract RuneBridge is Initializable, NBTEBridgeAccessControllable, Freezable, P
     whenRuneRegistrationRequestsEnabled
     whenNotPaused
     {
+        _validateRune(rune);
         require(!isRuneRegistered(rune), "rune already registered");
         require(!runeRegistrationRequested[rune], "registration already requested");
         require(msg.value == runeRegistrationFee, "incorrect base currency fee");
@@ -261,11 +262,17 @@ contract RuneBridge is Initializable, NBTEBridgeAccessControllable, Freezable, P
 
     /// @dev Is the Rune registered on the Bridge_
     function isRuneRegistered(uint256 rune) public view returns (bool) {
+        if (rune == 0) {
+            return false;
+        }
         return tokensByRune[rune] != address(0);
     }
 
     /// @dev Is the token a Rune Token deployed by the Bridge_
     function isTokenRegistered(address token) public view returns (bool) {
+        if (token == address(0)) {
+            return false;
+        }
         return runesByToken[token] != 0;
     }
 
@@ -276,12 +283,14 @@ contract RuneBridge is Initializable, NBTEBridgeAccessControllable, Freezable, P
 
     /// @dev Get the Rune Token that corresponds to a rune. Validates that the rune is registered
     function getTokenByRune(uint256 rune) public view returns (address token) {
+        require(rune != 0, "rune cannot be zero");
         token = tokensByRune[rune];
         require(token != address(0), "rune not registered");
     }
 
     /// @dev Get the Rune that corresponds to a Rune Token. Validates that the token is registered
     function getRuneByToken(address token) public view returns (uint256 rune) {
+        require(token != address(0), "token cannot be zero");
         rune = runesByToken[token];
         require(rune != 0, "token not registered");
     }
@@ -309,6 +318,7 @@ contract RuneBridge is Initializable, NBTEBridgeAccessControllable, Freezable, P
 
     /// @dev Get the transfer policy when transferring Rune Tokens to BTC
     function getEvmToBtcTransferPolicy(address token) public view returns (EvmToBtcTransferPolicy memory policy) {
+        require(token == address(0) || isTokenRegistered(token), "token not registered");
         policy = evmToBtcTransferPoliciesByToken[token];
         if (policy.maxTokenAmount == 0) {
             policy = evmToBtcTransferPoliciesByToken[address(0)];
@@ -593,7 +603,7 @@ contract RuneBridge is Initializable, NBTEBridgeAccessControllable, Freezable, P
     pure
     {
         require(rune <= type(uint128).max, "rune number too large");
-        require(rune != 0, "rune cannot be zero");
+        require(rune != 0, "rune cannot be zero");  // runesByToken[address(0)] == 0 means unregistered
     }
 
     /// @dev Set the EVM to BTC transfer policy for a Rune Token
@@ -632,7 +642,7 @@ contract RuneBridge is Initializable, NBTEBridgeAccessControllable, Freezable, P
         require(dynamicFeeTokens < DYNAMIC_FEE_DIVISOR, "dynamic fee must be less than 100%");
         // maxTokenAmount = 0 disables the policy
         require(maxTokenAmount == 0 || flatFeeTokens <= maxTokenAmount, "flat fee must be less than max amount");
-        require(token == address(0) || isRuneRegistered(runesByToken[token]), "token not registered");
+        require(token == address(0) || isTokenRegistered(token), "token not registered");
 
         EvmToBtcTransferPolicy storage policy = evmToBtcTransferPoliciesByToken[token];
         policy.maxTokenAmount = maxTokenAmount;

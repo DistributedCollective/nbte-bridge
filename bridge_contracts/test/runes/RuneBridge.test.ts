@@ -13,6 +13,7 @@ import {
 import {RuneToken} from '../../typechain-types';
 
 const ADDRESS_ZERO = "0x0000000000000000000000000000000000000000";
+const ADDRESS_RANDOM = "0x0000000000000000000000000000000000000123";
 
 describe("RuneBridge", function () {
     let owner: Signer;
@@ -183,6 +184,7 @@ describe("RuneBridge", function () {
         });
 
         // TODO: it handles fees
+        // TODO: not callable when paused
     });
 
     //     function requestRuneRegistration(
@@ -192,21 +194,8 @@ describe("RuneBridge", function () {
     //     function acceptTransferFromBtc(
     //     function getAcceptTransferFromBtcMessageHash(
 
-    //     function isRuneRegistered(uint256 rune) public view returns (bool) {
-    //     function isTokenRegistered(address token) public view returns (bool) {
-    //     function numRunesRegistered() public view returns (uint256) {
-    //     function getTokenByRune(uint256 rune) public view returns (address token) {
-    //     function getRuneByToken(address token) public view returns (uint256 rune) {
-    //     function listTokens() public view returns (address[] memory) {
-    //     function paginateTokens(uint256 start, uint256 count) public view returns (address[] memory) {
-    //     function getEvmToBtcTransferPolicy(address token) public view returns (EvmToBtcTransferPolicy memory policy) {
-    //     function isTransferFromBtcProcessed(bytes32 txHash, uint256 vout, uint256 rune) public view returns (bool) {
-    //     function isValidBtcAddress(string calldata btcAddress) public view returns (bool) {
-    //     function numRequiredFederators() public view returns (uint256) {
-    //     function isFederator(address addressToCheck) external view returns (bool) {
     //     function withdrawBaseCurrency(
     //     function withdrawTokens(
-    //     function registerRune(
 
     describe('registerRune', async () => {
         it('registers rune when called by an admin', async () => {
@@ -289,7 +278,7 @@ describe("RuneBridge", function () {
         it('is only callable by an admin', async () => {
             const { userRuneBridge } = await loadFixture(runeBridgeFixture);
 
-            await expect(userRuneBridge.setBtcAddressValidator(ADDRESS_ZERO)).to.be.revertedWith(
+            await expect(userRuneBridge.setBtcAddressValidator(ADDRESS_RANDOM)).to.be.revertedWith(
                 reasonNotAdmin(await user.getAddress())
             );
         });
@@ -299,7 +288,7 @@ describe("RuneBridge", function () {
         it('is only callable by an admin', async () => {
             const { userRuneBridge } = await loadFixture(runeBridgeFixture);
 
-            await expect(userRuneBridge.setAccessControl(ADDRESS_ZERO)).to.be.revertedWith(
+            await expect(userRuneBridge.setAccessControl(ADDRESS_RANDOM)).to.be.revertedWith(
                 reasonNotAdmin(await user.getAddress())
             );
         });
@@ -346,4 +335,159 @@ describe("RuneBridge", function () {
     });
 
     // TODO: fees can be withdrawn
+
+    // View methods, can be tested later with more detail
+
+    describe("isRuneRegistered", () => {
+        it('works', async () => {
+            const { runeBridge, rune } = await loadFixture(runeBridgeFixture);
+
+            expect(await runeBridge.isRuneRegistered(rune)).to.be.true;
+            expect(await runeBridge.isRuneRegistered(1234)).to.be.false;
+        });
+
+    });
+
+    describe("isTokenRegistered", () => {
+        it('works', async () => {
+            const { runeBridge, runeToken } = await loadFixture(runeBridgeFixture);
+
+            expect(await runeBridge.isTokenRegistered(await runeToken.getAddress())).to.be.true;
+            expect(await runeBridge.isTokenRegistered(ADDRESS_RANDOM)).to.be.false;
+        });
+    });
+
+    describe("numRunesRegistered", () => {
+        it('works', async () => {
+            const { runeBridge } = await loadFixture(runeBridgeFixture);
+
+            expect(await runeBridge.numRunesRegistered()).to.equal(1);
+        });
+    });
+
+    describe("getTokenByRune", () => {
+        it('works', async () => {
+            const { runeBridge, runeToken, rune } = await loadFixture(runeBridgeFixture);
+
+            expect(await runeBridge.getTokenByRune(rune)).to.equal(await runeToken.getAddress());
+        });
+
+        it('reverts for unregistered runes', async () => {
+            const { runeBridge } = await loadFixture(runeBridgeFixture);
+
+            await expect(runeBridge.getTokenByRune(1234)).to.be.revertedWith("rune not registered");
+        });
+    });
+
+    describe("getRuneByToken", () => {
+        it('works', async () => {
+            const { runeBridge, runeToken, rune } = await loadFixture(runeBridgeFixture);
+
+            expect(await runeBridge.getRuneByToken(await runeToken.getAddress())).to.equal(rune);
+        });
+
+        it('reverts for unregistered tokens', async () => {
+            const { runeBridge } = await loadFixture(runeBridgeFixture);
+
+            await expect(runeBridge.getRuneByToken(ADDRESS_RANDOM)).to.be.revertedWith("token not registered");
+        });
+    });
+
+    describe("listTokens", () => {
+        it('works', async () => {
+            const { runeBridge, runeToken } = await loadFixture(runeBridgeFixture);
+
+            expect(await runeBridge.listTokens()).to.deep.equal([await runeToken.getAddress()]);
+        });
+    });
+
+    describe("paginateTokens", () => {
+        it('works', async () => {
+            const { runeBridge, runeToken } = await loadFixture(runeBridgeFixture);
+
+            const token1 = await runeToken.getAddress();
+
+            expect(await runeBridge.paginateTokens(0, 1)).to.deep.equal([token1]);
+            expect(await runeBridge.paginateTokens(0, 100)).to.deep.equal([token1]);
+            expect(await runeBridge.paginateTokens(1, 0)).to.deep.equal([]);
+
+            await runeBridge.registerRune("Foo", "Bar", 1234, 18);
+            const token2 = await runeBridge.getTokenByRune(1234);
+            await runeBridge.registerRune("Herp", "Derp", 4567, 1);
+            const token3 = await runeBridge.getTokenByRune(4567);
+
+            expect(await runeBridge.paginateTokens(0, 1)).to.deep.equal([token1]);
+            expect(await runeBridge.paginateTokens(0, 2)).to.deep.equal([token1, token2]);
+            expect(await runeBridge.paginateTokens(0, 3)).to.deep.equal([token1, token2, token3]);
+            expect(await runeBridge.paginateTokens(1, 1)).to.deep.equal([token2]);
+            expect(await runeBridge.paginateTokens(1, 2)).to.deep.equal([token2, token3]);
+            expect(await runeBridge.paginateTokens(2, 1)).to.deep.equal([token3]);
+        });
+    });
+
+    describe("getEvmToBtcTransferPolicy", () => {
+        it('returns the default policy for address zero', async () => {
+            const { runeBridge } = await loadFixture(runeBridgeFixture);
+
+            expect(await runeBridge.getEvmToBtcTransferPolicy(ADDRESS_ZERO)).to.deep.equal([
+                ethers.parseEther("1000000000"),
+                0,
+                0,
+                0,
+                0,
+            ]);
+        });
+
+        it('returns the policy set for token', async () => {
+            const { runeBridge, runeToken } = await loadFixture(runeBridgeFixture);
+
+            const policy = [
+                await runeToken.getAddress(),
+                ethers.parseEther("1234567890"),
+                1,
+                2,
+                3,
+                4,
+            ];
+            await runeBridge.setEvmToBtcTransferPolicy(...policy);
+
+            // token is not a part of the stored policy
+            expect(await runeBridge.getEvmToBtcTransferPolicy(await runeToken.getAddress())).to.deep.equal(policy.slice(1));
+        });
+
+        it('returns the default policy if policy is not set for token', async () => {
+            const { runeBridge, runeToken } = await loadFixture(runeBridgeFixture);
+
+            expect(await runeBridge.getEvmToBtcTransferPolicy(await runeToken.getAddress())).to.deep.equal([
+                ethers.parseEther("1000000000"),
+                0,
+                0,
+                0,
+                0,
+            ]);
+        });
+
+        it('reverts for unregistered tokens', async () => {
+            const { runeBridge } = await loadFixture(runeBridgeFixture);
+
+            await expect(runeBridge.getEvmToBtcTransferPolicy(ADDRESS_RANDOM)).to.be.revertedWith("token not registered");
+        });
+    });
+
+    describe("isTransferFromBtcProcessed", () => {
+        it('works', async () => {
+            const { runeBridge , rune } = await loadFixture(runeBridgeFixture);
+
+            expect(await runeBridge.isTransferFromBtcProcessed(
+                "0x0000000000000000000000000000000000000000000000000000000000000001",
+                1,
+                rune
+            )).to.be.false;
+        });
+    });
+
+    // These just delegate to other contracts
+    //     function isValidBtcAddress(string calldata btcAddress) public view returns (bool) {
+    //     function numRequiredFederators() public view returns (uint256) {
+    //     function isFederator(address addressToCheck) external view returns (bool) {
 });
