@@ -1,3 +1,4 @@
+import time
 from decimal import Decimal
 
 import pytest
@@ -590,8 +591,13 @@ def test_ord_indexing(
     assert not outp["indexed"]
 
     ord.mine_and_sync()
-    outp = ord.api_client.get_output(response.txid, 2)
-    assert outp["indexed"]
+    for _ in range(20):
+        outp = ord.api_client.get_output(response.txid, 2)
+        if outp["indexed"]:
+            break
+        time.sleep(0.1)
+    else:
+        assert False, "Output not indexed"
     assert bitcoind.rpc.call("getblockcount") == block_number + 1
 
 
