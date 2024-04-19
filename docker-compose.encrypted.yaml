@@ -101,24 +101,25 @@ services:
       context: bridge_node
     restart: always
     depends_on:
-      - postgres
+      postgres:
+        condition: service_healthy
     ports:
       - 127.0.0.1:8181:8080
     labels:
+      - "node.type=bridge"
       - "traefik.http.routers.alice-bridge.rule=PathPrefix(`/api/`)"
       - "traefik.http.services.alice-bridge.loadbalancer.server.port=8080"
       - "traefik.enable=true"
     env_file:
-      - env.testnet-common
+      - env.encrypted-common
+    stdin_open: true
     environment:
+      - BRIDGE_ENCRYPTED_SECRETS=1
       - BRIDGE_NODE_ID=node-1
       - BRIDGE_HOSTNAME=bridge-node-1
       - BRIDGE_PEERS=node-2@bridge-node-2:5000,node-3@bridge-node-3:5000
       - BRIDGE_DB_URL=${DB_URL_1}
-      - BRIDGE_EVM_PRIVATE_KEY=${EVM_PRIVKEY_1}
       - BRIDGE_RUNES_BTC_RPC_WALLET_URL=${BTC_RPC_1}
-      - BRIDGE_SECRET_RUNES_EVM_PRIVATE_KEY=${EVM_PRIVKEY_1}
-      - BRIDGE_SECRET_RUNES_BTC_MASTER_XPRIV=${BTC_XPRIV_1}
       - BRIDGE_SECRET_RUNES_BTC_MASTER_XPUBS=${BTC_XPUBS}
 
   bridge-node-2:
@@ -127,19 +128,22 @@ services:
       context: bridge_node
     restart: always
     depends_on:
-      - postgres
+      postgres:
+        condition: service_healthy
     env_file:
-      - env.testnet-common
+      - env.encrypted-common
+    stdin_open: true
     environment:
+      - BRIDGE_ENCRYPTED_SECRETS=1
       - BRIDGE_NODE_ID=node-2
       - BRIDGE_HOSTNAME=bridge-node-2
       - BRIDGE_PEERS=node-1@bridge-node-1:5000,node-3@bridge-node-3:5000
       - BRIDGE_DB_URL=${DB_URL_2}
-      - BRIDGE_EVM_PRIVATE_KEY=${EVM_PRIVKEY_2}
       - BRIDGE_RUNES_BTC_RPC_WALLET_URL=${BTC_RPC_2}
-      - BRIDGE_SECRET_RUNES_EVM_PRIVATE_KEY=${EVM_PRIVKEY_2}
-      - BRIDGE_SECRET_RUNES_BTC_MASTER_XPRIV=${BTC_XPRIV_2}
       - BRIDGE_SECRET_RUNES_BTC_MASTER_XPUBS=${BTC_XPUBS}
+    labels:
+      - "node.type=bridge"
+
 
   bridge-node-3:
     image: bridge_node:latest
@@ -149,17 +153,18 @@ services:
     depends_on:
       - postgres
     env_file:
-      - env.testnet-common
+      - env.encrypted-common
+    stdin_open: true
     environment:
+      - BRIDGE_ENCRYPTED_SECRETS=1
       - BRIDGE_NODE_ID=node-3
       - BRIDGE_HOSTNAME=bridge-node-3
       - BRIDGE_PEERS=node-1@bridge-node-1:5000,node-2@bridge-node-2:5000
       - BRIDGE_DB_URL=${DB_URL_3}
-      - BRIDGE_EVM_PRIVATE_KEY=${EVM_PRIVKEY_3}
       - BRIDGE_RUNES_BTC_RPC_WALLET_URL=${BTC_RPC_3}
-      - BRIDGE_SECRET_RUNES_EVM_PRIVATE_KEY=${EVM_PRIVKEY_3}
-      - BRIDGE_SECRET_RUNES_BTC_MASTER_XPRIV=${BTC_XPRIV_3}
       - BRIDGE_SECRET_RUNES_BTC_MASTER_XPUBS=${BTC_XPUBS}
+    labels:
+      - "node.type=bridge"
 
   web:
     image: bridge_frontend:latest

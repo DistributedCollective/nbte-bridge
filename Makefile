@@ -17,9 +17,9 @@ install-poetry:
 serve:
 	docker compose -f docker-compose.dev.yaml up -d --build
 
-.PHONY: serve-testnet
+.PHONY: serve-encrypted
 serve-testnet:
-	python server/serve_with_secrets.py docker-compose.testnet.yaml
+	python server/serve_with_secrets.py docker-compose.encrypted.yaml
 
 .PHONY: lint
 lint:
