@@ -47,6 +47,8 @@ class Config:
     # Generic blockchain settings for all bridges
     evm_block_safety_margin = environ.var(converter=int, default=5)
     btc_network: Literal["mainnet", "testnet", "signet", "regtest"] = environ.var()
+    btc_min_confirmations = environ.var(converter=int, default=1)
+    btc_listsinceblock_buffer = environ.var(converter=int, default=6)
 
     # Tap bridge config.
     # TODO: prefix these!
@@ -71,8 +73,8 @@ class Config:
     if os.environ.get("BRIDGE_ENCRYPTED_SECRETS", False):
         secrets = wait_for_secrets()
 
-        btc_rpc_url = default = secrets["bridge_btc_rpc_url"]
-        evm_private_key = default = secrets["bridge_evm_private_key"]
+        btc_rpc_url = secrets.get("bridge_btc_rpc_url", environ.var())
+        evm_private_key = secrets["bridge_evm_private_key"]
 
         secret_runes_evm_private_key = secrets["bridge_secret_runes_evm_private_key"]
         secret_runes_btc_master_xpriv = secrets["bridge_secret_runes_btc_master_xpriv"]

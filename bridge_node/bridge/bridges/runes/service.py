@@ -165,6 +165,11 @@ class RuneBridgeService:
 
         required_confirmations = self.config.btc_min_confirmations
         listsinceblock_buffer = self.config.btc_listsinceblock_buffer
+        if listsinceblock_buffer < required_confirmations:
+            raise ValueError(
+                f"listsinceblock_buffer ({listsinceblock_buffer}) must be >= required_confirmations ({required_confirmations})"
+            )
+
         if not last_bitcoin_block:
             logger.info("Scanning Rune deposits from the beginning")
             resp = self.bitcoin_rpc.call("listsinceblock", "", listsinceblock_buffer)
