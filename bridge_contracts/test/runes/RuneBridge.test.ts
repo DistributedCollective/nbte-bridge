@@ -10,6 +10,7 @@ import {
     reasonNotPauser,
     setRuneTokenBalance,
 } from "./utils";
+import {RuneToken} from '../../typechain-types';
 
 const ADDRESS_ZERO = "0x0000000000000000000000000000000000000000";
 
@@ -73,8 +74,11 @@ describe("RuneBridge", function () {
         const runeTokenAddress = await runeBridge.getTokenByRune(rune);
         const runeToken = RuneToken.attach(runeTokenAddress);
 
+        const userRuneBridge = runeBridge.connect(user) as typeof runeBridge;
+
         return {
             runeBridge,
+            userRuneBridge,
             btcAddressValidator,
             accessControl,
             rune,
@@ -164,6 +168,7 @@ describe("RuneBridge", function () {
                 0,
                 0,
             );
+            // it burns the runes
             expect(await runeToken.totalSupply()).to.equal(totalSupply - 100n);
 
             await expect(runeBridge.transferToBtc(
@@ -217,9 +222,9 @@ describe("RuneBridge", function () {
         });
 
         it('is only callable by an admin', async () => {
-            const { runeBridge } = await loadFixture(runeBridgeFixture);
+            const { userRuneBridge } = await loadFixture(runeBridgeFixture);
 
-            await expect(runeBridge.connect(user).registerRune(
+            await expect(userRuneBridge.registerRune(
                 "Foo",
                 "Bar",
                 1,
@@ -243,9 +248,9 @@ describe("RuneBridge", function () {
 
     describe('setEvmToBtcTransferPolicy', async () => {
         it('is only callable by an admin', async () => {
-            const { runeBridge } = await loadFixture(runeBridgeFixture);
+            const { userRuneBridge } = await loadFixture(runeBridgeFixture);
 
-            await expect(runeBridge.connect(user).setEvmToBtcTransferPolicy(
+            await expect(userRuneBridge.setEvmToBtcTransferPolicy(
                 ADDRESS_ZERO,
                 ethers.parseEther("1000000000"),
                 0,
@@ -262,9 +267,9 @@ describe("RuneBridge", function () {
 
     describe("setRuneRegistrationRequestsEnabled", () => {
         it('is only callable by an admin', async () => {
-            const { runeBridge } = await loadFixture(runeBridgeFixture);
+            const { userRuneBridge } = await loadFixture(runeBridgeFixture);
 
-            await expect(runeBridge.connect(user).setRuneRegistrationRequestsEnabled(true)).to.be.revertedWith(
+            await expect(userRuneBridge.setRuneRegistrationRequestsEnabled(true)).to.be.revertedWith(
                 reasonNotAdmin(await user.getAddress())
             );
         });
@@ -272,9 +277,9 @@ describe("RuneBridge", function () {
 
     describe("setRuneRegistrationFee", () => {
         it('is only callable by an admin', async () => {
-            const { runeBridge } = await loadFixture(runeBridgeFixture);
+            const { userRuneBridge } = await loadFixture(runeBridgeFixture);
 
-            await expect(runeBridge.connect(user).setRuneRegistrationFee(ethers.parseEther("1"))).to.be.revertedWith(
+            await expect(userRuneBridge.setRuneRegistrationFee(ethers.parseEther("1"))).to.be.revertedWith(
                 reasonNotAdmin(await user.getAddress())
             );
         });
@@ -282,9 +287,9 @@ describe("RuneBridge", function () {
 
     describe("setBtcAddressValidator", () => {
         it('is only callable by an admin', async () => {
-            const { runeBridge } = await loadFixture(runeBridgeFixture);
+            const { userRuneBridge } = await loadFixture(runeBridgeFixture);
 
-            await expect(runeBridge.connect(user).setBtcAddressValidator(ADDRESS_ZERO)).to.be.revertedWith(
+            await expect(userRuneBridge.setBtcAddressValidator(ADDRESS_ZERO)).to.be.revertedWith(
                 reasonNotAdmin(await user.getAddress())
             );
         });
@@ -292,9 +297,9 @@ describe("RuneBridge", function () {
 
     describe("setAccessControl", () => {
         it('is only callable by an admin', async () => {
-            const { runeBridge } = await loadFixture(runeBridgeFixture);
+            const { userRuneBridge } = await loadFixture(runeBridgeFixture);
 
-            await expect(runeBridge.connect(user).setAccessControl(ADDRESS_ZERO)).to.be.revertedWith(
+            await expect(userRuneBridge.setAccessControl(ADDRESS_ZERO)).to.be.revertedWith(
                 reasonNotAdmin(await user.getAddress())
             );
         });
@@ -302,9 +307,9 @@ describe("RuneBridge", function () {
 
     describe("pause", () => {
         it('is only callable by a pauser or an admin', async () => {
-            const { runeBridge } = await loadFixture(runeBridgeFixture);
+            const { userRuneBridge } = await loadFixture(runeBridgeFixture);
 
-            await expect(runeBridge.connect(user).pause()).to.be.revertedWith(
+            await expect(userRuneBridge.pause()).to.be.revertedWith(
                 reasonNotPauser(await user.getAddress())
             );
         });
@@ -312,9 +317,9 @@ describe("RuneBridge", function () {
 
     describe("freeze", () => {
         it('is only callable by a guard or an admin', async () => {
-            const { runeBridge } = await loadFixture(runeBridgeFixture);
+            const { userRuneBridge } = await loadFixture(runeBridgeFixture);
 
-            await expect(runeBridge.connect(user).freeze()).to.be.revertedWith(
+            await expect(userRuneBridge.freeze()).to.be.revertedWith(
                 reasonNotGuard(await user.getAddress())
             );
         });
@@ -322,9 +327,9 @@ describe("RuneBridge", function () {
 
     describe("unpause", () => {
         it('is only callable by a pauser on ar admin', async () => {
-            const { runeBridge } = await loadFixture(runeBridgeFixture);
+            const { userRuneBridge } = await loadFixture(runeBridgeFixture);
 
-            await expect(runeBridge.connect(user).unpause()).to.be.revertedWith(
+            await expect(userRuneBridge.unpause()).to.be.revertedWith(
                 reasonNotPauser(await user.getAddress())
             );
         });
@@ -332,9 +337,9 @@ describe("RuneBridge", function () {
 
     describe("unfreeze", () => {
         it('is only callable by a guard or an admin', async () => {
-            const { runeBridge } = await loadFixture(runeBridgeFixture);
+            const { userRuneBridge } = await loadFixture(runeBridgeFixture);
 
-            await expect(runeBridge.connect(user).unfreeze()).to.be.revertedWith(
+            await expect(userRuneBridge.unfreeze()).to.be.revertedWith(
                 reasonNotGuard(await user.getAddress())
             );
         });
