@@ -43,6 +43,7 @@ python-bitcointx = "^1.1.4"
 pyramid = "^2.0.2"
 python-dotenv = "^1.0.1"
 pyord = "0.3.0"
+pyramid-jinja2 = "^2.10.1"
 
 [tool.poetry.group.dev.dependencies]
 pytest = "^7.4.3"

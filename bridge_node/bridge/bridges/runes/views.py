@@ -60,6 +60,20 @@ class RuneBridgeApiViews:
             "deposits": deposits,
         }
 
+    @view_config(
+        route_name="runes_get_monitor",
+        request_method="GET",
+        renderer="templates/monitor.jinja2",
+    )
+    def get_deposits_monitor(self):
+        rune_deposits = self.service.get_rune_deposits()
+        rune_token_deposits = self.service.get_rune_token_deposits()
+
+        return {
+            "rune_deposits": rune_deposits,
+            "rune_token_deposits": rune_token_deposits,
+        }
+
 
 def includeme(config: Configurator):
     config.add_route("runes_generate_deposit_address", "/deposit-addresses/")
@@ -68,3 +82,5 @@ def includeme(config: Configurator):
         "runes_get_deposits_since_block_for_evm_address",
         "/deposits/:evm_address/:lastblock",
     )
+    config.add_jinja2_search_path("/srv/bridge_backend/templates")
+    config.add_route("runes_get_monitor", "/monitor/")

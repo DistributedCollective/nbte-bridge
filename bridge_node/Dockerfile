@@ -41,6 +41,7 @@ FROM base as final
 COPY --from=builder /srv/bridge_backend/.venv ./.venv
 COPY --from=builder /srv/bridge_backend/dist .
 COPY --from=builder /srv/bridge_backend/migrations ./migrations
+COPY --from=builder /srv/bridge_backend/bridge/bridges/runes/templates ./templates
 COPY entrypoint.sh ./
 COPY alembic.ini ./
 
