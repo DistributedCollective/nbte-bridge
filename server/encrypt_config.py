@@ -8,7 +8,7 @@ import config_util as cu
 
 
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser(description="Encrypt FastBTC config file.")
+    parser = argparse.ArgumentParser(description="Encrypt NBTE Bridge config file.")
     parser.add_argument(
         "input",
         metavar="INPUT",
