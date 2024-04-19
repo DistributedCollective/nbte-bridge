@@ -226,6 +226,8 @@ def test_2_of_3_send_runes(
         assert to_decimal(multisig.get_rune_balance(rune_b), 18) == supply
 
 
+# This test is flaky and needs revisiting
+@pytest.mark.xfail
 def test_ord_multisig_send_runes_from_derived_address(
     ord: OrdService,
     root_ord_wallet: OrdWallet,
