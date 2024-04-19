@@ -49,15 +49,12 @@ class IntegrationTestHarness:
     # 1 of 3 wallet based on values in docker-compose.dev.yml. Needs to be changed when the
     # number of signers, or the keys, change
     RUNE_BRIDGE_MULTISIG_DESCRIPTOR = (
-        "wsh(sortedmulti(1,"
-        "tpubD6NzVbkrYhZ4WokHnVXX8CVBt1S88jkmeG78yWbLxn7Wd89nkNDe2J8b6opP4K38mRwXf9d9VVN5uA58epPKjj584R1rnDDbk6oHUD1MoWD/13/0/0/*,"
-        "tpubD6NzVbkrYhZ4WpZfRZip3ALqLpXhHUbe6UyG8iiTzVDuvNUyysyiUJWejtbszZYrDaUM8UZpjLmHyvtV7r1QQNFmTqciAz1fYSYkw28Ux6y/13/0/0/*,"
-        "tpubD6NzVbkrYhZ4WQZnWqU8ieBsujhoZKZLF6wMvTApJ4ZiGmipk481DyM2su3y5BDeB9fFLwSmmmsGDGJum79he2fnuQMnpWhe3bGir7Mf4uS/13/0/0/*"
-        "))#jyn3fuhd"
+        # BIG STRING WOO WOO
+        "wsh(sortedmulti(2,tpubD6NzVbkrYhZ4WokHnVXX8CVBt1S88jkmeG78yWbLxn7Wd89nkNDe2J8b6opP4K38mRwXf9d9VVN5uA58epPKjj584R1rnDDbk6oHUD1MoWD/13/0/0/*,tpubD6NzVbkrYhZ4WpZfRZip3ALqLpXhHUbe6UyG8iiTzVDuvNUyysyiUJWejtbszZYrDaUM8UZpjLmHyvtV7r1QQNFmTqciAz1fYSYkw28Ux6y/13/0/0/*,tpubD6NzVbkrYhZ4WQZnWqU8ieBsujhoZKZLF6wMvTApJ4ZiGmipk481DyM2su3y5BDeB9fFLwSmmmsGDGJum79he2fnuQMnpWhe3bGir7Mf4uS/13/0/0/*))#qqwc9q36"
     )
     # this also needs changing when the above changes
     RUNE_BRIDGE_MULTISIG_CHANGE_ADDRESS = (
-        "bcrt1qh3j9z0tsxpqc07caeehn3j0q7mfmq0stcfacudlcndpssv48lnaqs0vfw8"
+        "bcrt1qenkjz7gt2jtys84dwdh75696arc85ld7dl85p7jd77ksxds55tjqtl627a"
     )
 
     bitcoind: BitcoindService

@@ -159,7 +159,7 @@ services:
       - BRIDGE_EVM_BLOCK_SAFETY_MARGIN=1
       - BRIDGE_EVM_BRIDGE_CONTRACT_ADDRESS=0x5FbDB2315678afecb367f032d93F642f64180aa3
       - BRIDGE_EVM_RPC_URL=http://hardhat:8545
-      - BRIDGE_PEERS=bob-node@bob-bridge:5000
+      - BRIDGE_PEERS=alice-node@alice-bridge:5000,bob-node@bob-bridge:5000
       - BRIDGE_BTC_NETWORK=regtest
       - BRIDGE_BTC_RPC_URL=http://polaruser:polarpass@bitcoind:18443
       # Taproot Assets
@@ -174,8 +174,7 @@ services:
       - BRIDGE_RUNES_ORD_API_URL=http://ord:80
       - BRIDGE_RUNES_EVM_RPC_URL=http://hardhat:8545
       - BRIDGE_RUNES_TO_EVM_FEE_PERCENTAGE_DECIMAL=0
-      # TODO: change to 2-of-3
-      - BRIDGE_RUNES_BTC_NUM_REQUIRED_SIGNERS=1
+      - BRIDGE_RUNES_BTC_NUM_REQUIRED_SIGNERS=2
       - BRIDGE_RUNES_BTC_BASE_DERIVATION_PATH=m/13/0/0
       - BRIDGE_SECRET_RUNES_BTC_MASTER_XPUBS=tpubD6NzVbkrYhZ4WokHnVXX8CVBt1S88jkmeG78yWbLxn7Wd89nkNDe2J8b6opP4K38mRwXf9d9VVN5uA58epPKjj584R1rnDDbk6oHUD1MoWD,tpubD6NzVbkrYhZ4WpZfRZip3ALqLpXhHUbe6UyG8iiTzVDuvNUyysyiUJWejtbszZYrDaUM8UZpjLmHyvtV7r1QQNFmTqciAz1fYSYkw28Ux6y,tpubD6NzVbkrYhZ4WQZnWqU8ieBsujhoZKZLF6wMvTApJ4ZiGmipk481DyM2su3y5BDeB9fFLwSmmmsGDGJum79he2fnuQMnpWhe3bGir7Mf4uS
       # RUNES NODE-SPECIFIC
@@ -213,7 +212,7 @@ services:
       - BRIDGE_EVM_BLOCK_SAFETY_MARGIN=1
       - BRIDGE_EVM_BRIDGE_CONTRACT_ADDRESS=0x5FbDB2315678afecb367f032d93F642f64180aa3
       - BRIDGE_EVM_RPC_URL=http://hardhat:8545
-      - BRIDGE_PEERS=alice-node@alice-bridge:5000
+      - BRIDGE_PEERS=alice-node@alice-bridge:5000,bob-node@bob-bridge:5000
       - BRIDGE_BTC_NETWORK=regtest
       - BRIDGE_BTC_RPC_URL=http://polaruser:polarpass@bitcoind:18443
       # Taproot Assets
