@@ -1,11 +1,6 @@
 #!/bin/bash
 
-NODE_NAME=$1
-
-if [ -z "${NODE_NAME}" ]; then
-    echo "NODE_NAME is unset or set to the empty string"
-    exit 1
-fi
+NODE_NAME=$BRIDGE_HOSTNAME
 
 # Create node server key and certificate signing request (CSR)
 openssl req -new -nodes -newkey ec -pkeyopt ec_paramgen_curve:P-256 -out server.csr -keyout server-key.pem -subj "/O=Sovryn/CN=${NODE_NAME}" -addext "subjectAltName = DNS:${NODE_NAME}" -addext "extendedKeyUsage = serverAuth"
