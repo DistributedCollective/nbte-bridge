@@ -567,8 +567,6 @@ def test_too_low_postage(
     bridge_util.assert_runes_not_transferred_to_evm(transfer)
 
 
-# This test is flaky and needs revisiting
-@pytest.mark.xfail
 def test_ord_indexing(
     ord,
     root_ord_wallet,
