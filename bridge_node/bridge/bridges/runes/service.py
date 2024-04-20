@@ -25,6 +25,7 @@ from web3.exceptions import (
     TransactionNotFound,
 )
 
+from bridge.common.btc.fees import BitcoinFeeEstimator
 from bridge.common.btc.rpc import BitcoinRPC
 from . import messages
 from .evm import load_rune_bridge_abi
@@ -40,6 +41,7 @@ from .models import (
     RuneTokenDepositStatus,
     User,
 )
+from ...common.btc.types import BitcoinNetwork
 from ...common.evm.scanner import EvmEventScanner
 from ...common.evm.utils import recover_message
 from ...common.models.key_value_store import KeyValuePair
@@ -79,6 +81,7 @@ class RuneBridgeServiceConfig(Protocol):
     btc_min_confirmations: int
     btc_min_postage_sat: int
     btc_listsinceblock_buffer: int
+    btc_network: BitcoinNetwork
 
 
 class RuneBridgeService:
@@ -103,6 +106,10 @@ class RuneBridgeService:
         self.evm_account = evm_account
         self.web3 = web3
         self._bridge_id = None
+        self._btc_fee_estimator = BitcoinFeeEstimator(
+            rpc=bitcoin_rpc,
+            network=config.btc_network,
+        )
 
         self._get_block_time_by_hash = functools.lru_cache(256)(self._get_block_time_by_hash)
 
@@ -985,19 +992,23 @@ class RuneBridgeService:
                 net_rune_amount=deposit.net_rune_amount_raw,
             )
 
+        fee_rate_sats_per_vb = self._btc_fee_estimator.get_fee_sats_per_vb()
+        logger.info("Fee rate: %s sats/vb", fee_rate_sats_per_vb)
         num_required_signatures = self.get_rune_tokens_to_btc_num_required_signers()
         unsigned_psbt = self.ord_multisig.create_rune_psbt(
+            fee_rate_sat_per_vbyte=fee_rate_sats_per_vb,
             transfers=[
                 RuneTransfer(
                     rune=transfer.rune_name,
                     receiver=transfer.receiver_address,
                     amount=transfer.net_rune_amount,
                 )
-            ]
+            ],
         )
         message = messages.SignRuneTokenToBtcTransferQuestion(
             transfer=transfer,
             unsigned_psbt_serialized=self.ord_multisig.serialize_psbt(unsigned_psbt),
+            fee_rate_sats_per_vb=fee_rate_sats_per_vb,
         )
         self_response = self.answer_sign_rune_token_to_btc_transfer_question(message=message)
         self_signed_psbt = self.ord_multisig.deserialize_psbt(self_response.signed_psbt_serialized)

@@ -38,6 +38,7 @@ def rune_bridge_wiring_factory(container: Container):
             btc_min_confirmations=config.btc_min_confirmations,
             btc_listsinceblock_buffer=config.btc_listsinceblock_buffer,
             runes_to_evm_fee_percentage_decimal=config.runes_to_evm_fee_percentage_decimal,
+            btc_network=config.btc_network,
         ),
         secrets=RuneBridgeSecrets(
             evm_private_key=config.secret_runes_evm_private_key,

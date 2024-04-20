@@ -2,6 +2,7 @@ from dataclasses import dataclass
 from decimal import Decimal
 
 from eth_typing import ChecksumAddress
+from bridge.common.btc.types import BitcoinNetwork
 
 
 @dataclass()
@@ -12,6 +13,7 @@ class RuneBridgeConfig:
     btc_rpc_wallet_url: str
     ord_api_url: str
     btc_num_required_signers: int
+    btc_network: BitcoinNetwork
     btc_base_derivation_path: str = "m/13/0/0"
     evm_block_safety_margin: int = 0
     evm_default_start_block: int = 1

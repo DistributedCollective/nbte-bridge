@@ -182,7 +182,7 @@ class OrdMultisig:
         self,
         transfers: list[RuneTransfer],
         *,
-        # TODO: estimate the sat per vb feerate
+        # TODO: get rid of the default value
         fee_rate_sat_per_vbyte: int = 50,
     ):
         # We always have a change output, and we always have it at index 1

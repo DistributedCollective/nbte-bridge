@@ -365,6 +365,7 @@ def wire_rune_bridge_for_federator(
             evm_block_safety_margin=0,
             evm_default_start_block=1,
             runes_to_evm_fee_percentage_decimal=Decimal(0),
+            btc_network="regtest",
         ),
         secrets=RuneBridgeSecrets(
             evm_private_key=evm_private_key,

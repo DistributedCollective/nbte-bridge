@@ -1,3 +1,4 @@
+from typing import Literal
 import binascii
 import dataclasses
 from decimal import Decimal
@@ -7,6 +8,14 @@ from bitcointx.core import COutPoint
 from bitcointx.core.script import CScript
 
 from .utils import from_satoshi, to_satoshi
+
+
+BitcoinNetwork = Literal["mainnet", "testnet", "signet", "regtest"]
+BITCOIN_NETWORKS = ["mainnet", "testnet", "signet", "regtest"]
+
+
+def is_bitcoin_network(network: str) -> bool:
+    return network in BITCOIN_NETWORKS
 
 
 @dataclasses.dataclass(frozen=True)
