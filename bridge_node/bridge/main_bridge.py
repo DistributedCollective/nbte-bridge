@@ -26,6 +26,7 @@ class MainBridge(Bridge):
         self.network.add_listener(self.on_message)
         self.enabled_bridge_names = set(self.config.enabled_bridges)
         logger.info("Enabled bridges: %s", self.enabled_bridge_names)
+        self._pong_nonce = 0
 
     @property
     def bridges(self) -> list[Bridge]:
@@ -39,6 +40,10 @@ class MainBridge(Bridge):
     def init(self):
         for bridge in self.bridges:
             bridge.init()
+        self.network.answer_with("main:ping", self._answer_pong)
+
+    def _answer_pong(self, nonce: int):
+        return {"message": "pong", "nonce": nonce, "sender": self.network.node_id}
 
     def on_message(self, envelope: MessageEnvelope):
         logger.debug("Received message %r from node %s", envelope.message, envelope.sender)
@@ -47,7 +52,15 @@ class MainBridge(Bridge):
             self.network.send(envelope.sender, "Pong")
 
     def ping(self):
-        self.network.broadcast("Ping")
+        # self.network.broadcast("Ping")
+        answers = self.network.ask("main:ping", nonce=self._pong_nonce)
+        self._pong_nonce += 1
+        for answer in answers:
+            logger.debug(
+                "Received pong to nonce %d from node %s",
+                answer["nonce"],
+                answer["sender"],
+            )
 
     def enter_main_loop(self):
         while True:
