@@ -124,7 +124,8 @@ class PyroNetwork(Network):
                 try:
                     answer = peer.answer(question, **serialized_kwargs)
                 except CommunicationError as e:
-                    logger.warning("Error connecting to peer %s: %s", peer, e)
+                    # TODO: handle ConnectionRefused and have less spam
+                    logger.exception("Error communicating with peer %s: %s", peer, e)
                     answer = None
                 if answer is not None:
                     # TODO: proper return type for null answer
