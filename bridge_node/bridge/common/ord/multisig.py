@@ -325,6 +325,7 @@ class OrdMultisig:
             for rune, utxo_balance in relevant_rune_balances_in_utxo.items():
                 required_rune_amounts[rune] -= utxo_balance
 
+            logger.debug("Adding input %s (funding Runes)", utxo)
             add_psbt_input(utxo)
 
             if all(v <= 0 for v in required_rune_amounts.values()):
@@ -378,6 +379,7 @@ class OrdMultisig:
                 continue
 
             # Add input
+            logger.debug("Adding input %s (funding TX fee)", utxo)
             input_amount_sat += utxo.amount_satoshi
             add_psbt_input(utxo)
 

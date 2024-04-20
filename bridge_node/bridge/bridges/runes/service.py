@@ -217,16 +217,29 @@ class RuneBridgeService:
             tx_confirmations = tx["confirmations"]
             ord_output = tx["ord_output"] = None
             if tx_confirmations > 0:
+                logger.debug("tx: %s", tx)
                 # TXs without confirmations are not indexed by ord
-                for _ in range(10):
+                retries = 10
+                for i in range(retries):
                     ord_output = self.ord_client.get_output(txid, vout)
                     if ord_output["indexed"]:
                         tx["ord_output"] = ord_output
                         break
-                    logger.info("Output %s:%s not indexed in ord yet, waiting", txid, vout)
-                    self._sleep()
+                    if ord_output["spent"]:
+                        # This "JUST HAPPENS" sometimes... Argh! Probably because of the listsinceblock buffer.
+                        # Maybe ord's default behaviour
+                        # being too fast for ord, hopefully only in tests.
+                        # I guess we ignore these, but there's a chance we miss some deposits.
+                        logger.warning(
+                            "Unindexed spent output %s:%s (%s), ignoring", txid, vout, ord_output
+                        )
+                        break
+                    logger.info(
+                        "Output %s:%s (%s) not indexed in ord yet, waiting", txid, vout, ord_output
+                    )
+                    self._sleep(i)
                 else:
-                    raise RuntimeError("Output not indexed in ord after 10 tries")
+                    raise RuntimeError(f"Output not indexed in ord after {retries} tries")
 
             if ord_output:
                 for spaced_rune_name, _ in ord_output["runes"]:
