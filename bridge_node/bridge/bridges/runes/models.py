@@ -168,6 +168,8 @@ class Rune(Base):
     divisibility = Column(Integer, nullable=False)
     turbo = Column(Boolean, nullable=False)
 
+    deposits = relationship("RuneDeposit", back_populates="rune")
+
     __table_args__ = (UniqueConstraint("bridge_id", "n", name="uq_rune_n"),)
 
     def __repr__(self):
@@ -190,7 +192,7 @@ class RuneDeposit(Base):
     rune_number = Column(Uint128, nullable=False)
 
     rune_id = Column(Integer, ForeignKey("rune.id"), nullable=False)
-    rune = relationship(Rune)
+    rune = relationship(Rune, back_populates="deposits")
 
     user_id = Column(Integer, ForeignKey("user.id"), nullable=False)
     user = relationship(User)

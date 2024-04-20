@@ -12,6 +12,7 @@ from sqlalchemy.orm import Session
 
 from ...bridges.runes.models import (
     Bridge,
+    Rune,
     RuneDeposit,
     RuneTokenDeposit,
     IncomingBtcTx,
@@ -39,16 +40,6 @@ class MonitorViews:
         renderer="templates/monitor.jinja2",
     )
     def monitor(self):
-        incoming_btc_txs = (
-            self.dbsession.query(IncomingBtcTx)
-            .filter_by(
-                bridge_id=self.bridge_id,
-            )
-            .order_by(
-                RuneDeposit.created_at.desc(),
-            )
-            .limit(100)
-        )
         rune_deposits = (
             self.dbsession.query(RuneDeposit)
             .filter_by(
@@ -69,14 +60,35 @@ class MonitorViews:
             )
             .limit(100)
         )
+        incoming_btc_txs = (
+            self.dbsession.query(IncomingBtcTx)
+            .filter_by(
+                bridge_id=self.bridge_id,
+            )
+            .order_by(
+                IncomingBtcTx.created_at.desc(),
+            )
+            .limit(100)
+        )
+        runes = (
+            self.dbsession.query(Rune)
+            .filter_by(
+                bridge_id=self.bridge_id,
+            )
+            .order_by(
+                Rune.id.desc(),
+            )
+            .limit(100)
+        )
 
         return {
             "rune_deposits": rune_deposits,
             "rune_token_deposits": rune_token_deposits,
             "incoming_btc_txs": incoming_btc_txs,
+            "runes": runes,
         }
 
 
 def includeme(config: Configurator):
     config.add_jinja2_search_path("/srv/bridge_backend/templates")
-    config.add_route("monitor_deposits", "/deposits/:bridge")
+    config.add_route("monitor_deposits", "/:bridge/deposits")
