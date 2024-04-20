@@ -71,9 +71,9 @@ class MainBridge(Bridge):
                 answer["sender"],
             )
         logger.info(
-            "Node: %s; Leader: %s; Nodes online: %d",
+            "Node: %s; Is leader?: %s; Nodes online: %d",
             self.network.node_id,
-            self.network.leader_id,
+            self.network.is_leader(),
             len(answers) + 1,
         )
 
