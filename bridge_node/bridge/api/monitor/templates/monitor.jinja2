@@ -67,9 +67,9 @@
                 <td>{{ tx.tx_id }}:{{ deposit.vout }}</td>
                 <td>{{ tx.block_number }}</td>
                 <td>{{ tx.amount_sat / (10**8) }}</td>
-                <td>{{ deposit.rune_deposits|length }}</td>
-                <td>{{ deposit.status }}</td>
-                <td>{{ deposit.created_at }}</td>
+                <td>{{ tx.rune_deposits|length }}</td>
+                <td>{{ tx.status }}</td>
+                <td>{{ tx.created_at }}</td>
             </tr>
         {% endfor %}
     </table>
