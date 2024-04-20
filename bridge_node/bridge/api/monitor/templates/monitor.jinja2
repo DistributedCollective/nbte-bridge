@@ -1,3 +1,4 @@
+<!doctype html>
 <html>
 <head>
     <title>Deposits Monitor</title>
@@ -7,8 +8,8 @@
     <table>
         <tr>
             <th>tx_id:vout</th>
-            <th>block_number</th>
-            <th>transfer_amount_raw</th>
+            <th>block</th>
+            <th>amount</th>
             <th>evm_tx_hash</th>
             <th>status</th>
             <th>created_at</th>
@@ -17,7 +18,7 @@
         <tr>
             <td>{{ deposit.tx_id }}:{{ deposit.vout }}</td>
             <td>{{ deposit.block_number }}</td>
-            <td>{{ deposit.transfer_amount_raw }}</td>
+            <td>{{ deposit.transfer_amount_raw / (10**deposit.rune.divisibility) }}</td>
             <td>{{ deposit.evm_tx_hash }}</td>
             <td>{{ deposit.status }}</td>
             <td>{{ deposit.created_at }}</td>
