@@ -1,0 +1,50 @@
+<html>
+<head>
+    <title>Deposits Monitor</title>
+</head>
+<body>
+    <h2>Rune Deposits</h1>
+    <table>
+        <tr>
+            <th>tx_id:vout</th>
+            <th>block_number</th>
+            <th>transfer_amount_raw</th>
+            <th>evm_tx_hash</th>
+            <th>status</th>
+            <th>created_at</th>
+        </tr>
+        {% for deposit in rune_deposits %}
+        <tr>
+            <td>{{ deposit.tx_id }}:{{ deposit.vout }}</td>
+            <td>{{ deposit.block_number }}</td>
+            <td>{{ deposit.transfer_amount_raw }}</td>
+            <td>{{ deposit.evm_tx_hash }}</td>
+            <td>{{ deposit.status }}</td>
+            <td>{{ deposit.created_at }}</td>
+        </tr>
+        {% endfor %}
+    </table>
+
+    <h2>Rune Token Deposits</h1>
+    <table>
+        <tr>
+            <th>evm_block_number</th>
+            <th>evm_tx_hash</th>
+            <th>receiver_btc_address</th>
+            <th>transferred_token_amount</th>
+            <th>status</th>
+            <th>created_at</th>
+        </tr>
+        {% for deposit in rune_token_deposits %}
+        <tr>
+            <td>{{ deposit.evm_block_number }}</td>
+            <td>{{ deposit.evm_tx_hash }}</td>
+            <td>{{ deposit.receiver_btc_address }}</td>
+            <td>{{ deposit.transferred_token_amount / (10**18) }}</td>
+            <td>{{ deposit.status }}</td>
+            <td>{{ deposit.created_at }}</td>
+        </tr>
+        {% endfor %}
+    <table>
+</body>
+</html>

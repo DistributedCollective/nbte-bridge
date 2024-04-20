@@ -181,4 +181,5 @@ def includeme(config: Configurator):
 
     from ..bridges.runes import views as rune_bridge_views
 
+    config.include("pyramid_jinja2")
     config.include(rune_bridge_views, route_prefix="/runes")
