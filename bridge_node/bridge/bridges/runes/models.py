@@ -300,4 +300,4 @@ class RuneTokenDeposit(Base):
 
     def __repr__(self):
         # nice repr
-        return f"RuneTokenDeposit(id={self.id}, f{self.rune.decimal_amount(self.net_rune_amount_raw)} {self.rune.name} => {self.receiver_btc_address})"
+        return f"RuneTokenDeposit(id={self.id}, {self.rune.decimal_amount(self.net_rune_amount_raw)} {self.rune.name} => {self.receiver_btc_address})"
