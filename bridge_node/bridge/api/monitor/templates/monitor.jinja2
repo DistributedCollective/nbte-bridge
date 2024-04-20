@@ -64,7 +64,7 @@
         </tr>
         {% for tx in incoming_btc_txs %}
             <tr>
-                <td>{{ tx.tx_id }}:{{ deposit.vout }}</td>
+                <td>{{ tx.tx_id }}:{{ tx.vout }}</td>
                 <td>{{ tx.block_number }}</td>
                 <td>{{ tx.amount_sat / (10**8) }}</td>
                 <td>{{ tx.rune_deposits|length }}</td>
