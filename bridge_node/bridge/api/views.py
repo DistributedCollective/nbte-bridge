@@ -180,7 +180,7 @@ def includeme(config: Configurator):
     config.add_route("network_info", "/network/")
 
     from ..bridges.runes import views as rune_bridge_views
-    from monitor import views as monitor_views
+    from .monitor import views as monitor_views
 
     config.include("pyramid_jinja2")
     config.include(rune_bridge_views, route_prefix="/runes")
