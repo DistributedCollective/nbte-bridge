@@ -70,7 +70,12 @@ class MainBridge(Bridge):
                 answer["nonce"],
                 answer["sender"],
             )
-        logger.info("Node: %s; Nodes online: %d", len(answers) + 1)
+        logger.info(
+            "Node: %s; Leader: %s; Nodes online: %d",
+            self.network.node_id,
+            self.network.leader_id,
+            len(answers) + 1,
+        )
 
     def _answer_pong(self, nonce: int):
         return {"message": "pong", "nonce": nonce, "sender": self.network.node_id}
