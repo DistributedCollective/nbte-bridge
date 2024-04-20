@@ -17,6 +17,7 @@ from anemic.ioc import (
     Container,
     service,
 )
+from Pyro5.errors import CommunicationError
 
 from bridge.common.p2p.auth.bridge_ssl import (
     PyroSecureContext,
@@ -120,7 +121,11 @@ class PyroNetwork(Network):
         logger.debug("ask serialized kwargs %s", serialized_kwargs)
         for peer in self.peers:
             try:
-                answer = peer.answer(question, **serialized_kwargs)
+                try:
+                    answer = peer.answer(question, **serialized_kwargs)
+                except CommunicationError as e:
+                    logger.info("Error connecting to peer %s: %s", peer, e)
+                    answer = None
                 if answer is not None:
                     # TODO: proper return type for null answer
                     deserialized_answer = self.deserialize(answer)
