@@ -300,16 +300,18 @@ class OrdMultisig:
                 txid=utxo.txid,
                 vout=utxo.vout,
             )
-            if not ord_output.has_ord_balances():
+            if not ord_output.has_rune_balances():
                 # Not usable for runes
                 continue
-            if ord_output.inscriptions:
-                logger.warning(
-                    "UTXO %s (ord output %s) has inscriptions, not using it",
-                    utxos,
-                    ord_output,
-                )
-                continue
+
+            # we don't really care about these, just send them away
+            # if ord_output.inscriptions:
+            #    logger.warning(
+            #        "UTXO %s (ord output %s) has inscriptions, not using it",
+            #        utxos,
+            #        ord_output,
+            #    )
+            #    continue
 
             relevant_rune_balances_in_utxo = {
                 rune: ord_output.get_rune_balance(rune) for rune in used_runes
@@ -367,7 +369,7 @@ class OrdMultisig:
                         txid=utxo.txid,
                         vout=utxo.vout,
                     )
-                    if not ord_output.has_ord_balances():
+                    if not ord_output.has_rune_balances():
                         break
             except IndexError:
                 raise ValueError("Don't have enough BTC to fund PSBT")
