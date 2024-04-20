@@ -31,7 +31,7 @@ def encode_segwit_address(script, *, witver=0, hrp=None):
             hrp = "bcrt"
         elif params.name == "bitcoin/testnet":
             hrp = "tb"
-        elif params.name == "bitcoin/mainnet":
+        elif params.name == "bitcoin":
             hrp = "bc"
         else:
             raise ValueError(f"Unknown network: {params.name}")
