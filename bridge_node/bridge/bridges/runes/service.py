@@ -511,12 +511,19 @@ class RuneBridgeService:
             else:
                 for rune_deposit in tx.rune_deposits:
                     rune = rune_deposit.rune
+
+                    # TODO: use token symbol? but for now we just hardcode POWA
+                    if rune.spaced_name == "POWA•RANGERS•GO":
+                        symbol = "POWA"
+                    else:
+                        symbol = rune.symbol
+
                     deposits.append(
                         {
                             "btc_deposit_txid": rune_deposit.tx_id,
                             "btc_deposit_vout": rune_deposit.vout,
                             "rune_name": rune.spaced_name,
-                            "rune_symbol": rune.symbol,
+                            "rune_symbol": symbol,
                             "amount_decimal": str(
                                 rune.decimal_amount(rune_deposit.transfer_amount_raw)
                             ),
