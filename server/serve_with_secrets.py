@@ -48,6 +48,13 @@ if __name__ == "__main__":
 
     args = parser.parse_args()
 
+    node = "bridge-node"
+
+    # Get config file name from input
+    config_file = input(f"Path to config file for {node}: ")
+
+    config = json.dumps(decrypt_secrets_file(config_file), indent=None)
+
     compose_up = subprocess.run(
         ["docker", "compose", "-f", args.compose, "up", "-d", "--build"],
         stdout=sys.stdout,
@@ -57,46 +64,22 @@ if __name__ == "__main__":
         print("Error starting bridge nodes")
         exit(1)
 
-    get_bridge_container_ids = subprocess.run(
-        [
-            "docker",
-            "compose",
-            "-f",
-            args.compose,
-            "ps",
-            "--format",
-            "{{.Service}} {{.Labels}}",
-        ],
-        stdout=subprocess.PIPE,
+    proc = subprocess.Popen(
+        ["docker", "compose", "-f", args.compose, "attach", node],
+        stdin=subprocess.PIPE,
         text=True,
+        stdout=subprocess.DEVNULL,
+        stderr=subprocess.DEVNULL,
     )
+    print(f"Sending config to {node}...")
 
-    container_infos = get_bridge_container_ids.stdout.splitlines()
-    bridge_container_ids = [
-        info.split()[0]
-        for info in container_infos
-        if "node.type=bridge" in info.split()[1]
-    ]
+    time.sleep(2)
 
-    print(bridge_container_ids)
+    proc.stdin.write(config + "\n")
+    proc.stdin.flush()
 
-    for node in bridge_container_ids:
-        # Get config file name from input
-        config_file = input(f"Path to config file for {node}: ")
+    time.sleep(2)
 
-        config = json.dumps(decrypt_secrets_file(config_file), indent=None)
+    proc.kill()
 
-        proc = subprocess.Popen(
-            ["docker", "compose", "-f", args.compose, "attach", node],
-            stdin=subprocess.PIPE,
-            text=True,
-            stdout=subprocess.DEVNULL,
-            stderr=subprocess.DEVNULL,
-        )
-        print(f"Sending config {config} to {node}...")
-
-        proc.stdin.write(config + "\n")
-        time.sleep(2)
-        proc.kill()
-
-        print("Done.")
+    print("Done.")

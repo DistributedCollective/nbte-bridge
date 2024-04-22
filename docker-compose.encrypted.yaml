@@ -95,7 +95,7 @@ services:
     ports:
       - 127.0.0.1:3080:80
 
-  bridge-node-1:
+  bridge-node:
     image: bridge_node:latest
     build:
       context: bridge_node
@@ -121,50 +121,6 @@ services:
       - BRIDGE_DB_URL=${DB_URL_1}
       - BRIDGE_RUNES_BTC_RPC_WALLET_URL=${BTC_RPC_1}
       - BRIDGE_SECRET_RUNES_BTC_MASTER_XPUBS=${BTC_XPUBS}
-
-  bridge-node-2:
-    image: bridge_node:latest
-    build:
-      context: bridge_node
-    restart: always
-    depends_on:
-      postgres:
-        condition: service_healthy
-    env_file:
-      - env.encrypted-common
-    stdin_open: true
-    environment:
-      - BRIDGE_ENCRYPTED_SECRETS=1
-      - BRIDGE_NODE_ID=node-2
-      - BRIDGE_HOSTNAME=bridge-node-2
-      - BRIDGE_PEERS=node-1@bridge-node-1:5000,node-3@bridge-node-3:5000
-      - BRIDGE_DB_URL=${DB_URL_2}
-      - BRIDGE_RUNES_BTC_RPC_WALLET_URL=${BTC_RPC_2}
-      - BRIDGE_SECRET_RUNES_BTC_MASTER_XPUBS=${BTC_XPUBS}
-    labels:
-      - "node.type=bridge"
-
-
-  bridge-node-3:
-    image: bridge_node:latest
-    build:
-      context: bridge_node
-    restart: always
-    depends_on:
-      - postgres
-    env_file:
-      - env.encrypted-common
-    stdin_open: true
-    environment:
-      - BRIDGE_ENCRYPTED_SECRETS=1
-      - BRIDGE_NODE_ID=node-3
-      - BRIDGE_HOSTNAME=bridge-node-3
-      - BRIDGE_PEERS=node-1@bridge-node-1:5000,node-2@bridge-node-2:5000
-      - BRIDGE_DB_URL=${DB_URL_3}
-      - BRIDGE_RUNES_BTC_RPC_WALLET_URL=${BTC_RPC_3}
-      - BRIDGE_SECRET_RUNES_BTC_MASTER_XPUBS=${BTC_XPUBS}
-    labels:
-      - "node.type=bridge"
 
   web:
     image: bridge_frontend:latest
