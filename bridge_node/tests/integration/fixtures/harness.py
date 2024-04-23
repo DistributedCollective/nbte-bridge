@@ -1,6 +1,5 @@
 import os
 import logging
-import subprocess
 import time
 import shutil
 
@@ -9,7 +8,7 @@ import json
 
 from bridge.api_client import BridgeAPIClient
 from ..constants import NODE1_API_BASE_URL
-from ...compose import ENV_FILE as COMPOSE_ENV_FILE, COMPOSE_FILE, PROJECT_BASE_DIR
+from ... import compose
 from ...services import BitcoindService
 
 logger = logging.getLogger(__name__)
@@ -18,19 +17,10 @@ NO_START_HARNESS = os.environ.get("NO_START_HARNESS") == "1"
 HARNESS_VERBOSE = os.environ.get("HARNESS_VERBOSE") == "1"
 SKIP_TAP_BRIDGE = os.environ.get("HARNESS_SKIP_TAP_BRIDGE") == "1"
 SKIP_RUNE_BRIDGE = os.environ.get("HARNESS_SKIP_RUNE_BRIDGE") == "1"
-INTEGRATION_TEST_ENV_FILE = PROJECT_BASE_DIR / "env.integrationtest"
+INTEGRATION_TEST_ENV_FILE = compose.PROJECT_BASE_DIR / "env.integrationtest"
 assert INTEGRATION_TEST_ENV_FILE.exists(), f"Missing {INTEGRATION_TEST_ENV_FILE}"
 
-DOCKER_COMPOSE_BASE_ARGS = (
-    "docker",
-    "compose",
-    "-f",
-    str(COMPOSE_FILE),
-    "--env-file",
-    str(COMPOSE_ENV_FILE),
-    "--env-file",
-    str(INTEGRATION_TEST_ENV_FILE),
-)
+INTEGRATION_COMPOSE_BASE_ARGS = ("--env-file", str(INTEGRATION_TEST_ENV_FILE))
 
 
 class IntegrationTestHarness:
@@ -45,7 +35,7 @@ class IntegrationTestHarness:
     EXTRA_LND_CONTAINERS = [
         "user-lnd",
     ]
-    VOLUMES_PATH = PROJECT_BASE_DIR / "volumes"
+    VOLUMES_PATH = compose.PROJECT_BASE_DIR / "volumes"
     # 1 of 3 wallet based on values in docker-compose.dev.yml. Needs to be changed when the
     # number of signers, or the keys, change
     RUNE_BRIDGE_MULTISIG_DESCRIPTOR = (
@@ -94,7 +84,7 @@ class IntegrationTestHarness:
     def is_any_service_started(self):
         # docker compose ps --format json returns newline-separated json objects for each service.
         # if not services are started, it returns an empty string
-        ps_output = self._capture_docker_compose_output("ps", "--format", "json")
+        ps_output = self._run_docker_compose_command("ps", "--format", "json", verbose=True)[0]
         return bool(ps_output.strip())
 
     def _clean(self):
@@ -141,7 +131,7 @@ class IntegrationTestHarness:
             # Try multiple times because maybe the lnd node is not yet started
             for tries_left in range(20, 0, -1):
                 try:
-                    addr_response = self._capture_docker_compose_output(
+                    addr_response = self._run_docker_compose_command(
                         "exec",
                         "-u",
                         "lnd",
@@ -151,7 +141,7 @@ class IntegrationTestHarness:
                         "regtest",
                         "newaddress",
                         "p2tr",
-                    )
+                    )[0]
                     break
                 except Exception as e:
                     if tries_left <= 1:
@@ -229,33 +219,21 @@ class IntegrationTestHarness:
     def _run_docker_compose_command(self, *args, verbose=None):
         if verbose is None:
             verbose = self.verbose
-        extra_kwargs = {}
-        if not verbose:
-            extra_kwargs.update(
-                dict(
-                    stdout=subprocess.DEVNULL,
-                    stderr=subprocess.DEVNULL,
-                )
-            )
 
-        subprocess.run(
-            DOCKER_COMPOSE_BASE_ARGS + args,
-            cwd=PROJECT_BASE_DIR,
-            check=True,
-            **extra_kwargs,
-        )
+        command = INTEGRATION_COMPOSE_BASE_ARGS + args
 
-    def _capture_docker_compose_output(self, *args):
-        return subprocess.check_output(
-            DOCKER_COMPOSE_BASE_ARGS + args,
-            cwd=PROJECT_BASE_DIR,
-        )
+        proc = compose.run_command(*command, quiet=not verbose, capture=True)
+
+        return self._decode_stream(proc.stdout), self._decode_stream(proc.stderr), proc.returncode
+
+    def _decode_stream(self, stream):
+        return stream.decode("utf-8") if stream else None
 
     def run_hardhat_json_command(self, *args):
         return json.loads(
-            self._capture_docker_compose_output(
+            self._run_docker_compose_command(
                 "exec", "hardhat", "npx", "hardhat", "--network", "localhost", *args
-            )
+            )[0]
         )
 
 
