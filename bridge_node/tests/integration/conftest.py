@@ -84,23 +84,6 @@ def tap_nodes(alice_tap, bob_tap, user_tap):
     return [alice_tap, bob_tap, user_tap]
 
 
-# NOt necessary, the harness fixture handles this
-# @pytest.fixture(scope="session", autouse=True)
-# def integration_test_smoketest(
-#     harness,  # noqa
-#     web3,
-#     user_bitcoin_rpc,
-#     multisig_bitcoin_rpc
-# ):
-#     fail_msg = "Integration test smoketest failed. Check that the docker-compose is running"
-#     assert harness.is_started(), fail_msg
-#     assert web3.is_connected(), fail_msg
-#     assert web3.eth.chain_id == 31337, fail_msg
-#     assert web3.eth.block_number > 0, fail_msg
-#     assert user_bitcoin_rpc.getblockcount() > 0, "Bitcoind is not running or not mining blocks"
-#     assert multisig_bitcoin_rpc.getblockcount() > 0, "Bitcoind is not running or not mining blocks"
-
-
 @pytest.fixture()
 def user_evm_account(web3):
     account = Account.create()

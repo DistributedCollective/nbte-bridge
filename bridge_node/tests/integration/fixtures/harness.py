@@ -74,25 +74,18 @@ class IntegrationTestHarness:
         logger.info("Starting integration test harness")
         self._clean()
         logger.info("Starting docker compose")
-        self._run_docker_compose_command("up", "--build", "--detach")
+        self._run_docker_compose_command(
+            "up", "--build", "--wait", "--wait-timeout", str(self.MAX_START_WAIT_TIME_S)
+        )
 
         self._init_environment()
 
-        logger.info("Waiting for bridge node to start")
-        start_time = time.time()
-        while time.time() - start_time < self.MAX_START_WAIT_TIME_S:
-            if self.is_started():
-                logger.info("Bridge node started.")
-                break
-            time.sleep(self.WAIT_INTERVAL_S)
-        else:
-            raise TimeoutError(f"Bridge node did not start in {self.MAX_START_WAIT_TIME_S} seconds")
         logger.info("Integration test harness started.")
 
     def stop(self):
         logger.info("Stopping integration test harness")
         logger.info("Stopping docker compose")
-        self._run_docker_compose_command("down", "-v")
+        self._run_docker_compose_command("down", "--volumes")
         logger.info("Stopped.")
 
     def is_started(self):
@@ -119,9 +112,6 @@ class IntegrationTestHarness:
         Does environment initialization, such as creating wallets and mining initial bitcoin blocks
         """
         logger.info("Initializing the environment")
-
-        logger.info("Waiting for bitcoin rpc startup")
-        self.bitcoind.wait()
         logger.info("Mining initial btc block (tapd/lnd won't start before)")
         self.bitcoind.mine()
 
@@ -272,6 +262,7 @@ class IntegrationTestHarness:
 @pytest.fixture(scope="session", autouse=True)
 def harness(request) -> IntegrationTestHarness:
     harness = IntegrationTestHarness(verbose=HARNESS_VERBOSE)
+
     if NO_START_HARNESS:
         logger.info("Skipping harness autostart because NO_START_HARNESS=1")
     else:
@@ -296,4 +287,5 @@ def harness(request) -> IntegrationTestHarness:
 
         request.addfinalizer(finalizer)
         harness.start()
+
     return harness

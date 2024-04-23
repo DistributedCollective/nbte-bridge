@@ -55,7 +55,7 @@ def user_evm_token(
 def bitcoind():
     # Overrides default bitcoind fixture
     service = services.BitcoindService()
-    assert service.is_started()
+    assert service.is_running()
     return service
 
 
@@ -65,7 +65,7 @@ def ord(bitcoind):
     service = services.OrdService(
         bitcoind=bitcoind,
     )
-    assert service.is_started()
+    assert service.is_running()
     return service
 
 
