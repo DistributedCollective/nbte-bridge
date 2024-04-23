@@ -80,8 +80,6 @@ jobs:
     name: "Run integration tests"
     needs:
       - build
-      - static-analysis
-      - unit-tests
     runs-on: ubuntu-latest
     permissions: write-all
     steps:
