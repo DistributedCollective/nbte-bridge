@@ -19,7 +19,7 @@ serve:
 
 .PHONY: create-shared-ca-cert
 create-shared-ca-cert:
-	mkdir -p secrets/certs/ && cd secrets/certs/ && ../../bridge_node/scripts/create_ca_cert.sh
+	mkdir -p secrets/certs/ && cd secrets/certs/ && ../../bridge_node/scripts/create_ca_cert.py
 
 .PHONY: serve-encrypted
 serve-encrypted:

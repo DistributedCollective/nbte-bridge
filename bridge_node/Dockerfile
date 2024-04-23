@@ -46,7 +46,7 @@ COPY entrypoint.sh ./
 COPY alembic.ini ./
 
 COPY scripts /srv/bridge_backend/certs/
-RUN cd /srv/bridge_backend/certs/ && ./create_ca_cert.sh
+RUN cd /srv/bridge_backend/certs/ && ./create_ca_cert.py
 
 # Run entrypoint.sh
 ENTRYPOINT ["/srv/bridge_backend/entrypoint.sh"]
