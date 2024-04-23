@@ -33,10 +33,11 @@ class HardhatService(compose.ComposeService):
         self.web3 = create_web3(self.rpc_url)
 
     def cli(self, *args) -> str:
-        return self.exec("npx", "hardhat", "--network", "localhost", *args).stdout
+        return self.exec("npx", "hardhat", "--network", "localhost", *args)
 
     def run_json_command(self, *args):
-        return json.loads(self.cli(*args))
+        output = self.cli(*args)[0]
+        return json.loads(output)
 
     def make_request(self, method: str, args: list[typing.Any]):
         ret = self.web3.provider.make_request(cast(RPCEndpoint, method), args)

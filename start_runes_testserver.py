@@ -1,6 +1,7 @@
 """
 Quick and dirty testserver for UI dev
 """
+
 import threading
 import logging
 import sys
@@ -28,7 +29,7 @@ BTC_BLOCK_INTERVAL = 15
 
 def create_ord(bitcoind):
     service = services.OrdService(bitcoind=bitcoind)
-    assert service.is_started()
+    assert service.is_running()
     return service
 
 
@@ -92,7 +93,7 @@ def create_user_ord_wallet(user_ord, bitcoin_rpc, alice_ord_wallet):
 
 def init_runes(bitcoin_rpc: BitcoinRPC):
     bitcoind = BitcoindService()
-    assert bitcoind.is_started()
+    assert bitcoind.is_running()
     ord = create_ord(bitcoind=bitcoind)
     alice_ord_wallet = create_alice_ord_wallet(ord, bitcoin_rpc)
     create_user_ord_wallet(ord, bitcoin_rpc, alice_ord_wallet)

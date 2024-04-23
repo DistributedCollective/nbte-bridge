@@ -49,7 +49,7 @@ class BitcoindService(compose.ComposeService):
             "-rpcuser=polaruser",
             "-rpcpassword=polarpass",
             *args,
-        ).stdout.decode()
+        )[0]
 
     def mine(self, blocks=1, address=None, *, sleep: float = 0.25):
         ret = self.root_wallet.mine(blocks, address)

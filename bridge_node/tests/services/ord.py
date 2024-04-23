@@ -43,11 +43,11 @@ class OrdService(compose.ComposeService):
         )
 
     def cli(self, *args):
-        ret = self.exec(
+        output = self.exec(
             *self.cli_args(*args),
             timeout=TIMEOUT,
-        )
-        return json.loads(ret.stdout)
+        )[0]
+        return json.loads(output)
 
     def cli_args(self, *args):
         return (

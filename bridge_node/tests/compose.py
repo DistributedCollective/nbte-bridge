@@ -2,13 +2,14 @@ import os
 import logging
 import pathlib
 import subprocess
-import time
 import json
 
 from typing import (
     Any,
     Optional,
 )
+
+from types import SimpleNamespace
 
 logger = logging.getLogger(__name__)
 
@@ -24,7 +25,7 @@ COMPOSE_BASE_ARGS = (*COMPOSE_COMMAND, "-f", str(COMPOSE_FILE), "--env-file", st
 assert ENV_FILE.exists(), f"Missing {ENV_FILE}"
 
 
-def run_compose_command(
+def run_command(
     *args,
     check: bool = True,
     capture: bool = False,
@@ -33,14 +34,13 @@ def run_compose_command(
     **extra_kwargs,
 ) -> subprocess.CompletedProcess:
     extra_kwargs["check"] = check
-    if capture:
-        # TODO: capture should capture just stdout, not stderr
-        extra_kwargs["capture_output"] = True
-    elif quiet:
+    extra_kwargs["timeout"] = timeout
+    extra_kwargs["capture_output"] = capture
+
+    if quiet and not capture:
         extra_kwargs["stdout"] = subprocess.DEVNULL
         extra_kwargs["stderr"] = subprocess.DEVNULL
-    if timeout:
-        extra_kwargs["timeout"] = timeout
+
     return subprocess.run(
         COMPOSE_BASE_ARGS + args,
         cwd=PROJECT_BASE_DIR,
@@ -81,7 +81,12 @@ class ComposeService:
             self.start()
 
     def start(self):
-        if self.is_started():
+        """
+        Starts the service.
+        If the service is already running, it will only be started again if
+        the `build` flag is set to True.
+        """
+        if self.is_running():
             if self.build:
                 logger.info(
                     "Service %s already started, but starting again in case it needs re-building.",
@@ -91,66 +96,58 @@ class ComposeService:
                 logger.info("Service %s already started.", self.service)
                 return
 
-        logger.info("Starting docker compose service %s", self.service)
-        start_args = ["up", self.service, "--detach"]
+        start_args = ["up", self.service, "--wait"]
+
         if self.build:
             start_args.append("--build")
-        run_compose_command(*start_args)
 
-        logger.info("Waiting for service %s to start", self.service)
-        self.wait()
+        logger.info("Starting docker compose service %s", self.service)
+        run_command(*start_args)
         logger.info("Service %s started.", self.service)
 
     def stop(self):
+        """
+        Stops the service and removes its volumes.
+        """
         logger.info("Stopping docker compose service %s", self.service)
-        run_compose_command("down", "-v", self.service)
+        run_command("down", "--volumes", self.service)
         logger.info("Stopped service %s", self.service)
 
-    def is_started(self):
+    def is_running(self):
+        """
+        Checks if the service is running.
+        If the service has a healthcheck, it needs to report healthy.
+        """
         info = self.get_container_info()
 
         if info is None:
             return False
 
-        return info["State"] == "running" and info["Health"] in ["healthy", ""]
+        return info.State == "running" and info.Health in ["healthy", ""]
 
     def get_container_info(self):
-        stdout = (
-            run_compose_command(
-                "ps",
-                "-a",
-                "--format",
-                "json",
-                self.service,
-                capture=True,
-            )
+        output = (
+            run_command("ps", "-a", "--format", "json", self.service, capture=True)
             .stdout.decode("utf-8")
             .strip()
         )
 
-        if not stdout:
+        if not output:
             return None
 
-        return json.loads(stdout)
-
-    def wait(self):
-        start_time = time.time()
-        while time.time() - start_time < MAX_WAIT_TIME_S:
-            if self.is_started():
-                break
-            logger.info("Service %s not yet started.", self.service)
-            time.sleep(1)
-        else:
-            raise TimeoutError(f"Service {self.service} did not start in {MAX_WAIT_TIME_S} seconds")
+        return json.loads(output, object_hook=lambda d: SimpleNamespace(**d))
 
     def exec(self, *args: Any, timeout: Optional[float] = None):
         exec_args = self._get_exec_args(*args)
         try:
-            return run_compose_command(
+            result = run_command(
                 *exec_args,
                 capture=True,
                 timeout=timeout,
             )
+
+            return result.stdout.decode("utf-8"), result.stderr.decode("utf-8"), result.returncode
+
         except subprocess.CalledProcessError as e:
             logger.error("Error executing command %s: %s (%s)", exec_args, e, e.stderr)
             raise ComposeExecException(e.stderr) from e
@@ -161,14 +158,17 @@ class ComposeService:
 
     def _get_exec_args(self, *args):
         exec_args = ["exec"]
+
         if self.user:
             exec_args.extend(["-u", self.user])
+
         exec_args.append(self.service)
         exec_args.extend(str(a) for a in args)
+
         return exec_args
 
     def copy_to_container(self, src: str | pathlib.Path, dest: str):
-        run_compose_command(
+        run_command(
             "cp",
             str(src),
             f"{self.service}:{dest}",
