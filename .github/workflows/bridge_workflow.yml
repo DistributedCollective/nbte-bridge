@@ -89,6 +89,8 @@ jobs:
       - run: pipx install poetry==1.7.1
       - run: sudo apt-get update -y && sudo apt-get -y install libsecp256k1-dev
 
+      - run: make install
+
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
 
@@ -112,5 +114,4 @@ jobs:
           echo USERID=$(id --user) >> env.integrationtest
           echo GROUPID=$(id --group) >> env.integrationtest
 
-      - run: make install
       - run: make integration-test
