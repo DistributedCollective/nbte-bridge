@@ -1,3 +1,4 @@
+import pathlib
 from typing import cast
 
 import pytest
@@ -24,6 +25,8 @@ from .constants import (
 # we need the fixtures from other modules to be available automatically, so let's import them
 from .fixtures.harness import harness  # noqa
 
+MACAROON_SUBPATH = pathlib.Path("data" / "regtest" / "admin.macaroon")
+
 setup_bitcointx_network("regtest")  # it's a global variable, just like Satoshi intended
 
 
@@ -43,7 +46,7 @@ def alice_tap():
     return TapRestClient(
         public_universe_host="alice-tap",
         rest_host="localhost:8289",
-        macaroon_path=base_dir / "data" / "regtest" / "admin.macaroon",
+        macaroon_path=base_dir / MACAROON_SUBPATH,
         tls_cert_path=base_dir / "tls.cert",
     )
 
@@ -53,7 +56,7 @@ def bob_tap():
     base_dir = PROJECT_BASE_DIR / "volumes" / "tapd" / "bob-tap"
     return TapRestClient(
         rest_host="localhost:8290",
-        macaroon_path=base_dir / "data" / "regtest" / "admin.macaroon",
+        macaroon_path=base_dir / MACAROON_SUBPATH,
         tls_cert_path=base_dir / "tls.cert",
     )
 
@@ -63,7 +66,7 @@ def carol_tap():
     base_dir = PROJECT_BASE_DIR / "volumes" / "tapd" / "carol-tap"
     return TapRestClient(
         rest_host="localhost:8291",
-        macaroon_path=base_dir / "data" / "regtest" / "admin.macaroon",
+        macaroon_path=base_dir / MACAROON_SUBPATH,
         tls_cert_path=base_dir / "tls.cert",
     )
 
@@ -73,7 +76,7 @@ def user_tap():
     base_dir = PROJECT_BASE_DIR / "volumes" / "tapd" / "user-tap"
     return TapRestClient(
         rest_host="localhost:8292",
-        macaroon_path=base_dir / "data" / "regtest" / "admin.macaroon",
+        macaroon_path=base_dir / MACAROON_SUBPATH,
         tls_cert_path=base_dir / "tls.cert",
     )
 

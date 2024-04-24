@@ -102,7 +102,9 @@ class ComposeService:
             start_args.append("--build")
 
         logger.info("Starting docker compose service %s", self.service)
+
         run_command(*start_args)
+
         logger.info("Service %s started.", self.service)
 
     def stop(self):
@@ -110,7 +112,9 @@ class ComposeService:
         Stops the service and removes its volumes.
         """
         logger.info("Stopping docker compose service %s", self.service)
+
         run_command("down", "--volumes", self.service)
+
         logger.info("Stopped service %s", self.service)
 
     def is_running(self):
@@ -139,6 +143,7 @@ class ComposeService:
 
     def exec(self, *args: Any, timeout: Optional[float] = None):
         exec_args = self._get_exec_args(*args)
+
         try:
             result = run_command(
                 *exec_args,

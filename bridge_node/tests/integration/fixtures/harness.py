@@ -66,6 +66,7 @@ class IntegrationTestHarness:
         self._clean()
 
         logger.info("Starting docker compose")
+
         self._run_docker_compose_command(
             "up", "--build", "--wait", "--wait-timeout", str(self.MAX_START_WAIT_TIME_S)
         )
@@ -77,16 +78,18 @@ class IntegrationTestHarness:
     def stop(self):
         logger.info("Stopping integration test harness")
         logger.info("Stopping docker compose")
+
         self._run_docker_compose_command("down", "--volumes")
+
         logger.info("Stopped.")
 
     def is_started(self):
         return self._api_client.is_healthy()
 
     def is_any_service_started(self):
-        # docker compose ps --format json returns newline-separated json objects for each service.
+        # docker compose ps --services returns the running services separated by newlines.
         # if not services are started, it returns an empty string
-        ps_output = self._run_docker_compose_command("ps", "--format", "json", verbose=True)[0]
+        ps_output = self._run_docker_compose_command("ps", "--services", verbose=True)[0]
         return bool(ps_output.strip())
 
     def _clean(self):
@@ -135,31 +138,18 @@ class IntegrationTestHarness:
 
         for lnd_container in lnd_containers:
             logger.info("Depositing funds to %s", lnd_container)
-            # Try multiple times because maybe the lnd node is not yet started
-            for tries_left in range(20, 0, -1):
-                try:
-                    addr_response = self._run_docker_compose_command(
-                        "exec",
-                        "-u",
-                        "lnd",
-                        lnd_container,
-                        "/opt/lnd/lncli",
-                        "-n",
-                        "regtest",
-                        "newaddress",
-                        "p2tr",
-                    )[0]
-                    break
-                except Exception as e:
-                    if tries_left <= 1:
-                        raise e
-                    logger.info(
-                        "LND node %s not yet started, retrying in 2 seconds...",
-                        lnd_container,
-                    )
-                    time.sleep(2)
-            else:
-                raise Exception("should not get here")
+
+            addr_response = self._run_docker_compose_command(
+                "exec",
+                "-u",
+                "lnd",
+                lnd_container,
+                "/opt/lnd/lncli",
+                "-n",
+                "regtest",
+                "newaddress",
+                "p2tr",
+            )[0]
 
             addr = json.loads(addr_response)["address"]
 
@@ -167,31 +157,13 @@ class IntegrationTestHarness:
             self.bitcoind.mine(2, address=addr)
             logger.info("Mined.")
 
-        logger.info("Waiting for macaroons to be available (start of tapd)")
-        for _ in range(20):
-            ok = True
-            for federator_id in self.FEDERATORS:
-                tap_container = f"{federator_id}-tap"
-                macaroon_path = (
-                    self.VOLUMES_PATH
-                    / "tapd"
-                    / tap_container
-                    / "data"
-                    / "regtest"
-                    / "admin.macaroon"
-                )
-                if not macaroon_path.exists():
-                    logger.info(
-                        "macaroon for %s not available",
-                        tap_container,
-                    )
-                    ok = False
-            if ok:
-                break
-            logger.info("all macaroons not available, retrying in 2 seconds...")
-            time.sleep(2)
-        else:
-            raise TimeoutError("Macaroons not available after waiting")
+        logger.info("Checking macaroon availability (start of tapd)")
+        for federator_id in self.FEDERATORS:
+            tap_container = f"{federator_id}-tap"
+            macaroon_path = (
+                self.VOLUMES_PATH / "tapd" / tap_container / "data" / "regtest" / "admin.macaroon"
+            )
+            assert macaroon_path.exists()
 
     def _init_rune_bridge(self):
         # Rune bridge wallets

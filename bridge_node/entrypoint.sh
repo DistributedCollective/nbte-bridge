@@ -6,7 +6,6 @@ if [ -z "${BRIDGE_DB_URL}" ]; then
     exit 1
 fi
 
-sleep 5
 echo "Waiting for PostgreSQL startup at $BRIDGE_DB_URL"
 until psql $BRIDGE_DB_URL -c "SELECT 1" ; do
   sleep 5

@@ -67,9 +67,11 @@ class HardhatService(compose.ComposeService):
         logger.info("Creating test evm wallet %s", name or "")
         account = Account.create()
         logger.info("Account: %s", account.address)
+
         if impersonate:
             logger.info("Impersonating account %s", account.address)
             self.make_request("hardhat_impersonateAccount", [account.address])
+
         if fund:
             amount_eth = 10.0
             logger.info("Funding %s with %s ETH", account.address, amount_eth)
@@ -77,6 +79,7 @@ class HardhatService(compose.ComposeService):
                 "hardhat_setBalance",
                 [account.address, to_hex(Web3.to_wei(amount_eth, "ether"))],
             )
+
         return EVMWallet(
             name=name,
             account=account,

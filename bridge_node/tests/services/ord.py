@@ -142,6 +142,7 @@ class OrdWallet:
     ):
         self.ord = ord
         self.name = name
+
         if addresses:
             self.addresses = list(addresses)
         else:
@@ -154,15 +155,17 @@ class OrdWallet:
         return "wallet", "--name", self.name, *args
 
     def create(self):
-        ret = self.cli("create")
-        return ret
+        return self.cli("create")
 
     def get_rune_balance_decimal(self, rune: str) -> Decimal:
         rune_response = self.ord.api_client.get_rune(rune)
+
         if not rune_response:
             raise ValueError(f"Rune {rune} not found")
+
         balances = self.cli("balance")
         balance_dec = Decimal(balances["runes"].get(rune, 0))
+
         return balance_dec
 
     def get_balance_btc(self) -> Decimal:
@@ -189,11 +192,14 @@ class OrdWallet:
             receiver,
             f"{amount_decimal}:{rune}",
         ]
+
         if postage:
             if isinstance(postage, int):
                 postage = f"{postage}sat"
             args.extend(["--postage", postage])
+
         ret = self.cli(*args)
+
         return TransferInfo(
             txid=ret["txid"],
             psbt=ret["psbt"],
@@ -224,8 +230,10 @@ class OrdWallet:
         with tempfile.TemporaryDirectory(prefix="nbtebridge-tests") as tmpdir:
             inscription_file_path = pathlib.Path(tmpdir) / "inscription.txt"
             batch_file_path = pathlib.Path(tmpdir) / "batch.batch"
+
             with inscription_file_path.open("w") as f:
                 f.write("test inscription\n")
+
             with batch_file_path.open("w") as f:
                 create_batch_file(
                     {
@@ -246,8 +254,10 @@ class OrdWallet:
                     },
                     stream=f,
                 )
+
             self.ord.copy_to_container(inscription_file_path, "/tmp/inscription.txt")
             self.ord.copy_to_container(batch_file_path, "/tmp/batch.batch")
+
             logger.info("Inscription and batch files copied to ord container")
 
         popen_args = self.ord.cli_args(
@@ -325,6 +335,7 @@ class OrdWallet:
         random_part_length = max(20 - len(prefix), MIN_RANDOMPART_LENGTH)
         random_part = "".join(random.choices(string.ascii_uppercase, k=random_part_length))
         rune = f"{prefix}{random_part}"
+
         return self.etch_rune(
             rune=rune, symbol=symbol, supply_decimal=supply, divisibility=divisibility
         )

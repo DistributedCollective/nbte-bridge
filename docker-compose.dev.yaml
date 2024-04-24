@@ -49,11 +49,6 @@ services:
       interval: 2s
     volumes:
       - ./volumes/bitcoind/bitcoind:/home/bitcoin/.bitcoin
-    expose:
-      - '18443'
-      - '18444'
-      - '28334'
-      - '28335'
     ports:
       - '18443:18443'
       - '19444:18444'
@@ -114,9 +109,6 @@ services:
     depends_on:
       bitcoind:
         condition: service_healthy
-
-    expose:
-      - 80
 
     ports:
       - 127.0.0.1:3080:80
@@ -268,10 +260,6 @@ services:
     restart: always
     volumes:
       - ./volumes/lnd/alice-lnd:/home/lnd/.lnd
-    expose:
-      - '8080'
-      - '10009'
-      - '9735'
     ports:
       - '8082:8080'
       - '10002:10009'
@@ -299,10 +287,6 @@ services:
     restart: always
     volumes:
       - ./volumes/lnd/bob-lnd:/home/lnd/.lnd
-    expose:
-      - '8080'
-      - '10009'
-      - '9735'
     ports:
       - '8083:8080'
       - '10003:10009'
@@ -331,10 +315,6 @@ services:
 #    restart: always
 #    volumes:
 #      - ./volumes/lnd/carol-lnd:/home/lnd/.lnd
-#    expose:
-#      - '8080'
-#      - '10009'
-#      - '9735'
 #    ports:
 #      - '8084:8080'
 #      - '10004:10009'
@@ -362,10 +342,6 @@ services:
     restart: always
     volumes:
       - ./volumes/lnd/user-lnd:/home/lnd/.lnd
-    expose:
-      - '8080'
-      - '10009'
-      - '9735'
     ports:
       - '8085:8080'
       - '10005:10009'
@@ -391,9 +367,6 @@ services:
     volumes:
       - ./volumes/lnd/alice-lnd:/home/tap/.lnd
       - ./volumes/tapd/alice-tap:/home/tap/.tapd
-    expose:
-      - '8089'
-      - '10029'
     ports:
       - '8289:8089'
       - '12029:10029'
@@ -418,9 +391,6 @@ services:
     volumes:
       - ./volumes/lnd/bob-lnd:/home/tap/.lnd
       - ./volumes/tapd/bob-tap:/home/tap/.tapd
-    expose:
-      - '8089'
-      - '10029'
     ports:
       - '8290:8089'
       - '12030:10029'
@@ -446,9 +416,6 @@ services:
 #    volumes:
 #      - ./volumes/lnd/carol-lnd:/home/tap/.lnd
 #      - ./volumes/tapd/carol-tap:/home/tap/.tapd
-#    expose:
-#      - '8089'
-#      - '10029'
 #    ports:
 #      - '8291:8089'
 #      - '12031:10029'
@@ -473,9 +440,6 @@ services:
     volumes:
       - ./volumes/lnd/user-lnd:/home/tap/.lnd
       - ./volumes/tapd/user-tap:/home/tap/.tapd
-    expose:
-      - '8089'
-      - '10029'
     ports:
       - '8292:8089'
       - '12032:10029'
