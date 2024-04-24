@@ -3,15 +3,14 @@ import logging
 from anemic.ioc import Container, auto, autowired, service
 from sqlalchemy.orm.session import Session
 
+from ...common.services.transactions import TransactionManager
+from ...common.tap.client import TapRestClient
 from .models import (
     RskToTapTransfer,
     RskToTapTransferBatch,
     RskToTapTransferBatchStatus,
 )
 from .rsk import BridgeContract
-from ...common.services.transactions import TransactionManager
-from ...common.tap.client import TapRestClient
-
 
 logger = logging.getLogger(__name__)
 
@@ -70,9 +69,7 @@ class RskToTapService:
                 batch.sending_result = send_result
 
         if status == RskToTapTransferBatchStatus.SENDING_TO_TAP:
-            raise RuntimeError(
-                f"Batch {batch_id} left in SENDING_TO_TAP state, cannot safely proceed further"
-            )
+            raise RuntimeError(f"Batch {batch_id} left in SENDING_TO_TAP state, cannot safely proceed further")
 
         # TODO: check mined, store info, etc
         if status == RskToTapTransferBatchStatus.SENT_TO_TAP:

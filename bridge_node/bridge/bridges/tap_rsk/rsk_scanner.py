@@ -7,6 +7,7 @@ from web3.types import EventData
 
 from bridge.common.evm.scanner import EvmEventScanner
 from bridge.common.services.key_value_store import KeyValueStore
+
 from .common import KEY_VALUE_STORE_NAMESPACE
 from .config import Config
 from .models import RskToTapTransfer

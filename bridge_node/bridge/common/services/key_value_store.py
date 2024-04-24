@@ -1,10 +1,9 @@
 from typing import Any
 
-from anemic.ioc import service, auto, autowired, Container
+from anemic.ioc import Container, auto, autowired, service
 from sqlalchemy.orm import Session
 
 from ..models.key_value_store import KeyValuePair
-
 
 _unset = object()
 

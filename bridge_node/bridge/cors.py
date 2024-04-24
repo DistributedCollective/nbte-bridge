@@ -9,7 +9,7 @@ def includeme(config):
     config.add_subscriber(add_cors_to_response, "pyramid.events.NewResponse")
 
 
-class CorsPreflightPredicate(object):
+class CorsPreflightPredicate:
     def __init__(self, val, config):
         self.val = val
 

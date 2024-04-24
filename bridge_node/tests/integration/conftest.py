@@ -7,25 +7,26 @@ from eth_utils import to_hex
 from web3 import Web3
 from web3.types import RPCEndpoint
 
-from bridge.common.btc.setup import setup_bitcointx_network
-from bridge.common.btc.rpc import BitcoinRPC
-from bridge.common.evm.utils import create_web3, load_abi
 from bridge.api_client import BridgeAPIClient
-from bridge.common.tap.client import TapRestClient
 from bridge.bridges.tap_rsk.rsk import ABI_DIR
+from bridge.common.btc.rpc import BitcoinRPC
+from bridge.common.btc.setup import setup_bitcointx_network
+from bridge.common.evm.utils import create_web3, load_abi
+from bridge.common.tap.client import TapRestClient
+
 from .constants import (
     ALICE_EVM_PRIVATE_KEY,
-    PROJECT_BASE_DIR,
     BRIDGE_CONTRACT_ADDRESS,
+    NODE1_API_BASE_URL,
+    PROJECT_BASE_DIR,
     USER_BITCOIN_RPC_URL,
     WEB3_RPC_URL,
-    NODE1_API_BASE_URL,
 )
 
 # we need the fixtures from other modules to be available automatically, so let's import them
 from .fixtures.harness import harness  # noqa
 
-MACAROON_SUBPATH = pathlib.Path("data" / "regtest" / "admin.macaroon")
+MACAROON_SUBPATH = pathlib.Path("data") / "regtest" / "admin.macaroon"
 
 setup_bitcointx_network("regtest")  # it's a global variable, just like Satoshi intended
 

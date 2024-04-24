@@ -1,4 +1,5 @@
 from pyramid.config import Configurator
+
 from . import views
 
 

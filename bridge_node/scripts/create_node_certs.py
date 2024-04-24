@@ -1,8 +1,8 @@
 #!/usr/bin/env python
 
 import os
-import subprocess
 import socket
+import subprocess
 
 node_name = os.environ.get("BRIDGE_HOSTNAME", None)
 node_ip = os.environ.get("BRIDGE_NODE_IP", None)

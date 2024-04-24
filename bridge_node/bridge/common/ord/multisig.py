@@ -15,9 +15,11 @@ from bitcointx.core.key import (
     KeyStore,
 )
 from bitcointx.core.psbt import (
+    PartiallySignedTransaction as PSBT,
+)
+from bitcointx.core.psbt import (
     PSBT_Input,
     PSBT_Output,
-    PartiallySignedTransaction as PSBT,
 )
 from bitcointx.core.script import (
     CScript,
@@ -29,15 +31,6 @@ from bitcointx.wallet import (
     P2WSHBitcoinAddress,
 )
 
-from .client import OrdApiClient
-from .transfers import (
-    RuneTransfer,
-    TARGET_POSTAGE_SAT,
-)
-from .utxos import (
-    OrdOutputCache,
-    UnindexedOutput,
-)
 from ..btc import descriptors
 from ..btc.multisig_utils import (
     estimate_p2wsh_multisig_tx_virtual_size,
@@ -46,6 +39,15 @@ from ..btc.multisig_utils import (
 from ..btc.rpc import BitcoinRPC
 from ..btc.types import UTXO
 from ..btc.utils import encode_segwit_address
+from .client import OrdApiClient
+from .transfers import (
+    TARGET_POSTAGE_SAT,
+    RuneTransfer,
+)
+from .utxos import (
+    OrdOutputCache,
+    UnindexedOutput,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -125,7 +127,7 @@ class OrdMultisig:
         self,
         *,
         timestamp="now",
-        range: int | tuple[int, int],
+        desc_range: int | tuple[int, int],
     ):
         response = self._bitcoin_rpc.call(
             "importdescriptors",
@@ -135,7 +137,7 @@ class OrdMultisig:
                     # "desc": self._get_descriptor_with_xprv(),
                     "desc": self.get_descriptor(),
                     "timestamp": timestamp,
-                    "range": range,
+                    "range": desc_range,
                 }
             ],
         )
@@ -204,9 +206,7 @@ class OrdMultisig:
                 raise LookupError(f"Rune {transfer.rune} not found (transfer {transfer})")
             rune_id = pyord.RuneId.from_str(rune_response["id"])
             if transfer.amount == 0:
-                raise ValueError(
-                    "Zero transfer amounts are not supported as they have a special meaning in Edicts"
-                )
+                raise ValueError("Zero transfer amounts are not supported as they have a special meaning in Edicts")
             edicts.append(
                 pyord.Edict(
                     id=rune_id,
@@ -274,9 +274,7 @@ class OrdMultisig:
             if self._get_master_xpriv().fingerprint not in parsed_descriptor.master_fingerprints:
                 # This should essentially never happen unless other descriptors are imported
                 # to the wallet
-                raise ValueError(
-                    "UTXO doesn't belong to this multisig (master fingerprint not found)"
-                )
+                raise ValueError("UTXO doesn't belong to this multisig (master fingerprint not found)")
 
             psbt.add_input(
                 txin=CTxIn(
@@ -313,9 +311,7 @@ class OrdMultisig:
             #    )
             #    continue
 
-            relevant_rune_balances_in_utxo = {
-                rune: ord_output.get_rune_balance(rune) for rune in used_runes
-            }
+            relevant_rune_balances_in_utxo = {rune: ord_output.get_rune_balance(rune) for rune in used_runes}
             if not any(relevant_rune_balances_in_utxo.values()):
                 # No runes in this UTXO
                 continue
@@ -372,8 +368,8 @@ class OrdMultisig:
                     )
                     if not ord_output.has_rune_balances():
                         break
-            except IndexError:
-                raise ValueError("Don't have enough BTC to fund PSBT")
+            except IndexError as e:
+                raise ValueError("Don't have enough BTC to fund PSBT") from e
             if not utxo.witness_script:
                 logger.warning("UTXO doesn't have witnessScript, cannot use: %s", utxo)
                 continue
@@ -475,8 +471,7 @@ class OrdMultisig:
 
     def _derive_redeem_script(self, index: int) -> CScript:
         sorted_child_pubkeys = [
-            xpub.derive_path(self._base_derivation_path).derive(index).pub
-            for xpub in self._master_xpubs
+            xpub.derive_path(self._base_derivation_path).derive(index).pub for xpub in self._master_xpubs
         ]
         sorted_child_pubkeys.sort()
 

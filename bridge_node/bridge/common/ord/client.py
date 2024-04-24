@@ -1,4 +1,5 @@
-from typing import TypedDict, Any
+from typing import Any, TypedDict
+
 import requests
 
 
@@ -34,10 +35,23 @@ class RuneEntry(TypedDict):
 
 class RuneResponse(TypedDict):
     # Example of a RuneResponse
-    # {'entry': {'burned': 0, 'divisibility': 18,
-    #            'etching': 'a41fc8941069ac2c8c109c533c5d4ff2299ec549bf47e344ece3359600dd0153', 'mint': None, 'mints': 0,
-    #            'number': 0, 'rune': 'RUNESAREAWESOME', 'spacers': 0, 'supply': 10000000000000000000000000000, 'symbol': 'R',
-    #            'timestamp': 1709917172}, 'id': '103:1', 'parent': None}
+    # {
+    #     "entry": {
+    #         "burned": 0,
+    #         "divisibility": 18,
+    #         "etching": "a41fc8941069ac2c8c109c533c5d4ff2299ec549bf47e344ece3359600dd0153",
+    #         "mint": None,
+    #         "mints": 0,
+    #         "number": 0,
+    #         "rune": "RUNESAREAWESOME",
+    #         "spacers": 0,
+    #         "supply": 10000000000000000000000000000,
+    #         "symbol": "R",
+    #         "timestamp": 1709917172,
+    #     },
+    #     "id": "103:1",
+    #     "parent": None,
+    # }
     entry: RuneEntry
     id: str
     parent: Any
@@ -51,13 +65,27 @@ class RuneBalanceEntry(TypedDict):
 
 class OutputResponse(TypedDict):
     # Example:
-    # {"address": "bcrt1pwrxxrwjcwrv5608gnhlwgmvxq7tj3q24syqks9pf2lc6n54ewhlqly0cus", "indexed": true, "inscriptions": [],
-    #  "runes": [["AAAANLWJOPDWUMOZHYZV", {"amount": 100000000000000000000000000, "divisibility": 18, "symbol": "A"}],
-    #            ["BBBBNAZOAMSEZRDVDLVD", {"amount": 100000000000000000000000000, "divisibility": 18, "symbol": "B"}]],
-    #  "sat_ranges": null,
-    #  "script_pubkey": "OP_PUSHNUM_1 OP_PUSHBYTES_32 70cc61ba5870d94d3ce89dfee46d860797288155810168142957f1a9d2b975fe",
-    #  "spent": false, "transaction": "71f2c5e1b5d2f612091d845f0a282e02509f18a0c5724052d064eed2fb6f61c9",
-    #  "value": 10000} %
+    # {
+    #     "address": "bcrt1pwrxxrwjcwrv5608gnhlwgmvxq7tj3q24syqks9pf2lc6n54ewhlqly0cus",
+    #     "indexed": true,
+    #     "inscriptions": [],
+    #     "runes": [
+    #         [
+    #             "AAAANLWJOPDWUMOZHYZV",
+    #             {"amount": 100000000000000000000000000, "divisibility": 18, "symbol": "A"},
+    #         ],
+    #         [
+    #             "BBBBNAZOAMSEZRDVDLVD",
+    #             {"amount": 100000000000000000000000000, "divisibility": 18, "symbol": "B"},
+    #         ],
+    #     ],
+    #     "sat_ranges": null,
+    #     "script_pubkey": "OP_PUSHNUM_1 OP_PUSHBYTES_32 "
+    #     "70cc61ba5870d94d3ce89dfee46d860797288155810168142957f1a9d2b975fe",
+    #     "spent": false,
+    #     "transaction": "71f2c5e1b5d2f612091d845f0a282e02509f18a0c5724052d064eed2fb6f61c9",
+    #     "value": 10000,
+    # }
     address: str | None
     indexed: bool
     inscriptions: list[str]

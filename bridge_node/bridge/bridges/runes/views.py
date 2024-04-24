@@ -14,6 +14,7 @@ from sqlalchemy.orm import Session
 
 from bridge.api.exceptions import ApiException
 from bridge.common.evm.provider import Web3
+
 from .service import RuneBridgeService
 
 logger = logging.getLogger(__name__)

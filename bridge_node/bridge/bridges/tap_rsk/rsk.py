@@ -7,6 +7,7 @@ from web3 import Web3
 from web3.contract import Contract
 
 from bridge.common.evm.utils import load_abi
+
 from .config import Config
 
 logger = logging.getLogger(__name__)

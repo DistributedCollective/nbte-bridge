@@ -1,15 +1,16 @@
-import os
+import json
 import logging
-import time
+import os
 import shutil
+import time
 
 import pytest
-import json
 
 from bridge.api_client import BridgeAPIClient
-from ..constants import NODE1_API_BASE_URL
+
 from ... import compose
 from ...services import BitcoindService
+from ..constants import NODE1_API_BASE_URL
 
 logger = logging.getLogger(__name__)
 
@@ -44,9 +45,7 @@ class IntegrationTestHarness:
         "wsh(sortedmulti(2,tpubD6NzVbkrYhZ4WokHnVXX8CVBt1S88jkmeG78yWbLxn7Wd89nkNDe2J8b6opP4K38mRwXf9d9VVN5uA58epPKjj584R1rnDDbk6oHUD1MoWD/13/0/0/*,tpubD6NzVbkrYhZ4WpZfRZip3ALqLpXhHUbe6UyG8iiTzVDuvNUyysyiUJWejtbszZYrDaUM8UZpjLmHyvtV7r1QQNFmTqciAz1fYSYkw28Ux6y/13/0/0/*,tpubD6NzVbkrYhZ4WQZnWqU8ieBsujhoZKZLF6wMvTApJ4ZiGmipk481DyM2su3y5BDeB9fFLwSmmmsGDGJum79he2fnuQMnpWhe3bGir7Mf4uS/13/0/0/*))#qqwc9q36"
     )
     # this also needs changing when the above changes
-    RUNE_BRIDGE_MULTISIG_CHANGE_ADDRESS = (
-        "bcrt1qenkjz7gt2jtys84dwdh75696arc85ld7dl85p7jd77ksxds55tjqtl627a"
-    )
+    RUNE_BRIDGE_MULTISIG_CHANGE_ADDRESS = "bcrt1qenkjz7gt2jtys84dwdh75696arc85ld7dl85p7jd77ksxds55tjqtl627a"
 
     bitcoind: BitcoindService
 
@@ -67,9 +66,7 @@ class IntegrationTestHarness:
 
         logger.info("Starting docker compose")
 
-        self._run_docker_compose_command(
-            "up", "--build", "--wait", "--wait-timeout", str(self.MAX_START_WAIT_TIME_S)
-        )
+        self._run_docker_compose_command("up", "--build", "--wait", "--wait-timeout", str(self.MAX_START_WAIT_TIME_S))
 
         self._init_environment()
 
@@ -160,9 +157,7 @@ class IntegrationTestHarness:
         logger.info("Checking macaroon availability (start of tapd)")
         for federator_id in self.FEDERATORS:
             tap_container = f"{federator_id}-tap"
-            macaroon_path = (
-                self.VOLUMES_PATH / "tapd" / tap_container / "data" / "regtest" / "admin.macaroon"
-            )
+            macaroon_path = self.VOLUMES_PATH / "tapd" / tap_container / "data" / "regtest" / "admin.macaroon"
             assert macaroon_path.exists()
 
     def _init_rune_bridge(self):
@@ -212,9 +207,9 @@ class IntegrationTestHarness:
         return stream.decode("utf-8") if stream else None
 
     def run_hardhat_json_command(self, *args):
-        output = self._run_docker_compose_command(
-            "exec", "hardhat", "npx", "hardhat", "--network", "localhost", *args
-        )[0]
+        output = self._run_docker_compose_command("exec", "hardhat", "npx", "hardhat", "--network", "localhost", *args)[
+            0
+        ]
 
         return json.loads(output)
 
@@ -238,9 +233,7 @@ def harness(request) -> IntegrationTestHarness:
         # Lets at least stop hardhat interval mining
         def finalizer():
             if keep_containers:
-                logger.info(
-                    "Not stopping harness because --keep-containers is on, but enabling automining again"
-                )
+                logger.info("Not stopping harness because --keep-containers is on, but enabling automining again")
                 harness.run_hardhat_json_command("set-mining-interval", "0")
             else:
                 harness.stop()

@@ -2,12 +2,11 @@ import dataclasses
 from collections import namedtuple
 from decimal import Decimal
 
+import Pyro5
 import pytest
 
-import Pyro5
-
-from bridge.common.p2p.network import Network, PyroNetwork, PyroMessageEnvelope
 from bridge.common.p2p.auth.bridge_ssl import PyroSecureContext
+from bridge.common.p2p.network import Network, PyroMessageEnvelope, PyroNetwork
 from tests.mock_network import MockNetwork
 
 
@@ -207,10 +206,7 @@ def test_custom_handshake_is_used_when_using_a_custom_context(mocker):
         context_cls=SecureContextStub,
     )
 
-    assert (
-        network.daemon.validateHandshake.__qualname__
-        == SecureContextStub.validate_handshake.__qualname__
-    )
+    assert network.daemon.validateHandshake.__qualname__ == SecureContextStub.validate_handshake.__qualname__
 
 
 def test_mock_network():
@@ -301,12 +297,8 @@ def test_ask_answer(mocker, request):
     answers = peer1.ask("test_dataclass_2", dc=SomeQuestion(question=456))
     assert answers == [456]
 
-    peer2.answer_with(
-        "test_dataclass_nested", lambda thing: SomeAnswer(answer=thing.child.question)
-    )
-    answers = peer1.ask(
-        "test_dataclass_nested", thing=NestedQuestion(child=SomeQuestion(question=789))
-    )
+    peer2.answer_with("test_dataclass_nested", lambda thing: SomeAnswer(answer=thing.child.question))
+    answers = peer1.ask("test_dataclass_nested", thing=NestedQuestion(child=SomeQuestion(question=789)))
     assert len(answers) == 1
     assert answers[0].answer == 789
 

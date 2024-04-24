@@ -1,12 +1,12 @@
 import contextlib
+import logging
 import time
 from dataclasses import dataclass
 from decimal import Decimal
-import logging
 
+import eth_utils
 import pyord
 import sqlalchemy as sa
-import eth_utils
 import web3
 from hexbytes import HexBytes
 from sqlalchemy.orm import (
@@ -30,7 +30,7 @@ from bridge.common.evm.utils import (
     to_wei,
 )
 from bridge.common.ord.multisig import OrdMultisig
-from .balances import BalanceSnapshot
+
 from ...services import (
     BitcoindService,
     HardhatService,
@@ -40,7 +40,7 @@ from ...services import (
 from ...services.hardhat import EVMWallet
 from ...utils.timing import measure_time
 from ...utils.types import Decimalish
-
+from .balances import BalanceSnapshot
 
 logger = logging.getLogger(__name__)
 # Use hardhat #0 as default owner, since it's the default deployer
@@ -74,7 +74,7 @@ class RuneBridgeUtil:
     def __init__(
         self,
         *,
-        ord: OrdService,
+        ord: OrdService,  # noqa A002: let it overshadow for the sake of simplicity
         hardhat: HardhatService,
         bitcoind: BitcoindService,
         rune_bridge: RuneBridge,
@@ -118,9 +118,7 @@ class RuneBridgeUtil:
         *,
         verify_registered: bool = True,
     ) -> Contract:
-        address = self._rune_bridge_contract.functions.getTokenByRune(
-            self._rune_name_to_number(rune)
-        ).call()
+        address = self._rune_bridge_contract.functions.getTokenByRune(self._rune_name_to_number(rune)).call()
         if verify_registered and is_zero_address(address):
             raise LookupError(f"Rune {rune} not registered on the bridge")
         return self._web3.eth.contract(
@@ -267,9 +265,7 @@ class RuneBridgeUtil:
         if evm_blocks:
             self._hardhat.mine(evm_blocks)
 
-    def fund_wallet_with_runes(
-        self, *, wallet: OrdWallet | str, amount_decimal: Decimalish, rune: str
-    ):
+    def fund_wallet_with_runes(self, *, wallet: OrdWallet | str, amount_decimal: Decimalish, rune: str):
         if hasattr(wallet, "get_receiving_address"):
             address = wallet.get_receiving_address()
         else:
@@ -290,9 +286,7 @@ class RuneBridgeUtil:
         etching = self._root_ord_wallet.etch_test_rune(prefix, **kwargs)
         if fund:
             wallet, amount_decimal = fund
-            self.fund_wallet_with_runes(
-                wallet=wallet, amount_decimal=amount_decimal, rune=etching.rune
-            )
+            self.fund_wallet_with_runes(wallet=wallet, amount_decimal=amount_decimal, rune=etching.rune)
         self.register_rune(rune=etching.rune, symbol=etching.rune_symbol)
         return etching.rune
 
@@ -324,16 +318,12 @@ class RuneBridgeUtil:
         bridge_address = self._rune_bridge_contract.address
         previous_balance = self._web3.eth.get_balance(bridge_address)
         self._hardhat.make_request("hardhat_impersonateAccount", [bridge_address])
-        self._hardhat.make_request(
-            "hardhat_setBalance", [bridge_address, eth_utils.to_hex(to_wei(1))]
-        )
+        self._hardhat.make_request("hardhat_setBalance", [bridge_address, eth_utils.to_hex(to_wei(1))])
         try:
             yield bridge_address
         finally:
             self._hardhat.make_request("hardhat_stopImpersonatingAccount", [bridge_address])
-            self._hardhat.make_request(
-                "hardhat_setBalance", [bridge_address, eth_utils.to_hex(previous_balance)]
-            )
+            self._hardhat.make_request("hardhat_setBalance", [bridge_address, eth_utils.to_hex(previous_balance)])
 
     # BALANCE HELPERS
 
@@ -356,16 +346,13 @@ class RuneBridgeUtil:
             rune_token=rune_token,
             user_ord_wallet=user_ord_wallet,
             user_evm_wallet=user_evm_wallet,
-            user_token_balance_decimal=from_wei(
-                rune_token.functions.balanceOf(user_evm_wallet.address).call()
-            ),
+            user_token_balance_decimal=from_wei(rune_token.functions.balanceOf(user_evm_wallet.address).call()),
             user_rune_balance_decimal=user_ord_wallet.get_rune_balance_decimal(rune),
             token_total_supply_decimal=from_wei(rune_token.functions.totalSupply().call()),
             bridge_token_balance_decimal=from_wei(
                 rune_token.functions.balanceOf(self._rune_bridge_contract.address).call()
             ),
-            bridge_rune_balance_decimal=self._bridge_ord_multisig.get_rune_balance(rune)
-            / rune_divisor,
+            bridge_rune_balance_decimal=self._bridge_ord_multisig.get_rune_balance(rune) / rune_divisor,
         )
 
     def snapshot_balances_again(self, snapshot: BalanceSnapshot) -> BalanceSnapshot:
@@ -375,9 +362,7 @@ class RuneBridgeUtil:
             user_evm_wallet=snapshot.user_evm_wallet,
         )
 
-    def snapshot_balance_changes(
-        self, snapshot: BalanceSnapshot
-    ) -> tuple[BalanceSnapshot, BalanceSnapshot]:
+    def snapshot_balance_changes(self, snapshot: BalanceSnapshot) -> tuple[BalanceSnapshot, BalanceSnapshot]:
         """
         Get a tuple of (current_snapshot, changes)
         """
@@ -421,9 +406,7 @@ class RuneBridgeUtil:
         evm_address = self._get_evm_address_from_deposit_address(transfer.deposit_address)
         assert evm_address, f"Deposit address {transfer.deposit_address} not registered"
         rune_token = self.get_rune_token(transfer.rune, verify_registered=False)
-        assert not is_zero_address(
-            rune_token.address
-        ), f"Rune {transfer.rune} not registered on the bridge"
+        assert not is_zero_address(rune_token.address), f"Rune {transfer.rune} not registered on the bridge"
         # For now, the tokens are minted out of thin air and the "from" address is 0
         # from_address = self._rune_bridge_contract.address
         from_address = "0x0000000000000000000000000000000000000000"
@@ -455,24 +438,21 @@ class RuneBridgeUtil:
             txid=transactions[0]["txid"],
             vout=transactions[0]["vout"],
         )
-        assert (
-            ord_output
-        ), f"Output not found for transaction {transactions[0]['txid']}:{transactions[0]['vout']}"
+        assert ord_output, f"Output not found for transaction {transactions[0]['txid']}:{transactions[0]['vout']}"
         assert len(ord_output["runes"]) == 1, f"Expected 1 rune, got {len(ord_output['runes'])}"
         assert (
             ord_output["runes"][0][0] == transfer.rune
         ), f"Expected rune {transfer.rune}, got {ord_output['runes'][0][0]}"
-        amount_decimal = (
-            Decimal(ord_output["runes"][0][1]["amount"])
-            / 10 ** ord_output["runes"][0][1]["divisibility"]
-        )
+        amount_decimal = Decimal(ord_output["runes"][0][1]["amount"]) / 10 ** ord_output["runes"][0][1]["divisibility"]
         assert (
             amount_decimal == transfer.amount_decimal
         ), f"Expected amount {transfer.amount_decimal}, got {amount_decimal}"
 
     def assert_rune_tokens_not_transferred_to_btc(self, transfer: RuneTokensToBTCTransfer):
         receipt = self._web3.eth.get_transaction_receipt(transfer.tx_hash)
-        assert receipt.status, f"EVM Transfer not successful (expected success even if testing tokens not transferred): {receipt} "
+        assert (
+            receipt.status
+        ), f"EVM Transfer not successful (expected success even if testing tokens not transferred): {receipt} "
 
         bitcoin_rpc = BitcoinRPC(
             url=self._bitcoind.get_wallet_rpc_url(transfer.receiver_wallet.name),

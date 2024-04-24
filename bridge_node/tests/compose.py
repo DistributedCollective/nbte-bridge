@@ -1,15 +1,12 @@
-import os
+import json
 import logging
+import os
 import pathlib
 import subprocess
-import json
-
+from types import SimpleNamespace
 from typing import (
     Any,
-    Optional,
 )
-
-from types import SimpleNamespace
 
 logger = logging.getLogger(__name__)
 
@@ -30,7 +27,7 @@ def run_command(
     check: bool = True,
     capture: bool = False,
     quiet: bool = not COMPOSE_VERBOSE,
-    timeout: Optional[float] = None,
+    timeout: float | None = None,
     **extra_kwargs,
 ) -> subprocess.CompletedProcess:
     extra_kwargs["check"] = check
@@ -130,18 +127,14 @@ class ComposeService:
         return info.State == "running" and info.Health in ["healthy", ""]
 
     def get_container_info(self):
-        output = (
-            run_command("ps", "-a", "--format", "json", self.service, capture=True)
-            .stdout.decode("utf-8")
-            .strip()
-        )
+        output = run_command("ps", "-a", "--format", "json", self.service, capture=True).stdout.decode("utf-8").strip()
 
         if not output:
             return None
 
         return json.loads(output, object_hook=lambda d: SimpleNamespace(**d))
 
-    def exec(self, *args: Any, timeout: Optional[float] = None):
+    def exec(self, *args: Any, timeout: float | None = None):
         exec_args = self._get_exec_args(*args)
 
         try:

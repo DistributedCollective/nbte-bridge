@@ -2,10 +2,11 @@ import logging
 import time
 
 import pytest
-
 from eth_utils import add_0x_prefix
+
 from bridge.common.evm.utils import load_abi
 from bridge.common.tap.client import Asset
+
 from .utils import wait_for_condition
 
 logger = logging.getLogger(__name__)
@@ -84,14 +85,10 @@ def bridgeable_asset(
         False,
         "TestAsset",
     ).transact()
-    tx2 = evm_token.functions.mint(
-        owner_bridge_contract.address, TAP_MINT_AMOUNT * TAP_AMOUNT_DIVISOR
-    ).transact()
+    tx2 = evm_token.functions.mint(owner_bridge_contract.address, TAP_MINT_AMOUNT * TAP_AMOUNT_DIVISOR).transact()
     alice_web3.eth.wait_for_transaction_receipt(tx1)
     alice_web3.eth.wait_for_transaction_receipt(tx2)
-    bridgeable_asset = owner_bridge_contract.functions.assetsByRskTokenAddress(
-        evm_token.address
-    ).call()
+    bridgeable_asset = owner_bridge_contract.functions.assetsByRskTokenAddress(evm_token.address).call()
     # print(bridgeable_asset)
     return bridgeable_asset
 
@@ -195,9 +192,7 @@ def test_integration_rsk_to_tap(
         amount=tap_transfer_amount,
     )
 
-    tx_hash = user_evm_token.functions.approve(
-        user_bridge_contract.address, rsk_transfer_amount
-    ).transact(
+    tx_hash = user_evm_token.functions.approve(user_bridge_contract.address, rsk_transfer_amount).transact(
         {
             "gas": 100_000,
         }

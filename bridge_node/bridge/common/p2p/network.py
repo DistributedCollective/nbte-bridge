@@ -1,12 +1,12 @@
-import socket
-import logging
-import threading
 import dataclasses
+import logging
+import socket
+import threading
+from collections.abc import Callable
 from decimal import Decimal
 from types import SimpleNamespace
 from typing import (
     Any,
-    Callable,
     Protocol,
     TypedDict,
 )
@@ -24,6 +24,7 @@ from bridge.common.p2p.auth.bridge_ssl import (
     SecureContextFactory,
 )
 from bridge.config import Config
+
 from .client import BoundPyroProxy
 from .messaging import MessageEnvelope
 
@@ -163,11 +164,7 @@ class PyroNetwork(Network):
                 # Instead just return a SimpleNamespace with deserialized values. It should conform to the same API
                 # with the exception that it doesn't have the methods of the dataclass. Good enough for now.
                 return SimpleNamespace(
-                    **{
-                        key: self.deserialize(value)
-                        for key, value in value.items()
-                        if key not in ["_is_dataclass"]
-                    }
+                    **{key: self.deserialize(value) for key, value in value.items() if key not in ["_is_dataclass"]}
                 )
             if value.get("_is_decimal"):
                 return Decimal(value["value"])
@@ -235,9 +232,7 @@ class PyroNetwork(Network):
             ret = self.serialize(ret)
             logger.debug("answer serialized ret: %s", ret)
         except Exception:
-            logger.exception(
-                "Error answering question %r (thread %s)", question, threading.current_thread().name
-            )
+            logger.exception("Error answering question %r (thread %s)", question, threading.current_thread().name)
             return None
         return ret
 

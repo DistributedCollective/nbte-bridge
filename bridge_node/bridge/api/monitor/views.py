@@ -12,10 +12,10 @@ from sqlalchemy.orm import Session
 
 from ...bridges.runes.models import (
     Bridge,
+    IncomingBtcTx,
     Rune,
     RuneDeposit,
     RuneTokenDeposit,
-    IncomingBtcTx,
 )
 
 logger = logging.getLogger(__name__)

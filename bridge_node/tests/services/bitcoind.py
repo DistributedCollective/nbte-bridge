@@ -1,12 +1,14 @@
 from __future__ import annotations
+
 import logging
+import random
 import string
 import time
 from decimal import Decimal
-import random
-from typing import Optional, Protocol
+from typing import Protocol
 
 from bridge.common.btc.rpc import BitcoinRPC, JSONRPCError
+
 from .. import compose
 
 logger = logging.getLogger(__name__)
@@ -37,7 +39,7 @@ class BitcoindService(compose.ComposeService):
         self._root_wallet = None
 
     @property
-    def root_wallet(self) -> "BitcoinWallet":
+    def root_wallet(self) -> BitcoinWallet:
         if self._root_wallet is None:
             self._root_wallet, _ = self.load_or_create_wallet("root")
 
@@ -73,9 +75,7 @@ class BitcoindService(compose.ComposeService):
             prefix = f"{prefix}-"
 
         while True:
-            randompart = "".join(
-                random.choices(string.ascii_lowercase + string.digits, k=MIN_RANDOMPART_LENGTH)
-            )
+            randompart = "".join(random.choices(string.ascii_lowercase + string.digits, k=MIN_RANDOMPART_LENGTH))
             wallet_name = f"{prefix}{randompart}"
             wallet, created = self.load_or_create_wallet(
                 wallet_name,
@@ -145,13 +145,11 @@ class BitcoindService(compose.ComposeService):
         )
 
         logger.info("Created wallet %s", wallet_name)
-        wallet = BitcoinWallet(
-            name=wallet_name, rpc=BitcoinRPC(self.get_wallet_rpc_url(wallet_name))
-        )
+        wallet = BitcoinWallet(name=wallet_name, rpc=BitcoinRPC(self.get_wallet_rpc_url(wallet_name)))
 
         return wallet, True
 
-    def load_wallet(self, wallet_name) -> Optional[BitcoinWallet]:
+    def load_wallet(self, wallet_name) -> BitcoinWallet | None:
         wallets = self.rpc.call("listwallets")
 
         if wallet_name in wallets:

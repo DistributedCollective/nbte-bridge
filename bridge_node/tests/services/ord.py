@@ -12,10 +12,11 @@ from dataclasses import dataclass
 from decimal import Decimal
 
 from bridge.common.ord.client import OrdApiClient
-from .bitcoind import BitcoindService
+
 from .. import compose
 from ..utils.ord_batch import create_batch_file
 from ..utils.types import Decimalish
+from .bitcoind import BitcoindService
 
 MIN_RUNE_LENGTH = 16  # sensible default for regtest, minimum is at least 13
 MIN_RANDOMPART_LENGTH = 8  # negligible changes for collisions
@@ -70,7 +71,10 @@ class OrdService(compose.ComposeService):
         if prefix:
             prefix = f"{prefix}-"
         randompart = "".join(
-            random.choices(string.ascii_lowercase + string.digits, k=MIN_RANDOMPART_LENGTH)
+            random.choices(
+                string.ascii_lowercase + string.digits,
+                k=MIN_RANDOMPART_LENGTH,
+            )
         )
         name = f"{prefix}{randompart}"
         wallet = OrdWallet(
@@ -135,7 +139,7 @@ class TransferInfo:
 class OrdWallet:
     def __init__(
         self,
-        ord: OrdService,
+        ord: OrdService,  # noqa A002
         *,
         name: str = "ord",
         addresses: list[str] = None,
@@ -240,7 +244,7 @@ class OrdWallet:
                         "mode": "separate-outputs",
                         "inscriptions": [
                             {
-                                "file": str("/tmp/inscription.txt"),
+                                "file": "/tmp/inscription.txt",
                             }
                         ],
                         "etching": {
@@ -260,9 +264,7 @@ class OrdWallet:
 
             logger.info("Inscription and batch files copied to ord container")
 
-        popen_args = self.ord.cli_args(
-            *self.cli_args("batch", "--fee-rate", fee_rate, "--batch", "/tmp/batch.batch")
-        )
+        popen_args = self.ord.cli_args(*self.cli_args("batch", "--fee-rate", fee_rate, "--batch", "/tmp/batch.batch"))
         process = self.ord.exec_popen(
             *popen_args,
             stdout=subprocess.PIPE,
@@ -336,9 +338,7 @@ class OrdWallet:
         random_part = "".join(random.choices(string.ascii_uppercase, k=random_part_length))
         rune = f"{prefix}{random_part}"
 
-        return self.etch_rune(
-            rune=rune, symbol=symbol, supply_decimal=supply, divisibility=divisibility
-        )
+        return self.etch_rune(rune=rune, symbol=symbol, supply_decimal=supply, divisibility=divisibility)
 
     def get_new_address(self) -> str:
         addr = self.cli("receive")["addresses"][0]

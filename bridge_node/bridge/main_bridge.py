@@ -4,8 +4,9 @@ import time
 from anemic.ioc import Container, auto, autowired, service
 
 from bridge.common.p2p.network import Network
-from .bridges.tap_rsk.bridge import TapRskBridge
+
 from .bridges.runes.bridge import RuneBridge
+from .bridges.tap_rsk.bridge import TapRskBridge
 from .common.interfaces.bridge import Bridge
 from .config import Config
 

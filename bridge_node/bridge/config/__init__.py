@@ -2,13 +2,11 @@ import json
 import logging
 import os
 import socket
-
 from decimal import Decimal
 from getpass import getpass
 from typing import Literal
 
 import environ
-
 from anemic.ioc import service
 
 logger = logging.getLogger(__name__)
@@ -82,12 +80,8 @@ class Config:
         secret_runes_btc_rpc_auth = secrets.get("bridge_secret_runes_btc_rpc_auth", "")
         secret_runes_ord_api_auth = secrets.get("bridge_secret_runes_ord_api_auth", "")
     else:
-        logging.warning(
-            "Secrets file not found, proceeding without. This should not happen in production."
-        )
-        btc_rpc_url = (
-            environ.var()
-        )  # TODO: should be secret, it has the auth in it (or then let's separate auth)
+        logging.warning("Secrets file not found, proceeding without. This should not happen in production.")
+        btc_rpc_url = environ.var()  # TODO: should be secret, it has the auth in it (or then let's separate auth)
 
         # TODO: handle secrets properly
         evm_private_key = environ.var()  # TODO: should be secret

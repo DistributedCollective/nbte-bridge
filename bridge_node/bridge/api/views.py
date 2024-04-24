@@ -1,20 +1,20 @@
 import logging
 
 from anemic.ioc import auto, autowired
+from eth_utils import is_hex, is_hex_address
+from pyramid.config import Configurator
+from pyramid.request import Request
+from pyramid.view import view_config, view_defaults
+
 from bridge.bridges.tap_rsk.models import RskToTapTransferBatchStatus, TapToRskTransferBatchStatus
 from bridge.bridges.tap_rsk.rsk_to_tap import RskToTapService
 from bridge.bridges.tap_rsk.tap_to_rsk import TapToRskService
-from pyramid.request import Request
-from pyramid.config import Configurator
-from pyramid.view import view_config, view_defaults
-
-from eth_utils import is_hex, is_hex_address
 from bridge.common.evm.provider import Web3
-from .exceptions import ApiException
-from ..common.evm.account import Account
+
 from ..bridges.tap_rsk.rsk import BridgeContract
 from ..bridges.tap_rsk.tap_deposits import TapDepositService
-
+from ..common.evm.account import Account
+from .exceptions import ApiException
 
 logger = logging.getLogger(__name__)
 
@@ -128,8 +128,8 @@ class ApiViews:
                 rsk_amount = int(rsk_amount)
             if tap_amount is not None:
                 tap_amount = int(tap_amount)
-        except ValueError:
-            raise ApiException("Amounts must be (convertible to) integers")
+        except ValueError as e:
+            raise ApiException("Amounts must be (convertible to) integers") from e
 
         address = self.tap_deposit_service.generate_deposit_address(
             tap_asset_id=tap_asset_id,

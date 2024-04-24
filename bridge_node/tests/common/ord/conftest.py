@@ -4,14 +4,14 @@ from tests.services import BitcoindService, OrdService
 
 
 @pytest.fixture(scope="module")
-def root_ord_wallet(ord: OrdService, bitcoind: BitcoindService):
+def root_ord_wallet(ord: OrdService, bitcoind: BitcoindService):  # noqa A002
     root = ord.create_test_wallet("root-ord")
     bitcoind.fund_wallets(root)
     return root
 
 
 @pytest.fixture()
-def rune_factory(root_ord_wallet, ord, bitcoind):
+def rune_factory(root_ord_wallet, ord, bitcoind):  # noqa A002
     def create_runes(*names, supply=100_000_000, divisibility=18, receiver: str = None):
         etchings = [
             root_ord_wallet.etch_test_rune(

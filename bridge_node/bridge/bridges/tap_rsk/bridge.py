@@ -8,6 +8,7 @@ from bridge.common.interfaces.bridge import Bridge
 from bridge.common.p2p.network import Network
 from bridge.common.services.transactions import TransactionManager
 from bridge.common.tap.client import TapRestClient
+
 from .rsk import BridgeContract
 from .rsk_scanner import RskEventScanner
 from .rsk_to_tap import RskToTapService

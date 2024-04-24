@@ -1,4 +1,4 @@
-from typing import Type, TypeVar
+from typing import TypeVar
 
 from anemic.ioc import Container, FactoryRegistry
 from sqlalchemy.orm.session import Session
@@ -18,7 +18,7 @@ class Transaction:
         self._ensure_transaction()
         return self._transaction_container
 
-    def find_service(self, interface: Type[T]) -> T:
+    def find_service(self, interface: type[T]) -> T:
         self._ensure_transaction()
         return self._transaction_container.get(interface=interface)
 

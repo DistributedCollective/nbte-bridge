@@ -1,15 +1,14 @@
 import logging
 import time
+from collections.abc import Callable
 from datetime import datetime
 from typing import (
-    Callable,
     Protocol,
 )
 
 import Pyro5.errors
 
 from . import challenge
-
 
 logger = logging.getLogger(__name__)
 

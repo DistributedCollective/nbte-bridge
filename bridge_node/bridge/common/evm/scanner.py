@@ -1,5 +1,5 @@
 import logging
-from typing import Callable
+from collections.abc import Callable
 
 from sqlalchemy.orm.session import Session
 from web3 import Web3

@@ -1,6 +1,7 @@
 from __future__ import annotations
-from decimal import Decimal
+
 import dataclasses
+from decimal import Decimal
 
 
 @dataclasses.dataclass

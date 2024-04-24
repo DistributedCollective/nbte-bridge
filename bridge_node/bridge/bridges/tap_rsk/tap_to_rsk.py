@@ -1,12 +1,20 @@
 import logging
-
 from typing import TypedDict
-from anemic.ioc import Container, auto, autowired, service
-from sqlalchemy.orm.session import Session
-from hexbytes import HexBytes
-from eth_utils import add_0x_prefix
-from eth_account.messages import encode_defunct
 
+from anemic.ioc import Container, auto, autowired, service
+from eth_account.messages import encode_defunct
+from eth_utils import add_0x_prefix
+from hexbytes import HexBytes
+from sqlalchemy.orm.session import Session
+
+from bridge.common.evm.account import Account
+from bridge.common.evm.provider import Web3
+from bridge.common.evm.utils import recover_message
+from bridge.common.p2p.network import Network
+from bridge.common.services.transactions import TransactionManager
+from bridge.common.tap.client import TapRestClient
+
+from .config import Config
 from .models import (
     SerializedTapToRskTransferBatch,
     TapDepositAddress,
@@ -15,14 +23,6 @@ from .models import (
     TapToRskTransferBatchStatus,
 )
 from .rsk import BridgeContract
-from .config import Config
-from bridge.common.evm.account import Account
-from bridge.common.p2p.network import Network
-from bridge.common.services.transactions import TransactionManager
-from bridge.common.tap.client import TapRestClient
-from bridge.common.evm.utils import recover_message
-from bridge.common.evm.provider import Web3
-
 
 logger = logging.getLogger(__name__)
 
@@ -87,9 +87,7 @@ class TapToRskService:
                     continue
 
                 ok = True
-                for transfer, signature in zip(
-                    serialized_batch["transfers"], response["signatures"]
-                ):
+                for transfer, signature in zip(serialized_batch["transfers"], response["signatures"], strict=False):
                     message_hash = self.bridge_contract.functions.getTransferFromTapMessageHash(
                         transfer["deposit_address"]["rsk_address"],
                         transfer["deposit_address"]["tap_address"],
@@ -102,9 +100,7 @@ class TapToRskService:
                         signature,
                     )
                     if recovered != response["signer"]:
-                        logger.warning(
-                            "Invalid signature from %s: %s", response["signer"], signature
-                        )
+                        logger.warning("Invalid signature from %s: %s", response["signer"], signature)
                         ok = False
                         break
 
@@ -137,7 +133,7 @@ class TapToRskService:
                         signatures,
                     ]
                     for transfer, signatures in zip(
-                        current_batch.transfers, zip(*signatures_by_signer.values())
+                        current_batch.transfers, zip(*signatures_by_signer.values(), strict=False), strict=False
                     )
                 ]
 
@@ -163,9 +159,7 @@ class TapToRskService:
                 dbsession.flush()
 
         if status == TapToRskTransferBatchStatus.SENDING_TO_RSK:
-            raise ValueError(
-                "TransferBatch got left in SENDING_TO_RSK state, which cannot be resolved automatically"
-            )
+            raise ValueError("TransferBatch got left in SENDING_TO_RSK state, which cannot be resolved automatically")
 
         if status == TapToRskTransferBatchStatus.SENT_TO_RSK:
             with self.transaction_manager.transaction() as tx:
@@ -301,7 +295,8 @@ class TapToRskService:
             # TODO: re-enable this too
             # computed_hash = transfer_batch.compute_hash()
             # if computed_hash != transfer_batch.hash:
-            #     raise ValueError(f"Computed hash {computed_hash} does not match given hash for batch {transfer_batch}")
+            #     raise ValueError(f"Computed hash {computed_hash}
+            # does not match given hash for batch {transfer_batch}")
             dbsession.add(transfer_batch)
             dbsession.flush()
 

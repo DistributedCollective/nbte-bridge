@@ -1,16 +1,15 @@
 import logging
 import os
-
 import threading
 
-import bridge
 from anemic.ioc import Container, FactoryRegistrySet
+
+import bridge
 from bridge.api.app import create_app
-from bridge.main_bridge import MainBridge
 from bridge.common.btc.setup import setup_bitcointx_network
 from bridge.common.services.transactions import register_transaction_manager
 from bridge.decimalcontext import set_decimal_context
-
+from bridge.main_bridge import MainBridge
 
 logging.basicConfig(
     level=os.getenv("LOG_LEVEL", logging.INFO),

@@ -1,11 +1,12 @@
+import logging
 import sys
 import time
-import logging
-from typing import Callable
+from collections.abc import Callable
 
-from Pyro5 import config, core, serializers, protocol, errors, socketutil
-from Pyro5.client import _RemoteMethod, _StreamResultIterator, SerializedBlob
+from Pyro5 import config, core, errors, protocol, serializers, socketutil
 from Pyro5.callcontext import current_context
+from Pyro5.client import SerializedBlob, _RemoteMethod, _StreamResultIterator
+
 from bridge.common.p2p.auth import challenge
 
 try:
@@ -17,7 +18,7 @@ except ImportError:
 log = logging.getLogger("Pyro5.client")
 
 
-class BoundPyroProxy(object):
+class BoundPyroProxy:
     """
     Pyro BoundPyroProxy for a remote object. Intercepts method calls and dispatches them to the remote object.
 

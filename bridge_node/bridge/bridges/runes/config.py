@@ -2,6 +2,7 @@ from dataclasses import dataclass
 from decimal import Decimal
 
 from eth_typing import ChecksumAddress
+
 from bridge.common.btc.types import BitcoinNetwork
 
 

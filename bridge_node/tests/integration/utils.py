@@ -1,12 +1,12 @@
-import time
 import logging
+import time
+from collections.abc import Callable
 from decimal import Decimal
-from typing import Callable, TypeVar, cast
+from typing import TypeVar, cast
 
+from eth_utils import to_hex
 from web3 import Web3
 from web3.types import RPCEndpoint
-from eth_utils import to_hex
-
 
 logger = logging.getLogger(__name__)
 T = TypeVar("T")

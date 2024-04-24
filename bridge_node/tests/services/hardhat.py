@@ -1,20 +1,21 @@
 from __future__ import annotations
+
 import dataclasses
 import json
 import logging
 import typing
-from typing import Optional, cast
+from typing import cast
 
-from eth_utils import to_hex
-from eth_typing import ChecksumAddress
 from eth_account import Account
 from eth_account.account import LocalAccount
+from eth_typing import ChecksumAddress
+from eth_utils import to_hex
 from web3 import Web3
 from web3.types import RPCEndpoint
 
 from bridge.common.evm.utils import create_web3
-from .. import compose
 
+from .. import compose
 
 logger = logging.getLogger(__name__)
 
@@ -89,7 +90,7 @@ class HardhatService(compose.ComposeService):
 @dataclasses.dataclass
 class EVMWallet:
     account: LocalAccount
-    name: Optional[str] = None
+    name: str | None = None
 
     @property
     def address(self) -> ChecksumAddress:

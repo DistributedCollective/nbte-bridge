@@ -1,9 +1,10 @@
-import requests
-import math
-from .types import BitcoinNetwork, is_bitcoin_network
-from .rpc import BitcoinRPC
 import logging
+import math
 
+import requests
+
+from .rpc import BitcoinRPC
+from .types import BitcoinNetwork, is_bitcoin_network
 
 logger = logging.getLogger(__name__)
 
@@ -103,7 +104,8 @@ class BitcoinRpcFeeEstimator:
         #         let estimateRawFeeIn2BlocksOutput = await this.nodeWrapper.call('estimaterawfee', [2]);
         #         let feeIn2BlocksBtcPerKB = estimateRawFeeIn2BlocksOutput.short.feerate;
         #         if (typeof feeIn2BlocksBtcPerKB === 'number') {
-        #             if (this.cachedFeeBtcPerKB) {  // we could compare to undefined, but 0 and null don't seem right either
+        #             if (this.cachedFeeBtcPerKB) {  // we could compare to undefined, but 0
+        #                                            // and null don't seem right either
         #                 return Math.max(this.cachedFeeBtcPerKB, feeIn2BlocksBtcPerKB);
         #             } else {
         #                 // If we don't have the cached fee, reluctantly use the 2 blocks fee (and cache it)
@@ -126,9 +128,7 @@ class BitcoinRpcFeeEstimator:
         if fee_btc_per_kb:
             return fee_btc_per_kb
 
-        logger.warning(
-            f"estimaterawfee 1 failed with response {response_1} -- falling back to estimaterawfee 2"
-        )
+        logger.warning(f"estimaterawfee 1 failed with response {response_1} -- falling back to estimaterawfee 2")
         response_2 = self._rpc.call("estimaterawfee", [2])
         fee_in_2_blocks_btc_per_kb = response_2["short"].get("feerate")
         if fee_in_2_blocks_btc_per_kb:

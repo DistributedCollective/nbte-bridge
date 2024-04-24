@@ -9,6 +9,7 @@ from bitcointx.wallet import CCoinAddress
 from pyord import Edict, RuneId, Runestone
 
 from bridge.common.btc.rpc import BitcoinRPC
+
 from .client import OrdApiClient
 
 TARGET_POSTAGE = 10_000  # sat locked in rune outputs
@@ -59,10 +60,7 @@ class LazyOrdUTXO:
     @property
     def inscription_utxos(self) -> list[InscriptionUTXO]:
         self._ensure_ord_response()
-        return [
-            InscriptionUTXO(inscription_id=inscription_id)
-            for inscription_id in self._ord_response["inscriptions"]
-        ]
+        return [InscriptionUTXO(inscription_id=inscription_id) for inscription_id in self._ord_response["inscriptions"]]
 
     @property
     def has_ord_balances(self):
@@ -167,9 +165,7 @@ class SimpleOrdWallet:
                 if total_runes_in >= amount_raw:
                     break
         else:
-            raise ValueError(
-                f"Insufficient rune balance for {amount_raw} {rune_name} (can only send {total_runes_in})"
-            )
+            raise ValueError(f"Insufficient rune balance for {amount_raw} {rune_name} (can only send {total_runes_in})")
 
         fee = TARGET_POSTAGE  # TODO: real fee
         target_sats_out = TARGET_POSTAGE + fee
@@ -189,9 +185,7 @@ class SimpleOrdWallet:
                 if total_sat_in >= target_sats_out:
                     break
             else:
-                raise ValueError(
-                    f"Insufficient BTC balance. Can only send {total_sat_in} sat (need {target_sats_out})"
-                )
+                raise ValueError(f"Insufficient BTC balance. Can only send {total_sat_in} sat (need {target_sats_out})")
 
         runestone = Runestone(
             edicts=[
@@ -232,9 +226,7 @@ class SimpleOrdWallet:
             ord_block_count = self._ord_client.get("/blockcount")
             if ord_block_count >= block_count:
                 break
-            logger.info(
-                "Waiting for ord to sync to block %d (current: %d)", block_count, ord_block_count
-            )
+            logger.info("Waiting for ord to sync to block %d (current: %d)", block_count, ord_block_count)
             time.sleep(poll_interval)
         else:
             raise TimeoutError("ORD did not sync in time")

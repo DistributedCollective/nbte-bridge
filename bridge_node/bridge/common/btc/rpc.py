@@ -1,11 +1,11 @@
 import decimal
 import json
 import time
-from decimal import Decimal
 import typing
 import urllib.parse
-import requests
+from decimal import Decimal
 
+import requests
 from anemic.ioc import Container, service
 
 from bridge.config import Config
@@ -32,11 +32,7 @@ class BitcoinRPC:
     def __init__(self, url: str):
         self._id_count = 0
         urlparts = urllib.parse.urlparse(url)
-        self._auth = (
-            (urlparts.username, urlparts.password)
-            if (urlparts.username or urlparts.password)
-            else None
-        )
+        self._auth = (urlparts.username, urlparts.password) if (urlparts.username or urlparts.password) else None
         if urlparts.port:
             netloc = f"{urlparts.hostname}:{urlparts.port}"
         else:

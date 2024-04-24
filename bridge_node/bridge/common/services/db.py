@@ -1,6 +1,7 @@
-from sqlalchemy import create_engine, Engine
+from anemic.ioc import Container, service
+from sqlalchemy import Engine, create_engine
 from sqlalchemy.orm import Session
-from anemic.ioc import service, Container
+
 from bridge.config import Config
 
 

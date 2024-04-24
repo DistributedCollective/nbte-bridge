@@ -38,4 +38,6 @@ def create_app(
         )
         app = config.make_wsgi_app()
 
-    serve(app, host="0.0.0.0", port=8080)
+    # Binding to 0.0.0.0 is required for Docker, handle further security
+    # in the docker compose or server firewall.
+    serve(app, host="0.0.0.0", port=8080)  # noqa: S104

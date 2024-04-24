@@ -6,6 +6,9 @@ from anemic.ioc import (
     service,
 )
 
+from ...common.p2p.network import Network
+from ...common.services.transactions import TransactionManager
+from ...config import Config
 from .bridge import RuneBridge
 from .config import (
     RuneBridgeConfig,
@@ -16,9 +19,6 @@ from .wiring import (
     RuneBridgeWiring,
     wire_rune_bridge,
 )
-from ...common.p2p.network import Network
-from ...common.services.transactions import TransactionManager
-from ...config import Config
 
 
 @service(scope="global", interface_override=RuneBridgeWiring)
