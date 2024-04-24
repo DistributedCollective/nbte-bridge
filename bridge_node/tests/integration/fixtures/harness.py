@@ -17,6 +17,7 @@ NO_START_HARNESS = os.environ.get("NO_START_HARNESS") == "1"
 HARNESS_VERBOSE = os.environ.get("HARNESS_VERBOSE") == "1"
 SKIP_TAP_BRIDGE = os.environ.get("HARNESS_SKIP_TAP_BRIDGE") == "1"
 SKIP_RUNE_BRIDGE = os.environ.get("HARNESS_SKIP_RUNE_BRIDGE") == "1"
+
 INTEGRATION_TEST_ENV_FILE = compose.PROJECT_BASE_DIR / "env.integrationtest"
 assert INTEGRATION_TEST_ENV_FILE.exists(), f"Missing {INTEGRATION_TEST_ENV_FILE}"
 
@@ -63,6 +64,7 @@ class IntegrationTestHarness:
 
         logger.info("Starting integration test harness")
         self._clean()
+
         logger.info("Starting docker compose")
         self._run_docker_compose_command(
             "up", "--build", "--wait", "--wait-timeout", str(self.MAX_START_WAIT_TIME_S)
@@ -102,6 +104,7 @@ class IntegrationTestHarness:
         Does environment initialization, such as creating wallets and mining initial bitcoin blocks
         """
         logger.info("Initializing the environment")
+
         logger.info("Mining initial btc block (tapd/lnd won't start before)")
         self.bitcoind.mine()
 
@@ -109,6 +112,7 @@ class IntegrationTestHarness:
             logger.info("Skipping tap bridge initialization because HARNESS_SKIP_TAP_BRIDGE=1")
         else:
             self._init_tap_bridge()
+
         if SKIP_RUNE_BRIDGE:
             logger.info("Skipping rune bridge initialization because HARNESS_SKIP_RUNE_BRIDGE=1")
         else:
@@ -123,9 +127,12 @@ class IntegrationTestHarness:
     def _init_tap_bridge(self):
         logger.info("Initializing the tap bridge")
         logger.info("Giving some time for LND nodes to start and connect to bitcoind.")
+
         time.sleep(2)
+
         lnd_containers = [f"{f}-lnd" for f in self.FEDERATORS]
         lnd_containers.extend(self.EXTRA_LND_CONTAINERS)
+
         for lnd_container in lnd_containers:
             logger.info("Depositing funds to %s", lnd_container)
             # Try multiple times because maybe the lnd node is not yet started
@@ -153,7 +160,9 @@ class IntegrationTestHarness:
                     time.sleep(2)
             else:
                 raise Exception("should not get here")
+
             addr = json.loads(addr_response)["address"]
+
             logger.info("Mining 2 blocks to %s's addr %s", lnd_container, addr)
             self.bitcoind.mine(2, address=addr)
             logger.info("Mined.")
@@ -194,6 +203,7 @@ class IntegrationTestHarness:
                 blank=True,
                 disable_private_keys=True,
             )
+
             if created:
                 logger.info("Created wallet %s, importing descriptors", wallet_name)
                 any_created = True
@@ -209,6 +219,7 @@ class IntegrationTestHarness:
                 )
             else:
                 logger.info("Wallet %s already created", wallet_name)
+
         if any_created:
             logger.info(
                 "Funding rune multisig wallet (address %s)",
@@ -221,7 +232,6 @@ class IntegrationTestHarness:
             verbose = self.verbose
 
         command = INTEGRATION_COMPOSE_BASE_ARGS + args
-
         proc = compose.run_command(*command, quiet=not verbose, capture=True)
 
         return self._decode_stream(proc.stdout), self._decode_stream(proc.stderr), proc.returncode
@@ -230,11 +240,11 @@ class IntegrationTestHarness:
         return stream.decode("utf-8") if stream else None
 
     def run_hardhat_json_command(self, *args):
-        return json.loads(
-            self._run_docker_compose_command(
-                "exec", "hardhat", "npx", "hardhat", "--network", "localhost", *args
-            )[0]
-        )
+        output = self._run_docker_compose_command(
+            "exec", "hardhat", "npx", "hardhat", "--network", "localhost", *args
+        )[0]
+
+        return json.loads(output)
 
 
 @pytest.fixture(scope="session", autouse=True)
