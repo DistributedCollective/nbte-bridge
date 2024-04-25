@@ -22,6 +22,7 @@ class RuneTokenToBtcTransfer:
     net_rune_amount: int
     token_address: str
     rune_name: str
+    rune_number: int
     event_tx_hash: str
     event_log_index: int
 

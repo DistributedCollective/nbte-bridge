@@ -97,6 +97,10 @@ class OrdMultisig:
         return self._multisig_address
 
     @property
+    def change_script_pubkey(self) -> CScript:
+        return self._multisig_script.to_scriptPubKey()
+
+    @property
     def num_required_signers(self) -> int:
         return self._num_required_signers
 
@@ -468,6 +472,15 @@ class OrdMultisig:
 
     def deserialize_psbt(self, raw: str) -> PSBT:
         return PSBT.from_base64(raw)
+
+    def estimate_psbt_size_vb(self, psbt: PSBT) -> int:
+        return estimate_p2wsh_multisig_tx_virtual_size(
+            vin=psbt.unsigned_tx.vin,
+            vout=psbt.unsigned_tx.vout,
+            num_signatures=self._num_required_signers,
+            redeem_script=self._multisig_redeem_script,
+            add_change_out=False,
+        )
 
     def _derive_redeem_script(self, index: int) -> CScript:
         sorted_child_pubkeys = [

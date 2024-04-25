@@ -11,6 +11,7 @@ from typing import (
 import eth_utils
 import pyord
 import sqlalchemy as sa
+from bitcointx.core.script import CScript
 from eth_account.account import LocalAccount
 from eth_account.messages import encode_defunct
 from hexbytes import HexBytes
@@ -37,6 +38,7 @@ from ...common.ord.multisig import (
     OrdMultisig,
     RuneTransfer,
 )
+from ...common.ord.transfers import TARGET_POSTAGE_SAT
 from ...common.ord.types import (
     rune_from_str,
 )
@@ -869,33 +871,97 @@ class RuneBridgeService:
                 )
                 .one()
             )
+            # This validates that the transfer happened on the smart contract side and is seen by us
             if deposit.status != RuneTokenDepositStatus.ACCEPTED:
                 raise ValidationError(f"Deposit {deposit} not accepted (got {deposit.status})")
+
+            receiver_btc_address = deposit.receiver_btc_address
+            if receiver_btc_address != message.transfer.receiver_address:
+                raise ValidationError(
+                    f"Receiver BTC address mismatch: {receiver_btc_address} != {message.transfer.receiver_address}"
+                )
+            if deposit.net_rune_amount_raw != message.transfer.net_rune_amount:
+                raise ValidationError(
+                    f"Net rune amount mismatch: {deposit.net_rune_amount_raw} != {message.transfer.net_rune_amount}"
+                )
+
+            rune = rune_from_str(message.transfer.rune_name)
+            if deposit.rune.n != rune.n:
+                raise ValidationError(f"Rune number mismatch: {deposit.rune.n} != {rune.n}")
+            if rune.n != message.transfer.rune_number:
+                raise ValidationError(f"Rune number/name mismatch: {rune.n} != {message.transfer.rune_number}")
+
+            net_rune_amount_raw = deposit.net_rune_amount_raw
+
+        rune_response = self.ord_client.get_rune(rune.name)
+        if not rune_response:
+            raise ValidationError(f"Rune {rune.name} not found in ord")
+
+        rune_id = pyord.RuneId.from_str(rune_response["id"])
 
         unsigned_psbt = self.ord_multisig.deserialize_psbt(message.unsigned_psbt_serialized)
         # NOTE: we could recreate the PSBT here
 
-        hex_tx = unsigned_psbt.unsigned_tx.serialize().hex()
+        unsigned_tx = unsigned_psbt.unsigned_tx
+        hex_tx = unsigned_tx.serialize().hex()
         runestone = pyord.Runestone.decipher_hex(hex_tx)
         if not runestone:
             raise ValidationError("Could not decipher runestone from hex tx")
         if runestone.is_cenotaph:
             raise ValidationError(f"Runestone is a cenotaph: {runestone}")
+
+        # NOTE: for now, we expect 3 outputs, a single Edict to output 2 with postage 10k, and outputs 1 and 3 to the
+        # change address. This is of course expected to change after we do transfer batching
         if len(runestone.edicts) != 1:
             raise ValidationError(f"Expected 1 edict, got {len(runestone.edicts)}")
-        # edict = runestone.edicts[0]
-        # psbt_output = unsigned_psbt.outputs[edict.output]
-        # TODO: actually validate it
+        edict = runestone.edicts[0]
+        if edict.amount != net_rune_amount_raw:
+            raise ValidationError(f"Amount mismatch: {edict.amount} != {net_rune_amount_raw}")
+        if edict.id != rune_id:
+            raise ValidationError(f"Rune ID mismatch: {edict.id} != {rune_id}")
+        if edict.output != 2:
+            raise ValidationError(f"Expected output 2, got {edict.output}")
 
-        # TODO: validate the transfer happened on the smart contract side
+        if len(unsigned_tx.vout) != 4:
+            raise ValidationError(f"Expected 4 outputs, got {len(unsigned_tx.vout)}")
+
+        expected_postage = TARGET_POSTAGE_SAT
+        if unsigned_tx.vout[0].nValue != 0:
+            raise ValidationError(f"Expected value 0 OP_RETURN at output 0, {unsigned_tx.vout[0].nValue}")
+        if unsigned_tx.vout[0].scriptPubKey != CScript(runestone.encipher()):
+            raise ValidationError("Expected runestone at output 0")
+        if unsigned_tx.vout[1].nValue != expected_postage:
+            raise ValidationError(f"Expected postage {expected_postage} at output 2, got {unsigned_tx.vout[1].nValue}")
+        if unsigned_tx.vout[2].nValue != expected_postage:
+            raise ValidationError(f"Expected postage {expected_postage} at output 2, got {unsigned_tx.vout[2].nValue}")
+        if unsigned_tx.vout[1].scriptPubKey != self.ord_multisig.change_script_pubkey:
+            raise ValidationError(f"Expected change address {self.ord_multisig.change_script_pubkey} at output 1")
+        if unsigned_tx.vout[3].scriptPubKey != self.ord_multisig.change_script_pubkey:
+            raise ValidationError(f"Expected change address {self.ord_multisig.change_script_pubkey} at output 3")
+
+        expected_fee_rate_sat_per_vb = self._btc_fee_estimator.get_fee_sats_per_vb()
+        fee_rate_margin = 2
+        fee_rate_min = expected_fee_rate_sat_per_vb / fee_rate_margin
+        fee_rate_max = expected_fee_rate_sat_per_vb * fee_rate_margin
+        if fee_rate_min > message.fee_rate_sats_per_vb or fee_rate_max < message.fee_rate_sats_per_vb:
+            raise ValidationError(
+                f"Fee rate {message.fee_rate_sats_per_vb} not within range [{fee_rate_min}, {fee_rate_max}]"
+            )
+
+        psbt_size = self.ord_multisig.estimate_psbt_size_vb(unsigned_psbt)
+        calculated_fee = psbt_size * message.fee_rate_sats_per_vb
+        actual_fee = unsigned_psbt.get_fee()
+        fee_margin = 1.1
+        if actual_fee >= calculated_fee * fee_margin:
+            raise ValidationError(f"Fee {actual_fee} too high, expected max {calculated_fee * fee_margin}")
+        if actual_fee < calculated_fee / fee_margin:
+            raise ValidationError(f"Fee {actual_fee} too low, expected min {calculated_fee / fee_margin}")
+
         signed_psbt = self.ord_multisig.sign_psbt(unsigned_psbt)
         return messages.SignRuneTokenToBtcTransferAnswer(
             signed_psbt_serialized=self.ord_multisig.serialize_psbt(signed_psbt),
             signer_xpub=self.ord_multisig.signer_xpub,
         )
-
-    def _get_rune_to_evm_transfer_key_value_store_key(self, transfer: messages.RuneToEvmTransfer) -> str:
-        return f"{self.bridge_name}:rune-to-evm-transfer:{transfer.txid}:{transfer.vout}:{transfer.rune_name}"
 
     def scan_rune_token_deposits(self) -> int:
         with self.transaction_manager.transaction() as tx:
@@ -1009,7 +1075,8 @@ class RuneBridgeService:
                 raise ValidationError("Net amount is zero")
             transfer = messages.RuneTokenToBtcTransfer(
                 receiver_address=deposit.receiver_btc_address,
-                rune_name=deposit.rune.n,
+                rune_number=deposit.rune.n,
+                rune_name=deposit.rune.name,
                 token_address=deposit.token_address,
                 net_rune_amount=deposit.net_rune_amount_raw,
                 event_tx_hash=deposit.evm_tx_hash,
@@ -1023,7 +1090,7 @@ class RuneBridgeService:
             fee_rate_sat_per_vbyte=fee_rate_sats_per_vb,
             transfers=[
                 RuneTransfer(
-                    rune=transfer.rune_name,
+                    rune=transfer.rune_number,
                     receiver=transfer.receiver_address,
                     amount=transfer.net_rune_amount,
                 )

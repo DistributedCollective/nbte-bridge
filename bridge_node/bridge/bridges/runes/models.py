@@ -163,10 +163,17 @@ class Rune(Base):
     symbol = Column(Text, nullable=False)
     divisibility = Column(Integer, nullable=False)
     turbo = Column(Boolean, nullable=False)
+    # TODO: add these
+    # etching_block_height = Column(BigInteger, nullable=True)
+    # etching_tx_index = Column(BigInteger, nullable=True)
 
     deposits = relationship("RuneDeposit", back_populates="rune")
 
-    __table_args__ = (UniqueConstraint("bridge_id", "n", name="uq_rune_n"),)
+    __table_args__ = (
+        UniqueConstraint("bridge_id", "n", name="uq_rune_n"),
+        # TODO: add this too
+        # UniqueConstraint("bridge_id", "etching_block_height", "etching_tx_index", name="uq_rune_rune_id"),
+    )
 
     def __repr__(self):
         return f"Rune(id={self.id}, n={self.n}, name={self.name!r}, symbol={self.symbol!r})"
