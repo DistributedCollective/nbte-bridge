@@ -29,7 +29,7 @@ from bridge.bridges.runes.wiring import (
 from bridge.common.ord.multisig import OrdMultisig
 from bridge.common.services.key_value_store import KeyValueStore
 from bridge.common.services.transactions import TransactionManager
-from .bridge_util import RuneBridgeUtil
+
 from ...mock_network import MockNetwork
 from ...services import (
     BitcoindService,
@@ -40,6 +40,7 @@ from ...services import (
 from ...services.hardhat import EVMWallet
 from ...utils.bitcoin import generate_extended_keypair
 from ...utils.timing import measure_time
+from .bridge_util import RuneBridgeUtil
 
 logger = logging.getLogger(__name__)
 
@@ -64,7 +65,7 @@ class CachedModuleSetup:
 @pytest.fixture(scope="module")
 def runes_module_setup(
     hardhat,
-    ord,
+    ord,  # noqa A002
     request,
     flags,
 ):
@@ -87,9 +88,7 @@ def runes_module_setup(
                 )
 
         if cached_setup:
-            cache.set(
-                MODULE_SETUP_CACHE_KEY, None
-            )  # remove it, so that it's not accidentally used again
+            cache.set(MODULE_SETUP_CACHE_KEY, None)  # remove it, so that it's not accidentally used again
             if cached_setup.federator_names != FEDERATORS:
                 logger.info("Federators have changed, falling back to re-deploying everything")
                 cached_setup = None
@@ -102,7 +101,8 @@ def runes_module_setup(
                     hardhat.revert(cached_setup.snapshot_id)
                 except Exception:
                     logger.info(
-                        "Restoring snapshot %r failed (hardhat probably restarted), falling back to re-deploying everything",
+                        "Restoring snapshot %r failed (hardhat probably restarted), "
+                        "falling back to re-deploying everything",
                         cached_setup.snapshot_id,
                     )
                     cached_setup = None
@@ -116,9 +116,7 @@ def runes_module_setup(
                 account=hardhat.web3.eth.account.from_key(evm_private_key),
                 name=federator,
             )
-            for (federator, evm_private_key) in zip(
-                FEDERATORS, cached_setup.federator_evm_private_keys
-            )
+            for (federator, evm_private_key) in zip(FEDERATORS, cached_setup.federator_evm_private_keys, strict=False)
         ]
         user_evm_wallet = EVMWallet(
             account=hardhat.web3.eth.account.from_key(cached_setup.user_evm_private_key),
@@ -189,9 +187,7 @@ def runes_module_setup(
             snapshot_id = hardhat.snapshot()
         cached_setup = CachedModuleSetup(
             federator_names=FEDERATORS.copy(),
-            federator_evm_private_keys=[
-                wallet.account.key.hex() for wallet in federator_evm_wallets
-            ],
+            federator_evm_private_keys=[wallet.account.key.hex() for wallet in federator_evm_wallets],
             user_evm_private_key=user_evm_wallet.account.key.hex(),
             rune_bridge_contract_address=rune_bridge_address,
             root_ord_wallet_name=root_ord_wallet.name,
@@ -215,7 +211,7 @@ def runes_module_setup(
 def runes_setup(
     hardhat: HardhatService,
     bitcoind: BitcoindService,
-    ord: OrdService,
+    ord: OrdService,  # noqa A002
     dbsession,
     dbsession2,
     dbsession3,
@@ -255,10 +251,9 @@ def runes_setup(
 
     # Network
     federator_networks = [
-        MockNetwork(node_id=federator_name, leader=(i == 0))
-        for i, federator_name in enumerate(FEDERATORS)
+        MockNetwork(node_id=federator_name, leader=(i == 0)) for i, federator_name in enumerate(FEDERATORS)
     ]
-    for federator_name, network in zip(FEDERATORS, federator_networks):
+    for federator_name, network in zip(FEDERATORS, federator_networks, strict=False):
         network.add_peers(n for n in federator_networks if n.node_id != federator_name)
 
     federator_dbsessions = [dbsession, dbsession2, dbsession3]
@@ -283,6 +278,7 @@ def runes_setup(
                 federator_evm_wallets,
                 federator_btc_keypairs,
                 federator_networks,
+                strict=False,
             )
         ]
 
@@ -290,7 +286,7 @@ def runes_setup(
     with measure_time("import descriptors"):
         for wiring in federator_wirings:
             wiring.multisig.import_descriptors_to_bitcoind(
-                range=100,
+                desc_range=100,
             )
 
     leader_wiring = federator_wirings[0]
@@ -367,6 +363,7 @@ def wire_rune_bridge_for_federator(
             evm_block_safety_margin=0,
             evm_default_start_block=1,
             runes_to_evm_fee_percentage_decimal=Decimal(0),
+            btc_network="regtest",
         ),
         secrets=RuneBridgeSecrets(
             evm_private_key=evm_private_key,
@@ -438,7 +435,7 @@ def federator_wirings(runes_setup) -> list[RuneBridgeWiring]:
 @pytest.fixture()
 def bridge_util(
     dbsession,
-    ord,
+    ord,  # noqa A002
     bitcoind,
     hardhat,
     root_ord_wallet,

@@ -1,12 +1,14 @@
 from __future__ import annotations
+
 import logging
+import random
 import string
 import time
 from decimal import Decimal
-import random
-from typing import Optional, Protocol
+from typing import Protocol
 
 from bridge.common.btc.rpc import BitcoinRPC, JSONRPCError
+
 from .. import compose
 
 logger = logging.getLogger(__name__)
@@ -18,11 +20,9 @@ MIN_RANDOMPART_LENGTH = 8
 class FundableWallet(Protocol):
     name: str
 
-    def get_balance_btc(self) -> Decimal:
-        ...
+    def get_balance_btc(self) -> Decimal: ...
 
-    def get_receiving_address(self) -> str:
-        ...
+    def get_receiving_address(self) -> str: ...
 
 
 class BitcoindService(compose.ComposeService):
@@ -33,14 +33,16 @@ class BitcoindService(compose.ComposeService):
 
     def __init__(self, request=None):
         super().__init__("bitcoind", user="bitcoin", request=request)
+
         self.rpc_url = "http://polaruser:polarpass@localhost:18443"
         self.rpc = BitcoinRPC(self.rpc_url)
         self._root_wallet = None
 
     @property
-    def root_wallet(self) -> "BitcoinWallet":
+    def root_wallet(self) -> BitcoinWallet:
         if self._root_wallet is None:
             self._root_wallet, _ = self.load_or_create_wallet("root")
+
         return self._root_wallet
 
     def cli(self, *args):
@@ -51,7 +53,7 @@ class BitcoindService(compose.ComposeService):
             "-rpcuser=polaruser",
             "-rpcpassword=polarpass",
             *args,
-        ).stdout.decode()
+        )[0]
 
     def mine(self, blocks=1, address=None, *, sleep: float = 0.25):
         ret = self.root_wallet.mine(blocks, address)
@@ -71,21 +73,24 @@ class BitcoindService(compose.ComposeService):
         """
         if prefix:
             prefix = f"{prefix}-"
+
         while True:
-            randompart = "".join(
-                random.choices(string.ascii_lowercase + string.digits, k=MIN_RANDOMPART_LENGTH)
-            )
+            randompart = "".join(random.choices(string.ascii_lowercase + string.digits, k=MIN_RANDOMPART_LENGTH))
             wallet_name = f"{prefix}{randompart}"
             wallet, created = self.load_or_create_wallet(
                 wallet_name,
                 blank=blank,
                 disable_private_keys=disable_private_keys,
             )
+
             if created:
                 break
+
             logger.info("Duplicate wallet name: %s. Trying again.")
+
         if fund:
             self.fund_wallets(wallet)
+
         return wallet
 
     def fund_wallets(
@@ -112,11 +117,14 @@ class BitcoindService(compose.ComposeService):
 
     def fund_addresses(self, *addresses: str, amount_to_send: Decimal = Decimal(1)):
         assert amount_to_send >= Decimal("0.01"), "Sending too little, transactions might fail"
+
         self._mine_initial_blocks()
         self._ensure_root_wallet_balance(amount_to_send * len(addresses))
+
         for address in addresses:
             logger.info("Funding address %s with %s BTC", address, amount_to_send)
             self.root_wallet.send(amount_btc=amount_to_send, receiver=address)
+
         self.mine(1)
 
     def get_wallet_rpc_url(self, wallet_name):
@@ -135,14 +143,15 @@ class BitcoindService(compose.ComposeService):
             disable_private_keys,
             blank,
         )
+
         logger.info("Created wallet %s", wallet_name)
-        wallet = BitcoinWallet(
-            name=wallet_name, rpc=BitcoinRPC(self.get_wallet_rpc_url(wallet_name))
-        )
+        wallet = BitcoinWallet(name=wallet_name, rpc=BitcoinRPC(self.get_wallet_rpc_url(wallet_name)))
+
         return wallet, True
 
-    def load_wallet(self, wallet_name) -> Optional[BitcoinWallet]:
+    def load_wallet(self, wallet_name) -> BitcoinWallet | None:
         wallets = self.rpc.call("listwallets")
+
         if wallet_name in wallets:
             logger.info("Using already loaded wallet %s", wallet_name)
         else:

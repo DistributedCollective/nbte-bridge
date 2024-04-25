@@ -1,9 +1,10 @@
+from typing import NewType
+
+from anemic.ioc import Container, service
 from eth_account import Account as EthAccount
 from eth_account.account import LocalAccount
-from typing import NewType
-from anemic.ioc import service, Container
-from bridge.config import Config
 
+from bridge.config import Config
 
 Account = NewType("Account", LocalAccount)
 

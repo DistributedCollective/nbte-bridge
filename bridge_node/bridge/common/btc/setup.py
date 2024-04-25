@@ -1,5 +1,6 @@
-from typing import Literal
 import contextvars
+from typing import Literal
+
 import bitcointx
 import bitcointx.util
 

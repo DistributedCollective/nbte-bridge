@@ -1,15 +1,16 @@
+import dataclasses
+import logging
 import os
 import pathlib
-import logging
-import dataclasses
 
+import bitcointx
 import pytest
 from sqlalchemy import create_engine
 from sqlalchemy.orm import Session
 
 from bridge.common.models import load_models
 from bridge.common.models.meta import Base
-import bitcointx
+
 from . import services
 
 BASE_DIR = os.path.join(os.path.dirname(__file__), "..")
@@ -70,7 +71,7 @@ def bitcoind(request):
 
 
 @pytest.fixture(scope="module")
-def ord(request, bitcoind):
+def ord(request, bitcoind):  # noqa A002
     # We'll just roll with one ord service for the whole bridge and the user in tests
     # It supports different wallets anyway
     # This fixture shadows the built-in name `ord`, but who uses it anyway.

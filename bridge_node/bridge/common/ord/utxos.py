@@ -27,6 +27,9 @@ class OrdOutput:
     def has_ord_balances(self):
         return bool(self.rune_balances or self.inscriptions)
 
+    def has_rune_balances(self):
+        return bool(self.rune_balances)
+
 
 class OrdOutputCache:
     def __init__(
@@ -36,7 +39,7 @@ class OrdOutputCache:
         cache_size: int = 1024,
     ):
         self._ord_client = ord_client
-        # Do not use lru_cache directly on instane methods
+        # Do not use lru_cache directly on instance methods
         self.get_ord_output = functools.lru_cache(maxsize=cache_size)(self.get_ord_output)
 
     def get_ord_output(self, txid: str, vout: int) -> OrdOutput:
@@ -50,8 +53,9 @@ class OrdOutputCache:
 
         rune_balances = {}
         for rune_name, entry in output_response["runes"]:
-            assert rune_name not in rune_balances  # not sure what to do if it is
-            rune_balances[get_normalized_rune_name(rune_name)] = entry["amount"]
+            normalized_name = get_normalized_rune_name(rune_name)
+            assert normalized_name not in rune_balances  # not sure what to do if it is
+            rune_balances[normalized_name] = entry["amount"]
 
         return OrdOutput(
             txid=txid,

@@ -2,7 +2,6 @@ import struct
 from datetime import datetime, timedelta
 
 import Pyro5.errors
-
 from eth_account import Account
 from eth_account.messages import encode_defunct
 

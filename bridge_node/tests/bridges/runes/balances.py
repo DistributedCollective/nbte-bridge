@@ -1,10 +1,12 @@
 from __future__ import annotations
+
 import dataclasses
 from decimal import Decimal
 
 from web3.contract import Contract
 
 from bridge.common.ord.client import RuneEntry
+
 from ...services import (
     OrdWallet,
 )
@@ -41,16 +43,11 @@ class BalanceSnapshot:
             rune_token=self.rune_token,
             user_ord_wallet=self.user_ord_wallet,
             user_evm_wallet=self.user_evm_wallet,
-            user_token_balance_decimal=self.user_token_balance_decimal
-            + other.user_token_balance_decimal,
-            user_rune_balance_decimal=self.user_rune_balance_decimal
-            + other.user_rune_balance_decimal,
-            token_total_supply_decimal=self.token_total_supply_decimal
-            + other.token_total_supply_decimal,
-            bridge_token_balance_decimal=self.bridge_token_balance_decimal
-            + other.bridge_token_balance_decimal,
-            bridge_rune_balance_decimal=self.bridge_rune_balance_decimal
-            + other.bridge_rune_balance_decimal,
+            user_token_balance_decimal=self.user_token_balance_decimal + other.user_token_balance_decimal,
+            user_rune_balance_decimal=self.user_rune_balance_decimal + other.user_rune_balance_decimal,
+            token_total_supply_decimal=self.token_total_supply_decimal + other.token_total_supply_decimal,
+            bridge_token_balance_decimal=self.bridge_token_balance_decimal + other.bridge_token_balance_decimal,
+            bridge_rune_balance_decimal=self.bridge_rune_balance_decimal + other.bridge_rune_balance_decimal,
         )
 
     def __neg__(self) -> BalanceSnapshot:

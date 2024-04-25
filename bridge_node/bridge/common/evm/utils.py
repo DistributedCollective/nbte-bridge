@@ -1,17 +1,18 @@
-import logging
 import json
+import logging
 import os
 import pathlib
 import time
-from typing import Any, Optional
+from typing import Any
+
 import eth_utils
 from eth_account import Account as EthAccount
+from eth_account.account import LocalAccount
 from web3 import Web3
 from web3.contract.contract import ContractEvent
-from web3.middleware import geth_poa_middleware, construct_sign_and_send_raw_middleware
-from web3.types import EventData
 from web3.gas_strategies.rpc import rpc_gas_price_strategy
-from eth_account.account import LocalAccount
+from web3.middleware import construct_sign_and_send_raw_middleware, geth_poa_middleware
+from web3.types import EventData
 
 THIS_DIR = os.path.dirname(__file__)
 ABI_DIR = os.path.join(THIS_DIR, "abi")
@@ -23,7 +24,7 @@ logger = logging.getLogger(__name__)
 def create_web3(
     rpc_url: str,
     *,
-    account: Optional[LocalAccount] = None,
+    account: LocalAccount | None = None,
     # we default to rpc_gas_price_strategy because it makes things work on RSK and RSK Testnet,
     # and it works on hardhat too. it also works on ethereum and other chains, though it might be less
     # efficient than other strategies.
@@ -66,16 +67,12 @@ def get_events(
     if to_block < from_block:
         raise ValueError(f"to_block {to_block} is smaller than from_block {from_block}")
 
-    logger.info(
-        "fetching events from %s to %s with batch size %s", from_block, to_block, batch_size
-    )
+    logger.info("fetching events from %s to %s with batch size %s", from_block, to_block, batch_size)
     ret = []
     batch_from_block = from_block
     while batch_from_block <= to_block:
         batch_to_block = min(batch_from_block + batch_size, to_block)
-        logger.info(
-            "fetching batch from %s to %s (up to %s)", batch_from_block, batch_to_block, to_block
-        )
+        logger.info("fetching batch from %s to %s (up to %s)", batch_from_block, batch_to_block, to_block)
 
         events = get_event_batch_with_retries(
             event=event,

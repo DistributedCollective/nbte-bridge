@@ -1,15 +1,14 @@
+import logging
 import time
 from decimal import Decimal
 
 import pytest
-import logging
-
 
 logger = logging.getLogger(__name__)
 
 
 def test_sanity_checks(
-    ord,
+    ord,  # noqa A002
     user_evm_wallet,
     user_ord_wallet,
     root_ord_wallet,
@@ -261,9 +260,7 @@ def test_runes_to_evm_transfers_require_signatures_from_the_majority_of_nodes(
 
     for enable, service in [(enable_bob, bob_service), (enable_carol, carol_service)]:
         if not enable:
-            monkeypatch.setattr(
-                service, "answer_sign_rune_to_evm_transfer_question", lambda *args, **kwargs: None
-            )
+            monkeypatch.setattr(service, "answer_sign_rune_to_evm_transfer_question", lambda *args, **kwargs: None)
 
     bridge_util.run_bridge_iteration()
 
@@ -469,7 +466,7 @@ def test_rune_to_evm_transfers_are_not_processed_without_confirmations(
     user_evm_wallet,
     rune_bridge_service,
     dbsession,
-    ord,
+    ord,  # noqa A002
 ):
     rune = bridge_util.etch_and_register_test_rune(
         prefix="EVMMULTISIG",
@@ -501,7 +498,7 @@ def test_unsupported_rune(
     rune_bridge_service,
     root_ord_wallet,
     dbsession,
-    ord,
+    ord,  # noqa A002
 ):
     rune = root_ord_wallet.etch_test_rune(
         prefix="UNSUPPORTED",
@@ -548,7 +545,7 @@ def test_too_low_postage(
     rune_bridge_service,
     root_ord_wallet,
     dbsession,
-    ord,
+    ord,  # noqa A002
 ):
     rune = bridge_util.etch_and_register_test_rune(
         prefix="LOWPOSTAGE",
@@ -568,7 +565,7 @@ def test_too_low_postage(
 
 
 def test_ord_indexing(
-    ord,
+    ord,  # noqa A002
     root_ord_wallet,
     user_ord_wallet,
     bitcoind,
@@ -597,7 +594,7 @@ def test_ord_indexing(
             break
         time.sleep(0.1)
     else:
-        assert False, "Output not indexed"
+        raise AssertionError("Output not indexed")
     assert bitcoind.rpc.call("getblockcount") == block_number + 1
 
 
@@ -607,7 +604,7 @@ def test_get_pending_deposits_for_evm_address(
     user_evm_wallet,
     rune_bridge_service,
     dbsession,
-    ord,
+    ord,  # noqa A002
 ):
     rune = bridge_util.etch_and_register_test_rune(
         prefix="EEEEEEEEE",
@@ -754,9 +751,7 @@ def test_rune_to_evm_transfers_are_resumed(
     )
 
     for service in [bob_service, carol_service]:
-        monkeypatch.setattr(
-            service, "answer_sign_rune_to_evm_transfer_question", lambda *args, **kwargs: None
-        )
+        monkeypatch.setattr(service, "answer_sign_rune_to_evm_transfer_question", lambda *args, **kwargs: None)
 
     bridge_util.run_bridge_iteration()
 
@@ -799,9 +794,7 @@ def test_rune_tokens_to_btc_transfers_are_resumed(
     )
 
     for service in [bob_service, carol_service]:
-        monkeypatch.setattr(
-            service, "answer_sign_rune_token_to_btc_transfer_question", lambda *args, **kwargs: None
-        )
+        monkeypatch.setattr(service, "answer_sign_rune_token_to_btc_transfer_question", lambda *args, **kwargs: None)
 
     bridge_util.run_bridge_iteration()
 

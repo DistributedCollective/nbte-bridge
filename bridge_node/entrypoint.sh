@@ -6,7 +6,6 @@ if [ -z "${BRIDGE_DB_URL}" ]; then
     exit 1
 fi
 
-sleep 5
 echo "Waiting for PostgreSQL startup at $BRIDGE_DB_URL"
 until psql $BRIDGE_DB_URL -c "SELECT 1" ; do
   sleep 5
@@ -18,6 +17,6 @@ source .venv/bin/activate
 
 alembic -n local_docker upgrade head
 
-cd /srv/bridge_backend/certs/ && ./create_node_certs.sh
+cd /srv/bridge_backend/certs/ && ./create_node_certs.py
 
 python -m bridge

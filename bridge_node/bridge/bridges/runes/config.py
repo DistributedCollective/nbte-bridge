@@ -3,6 +3,8 @@ from decimal import Decimal
 
 from eth_typing import ChecksumAddress
 
+from bridge.common.btc.types import BitcoinNetwork
+
 
 @dataclass()
 class RuneBridgeConfig:
@@ -12,13 +14,14 @@ class RuneBridgeConfig:
     btc_rpc_wallet_url: str
     ord_api_url: str
     btc_num_required_signers: int
+    btc_network: BitcoinNetwork
     btc_base_derivation_path: str = "m/13/0/0"
     evm_block_safety_margin: int = 0
     evm_default_start_block: int = 1
     runes_to_evm_fee_percentage_decimal: Decimal = Decimal("0.4")
     btc_min_confirmations: int = 1
     btc_min_postage_sat: int = 10_000
-    btc_listsinceblock_buffer: int = 1  # TODO: update to 6?
+    btc_listsinceblock_buffer: int = 6
 
 
 @dataclass(repr=False)

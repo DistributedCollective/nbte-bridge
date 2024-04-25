@@ -1,6 +1,7 @@
 from __future__ import annotations
-from decimal import Decimal
+
 import dataclasses
+from decimal import Decimal
 
 
 @dataclasses.dataclass
@@ -41,7 +42,7 @@ class SignRuneToEvmTransferAnswer:
 class SignRuneTokenToBtcTransferQuestion:
     transfer: RuneTokenToBtcTransfer
     unsigned_psbt_serialized: str
-    fee_rate_sat_per_vbyte: int
+    fee_rate_sats_per_vb: int
 
 
 @dataclasses.dataclass

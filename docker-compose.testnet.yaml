@@ -54,10 +54,6 @@ services:
       ]
       interval: 5s
 
-    expose:
-      - 18333
-      - 18332
-
     ports:
       - 127.0.0.1:18333:18333
       - 127.0.0.1:18332:18332
@@ -88,9 +84,6 @@ services:
     depends_on:
       bitcoind:
         condition: service_healthy
-
-    expose:
-      - 80
 
     ports:
       - 127.0.0.1:3080:80

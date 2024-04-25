@@ -1,19 +1,19 @@
 import dataclasses
 import logging
 
-from anemic.ioc import Container, service, autowired, auto
-
+from anemic.ioc import Container, auto, autowired, service
+from eth_utils import add_0x_prefix, remove_0x_prefix, to_checksum_address
 from sqlalchemy.orm.session import Session
-
-from eth_utils import remove_0x_prefix, to_checksum_address, add_0x_prefix
 from web3.constants import ADDRESS_ZERO
+
 from bridge.common.services.key_value_store import KeyValueStore
 from bridge.common.tap.client import TapRestClient
-from .rsk import BridgeContract
+
 from .models import (
     TapDepositAddress,
     TapToRskTransfer,
 )
+from .rsk import BridgeContract
 
 logger = logging.getLogger(__name__)
 
@@ -108,9 +108,7 @@ class TapDepositService:
             rsk_token = to_checksum_address(rsk_token)
             asset = self.bridge_contract.functions.assetsByRskTokenAddress(rsk_token).call()
         else:
-            asset = self.bridge_contract.functions.assetsByTaprootAssetId(
-                add_0x_prefix(tap_asset_id)
-            ).call()
+            asset = self.bridge_contract.functions.assetsByTaprootAssetId(add_0x_prefix(tap_asset_id)).call()
 
         rsk_token, tap_asset_id, tap_amount_divisor, tap_native, tap_asset_name = asset
         if rsk_token == ADDRESS_ZERO:
@@ -133,8 +131,7 @@ class TapDepositService:
             TapToRskTransfer.deposit_btc_tx_id, TapToRskTransfer.deposit_btc_tx_vout
         ).all()
         previous_outpoints = set(
-            (deposit_btc_tx_id, deposit_btc_tx_vout)
-            for deposit_btc_tx_id, deposit_btc_tx_vout in previous_deposits
+            (deposit_btc_tx_id, deposit_btc_tx_vout) for deposit_btc_tx_id, deposit_btc_tx_vout in previous_deposits
         )
 
         deposit_addresses = self.get_deposit_addresses()
@@ -162,9 +159,7 @@ class TapDepositService:
                     continue
 
                 if event["addr"]["encoded"] != tap_address:
-                    raise ValueError(
-                        "Address mismatch: {} != {}".format(event["addr"]["encoded"], tap_address)
-                    )
+                    raise ValueError("Address mismatch: {} != {}".format(event["addr"]["encoded"], tap_address))
                 status = event["status"]
                 if status == "ADDR_EVENT_STATUS_COMPLETED":
                     logger.info("Found %s: %s", outpoint, status)
@@ -178,9 +173,7 @@ class TapDepositService:
                     self.dbsession.flush()
                 else:
                     # Just raise error because list_receives filter should work
-                    raise ValueError(
-                        "Outpoint {} not yet completed, status: {}".format(outpoint, status)
-                    )
+                    raise ValueError(f"Outpoint {outpoint} not yet completed, status: {status}")
                     # logger.info("Outpoint %s not yet completed, status: %s", outpoint, status)
 
         logger.info("Done scanning deposits.")

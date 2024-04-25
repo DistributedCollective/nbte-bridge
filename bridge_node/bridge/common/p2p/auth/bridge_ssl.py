@@ -1,8 +1,8 @@
 import logging
 import time
+from collections.abc import Callable
 from datetime import datetime
 from typing import (
-    Callable,
     Protocol,
 )
 
@@ -10,13 +10,11 @@ import Pyro5.errors
 
 from . import challenge
 
-
 logger = logging.getLogger(__name__)
 
 
 class SecureContext(Protocol):
-    def validate_handshake(self, conn, data):
-        ...
+    def validate_handshake(self, conn, data): ...
 
 
 class SecureContextFactory(Protocol):
@@ -25,8 +23,7 @@ class SecureContextFactory(Protocol):
         *,
         privkey: str,
         fetch_peer_addresses: Callable[[], list[str]],
-    ) -> SecureContext:
-        ...
+    ) -> SecureContext: ...
 
 
 class PyroSecureContext:

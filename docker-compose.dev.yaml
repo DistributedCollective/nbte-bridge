@@ -18,7 +18,9 @@ services:
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U bridge1 -d bridge1 -h postgres"]
       interval: 1s
-      timeout: 120s
+      timeout: 10s
+      start_period: 3s
+      retries: 5
 
   bitcoind:
     environment:
@@ -47,11 +49,6 @@ services:
       interval: 2s
     volumes:
       - ./volumes/bitcoind/bitcoind:/home/bitcoin/.bitcoin
-    expose:
-      - '18443'
-      - '18444'
-      - '28334'
-      - '28335'
     ports:
       - '18443:18443'
       - '19444:18444'
@@ -113,9 +110,6 @@ services:
       bitcoind:
         condition: service_healthy
 
-    expose:
-      - 80
-
     ports:
       - 127.0.0.1:3080:80
 
@@ -125,9 +119,12 @@ services:
       context: bridge_node
     restart: always
     depends_on:
-      - postgres
-      - hardhat
-      - alice-tap
+      postgres:
+        condition: service_healthy
+      hardhat:
+        condition: service_started
+      alice-tap:
+        condition: service_started
     ports:
       - 127.0.0.1:8181:8080
     # TODO: needs to be added later, this does not work without pyramid
@@ -138,12 +135,14 @@ services:
     volumes:
       - ./volumes/lnd/alice-lnd:/var/bridge/lnd
       - ./volumes/tapd/alice-tap:/var/bridge/tapd
+      # These need to be shared and created once
+      # - ./secrets/certs/ca-key.pem:/srv/bridge_backend/certs/ca-key.pem
+      # - ./secrets/certs/ca-cert.pem:/srv/bridge_backend/certs/ca-cert.pem
     labels:
+      - "node.type=bridge"
       - "traefik.http.routers.alice-bridge.rule=PathPrefix(`/api/`)"
       - "traefik.http.services.alice-bridge.loadbalancer.server.port=8080"
       - "traefik.enable=true"
-
-
     environment:
       # NOTE: the private keys and other secrets are supposed to be here -- they are not used in the real world, only regtest. Don't report them.
       - BRIDGE_NODE_ID=alice-node
@@ -157,7 +156,7 @@ services:
       - BRIDGE_EVM_BLOCK_SAFETY_MARGIN=1
       - BRIDGE_EVM_BRIDGE_CONTRACT_ADDRESS=0x5FbDB2315678afecb367f032d93F642f64180aa3
       - BRIDGE_EVM_RPC_URL=http://hardhat:8545
-      - BRIDGE_PEERS=bob-node@bob-bridge:5000
+      - BRIDGE_PEERS=alice-node@alice-bridge:5000,bob-node@bob-bridge:5000
       - BRIDGE_BTC_NETWORK=regtest
       - BRIDGE_BTC_RPC_URL=http://polaruser:polarpass@bitcoind:18443
       # Taproot Assets
@@ -172,8 +171,7 @@ services:
       - BRIDGE_RUNES_ORD_API_URL=http://ord:80
       - BRIDGE_RUNES_EVM_RPC_URL=http://hardhat:8545
       - BRIDGE_RUNES_TO_EVM_FEE_PERCENTAGE_DECIMAL=0
-      # TODO: change to 2-of-3
-      - BRIDGE_RUNES_BTC_NUM_REQUIRED_SIGNERS=1
+      - BRIDGE_RUNES_BTC_NUM_REQUIRED_SIGNERS=2
       - BRIDGE_RUNES_BTC_BASE_DERIVATION_PATH=m/13/0/0
       - BRIDGE_SECRET_RUNES_BTC_MASTER_XPUBS=tpubD6NzVbkrYhZ4WokHnVXX8CVBt1S88jkmeG78yWbLxn7Wd89nkNDe2J8b6opP4K38mRwXf9d9VVN5uA58epPKjj584R1rnDDbk6oHUD1MoWD,tpubD6NzVbkrYhZ4WpZfRZip3ALqLpXhHUbe6UyG8iiTzVDuvNUyysyiUJWejtbszZYrDaUM8UZpjLmHyvtV7r1QQNFmTqciAz1fYSYkw28Ux6y,tpubD6NzVbkrYhZ4WQZnWqU8ieBsujhoZKZLF6wMvTApJ4ZiGmipk481DyM2su3y5BDeB9fFLwSmmmsGDGJum79he2fnuQMnpWhe3bGir7Mf4uS
       # RUNES NODE-SPECIFIC
@@ -181,21 +179,26 @@ services:
       - BRIDGE_SECRET_RUNES_EVM_PRIVATE_KEY=0x9a9a640da1fc0181e43a9ea00b81878f26e1678e3e246b25bd2835783f2be181
       - BRIDGE_SECRET_RUNES_BTC_MASTER_XPRIV=tprv8ZgxMBicQKsPdLiVtqrvinq5JyvByQZs4xWMgzZ3YWK7ndu27yQ3qoWivh8cgdtB3bKuYKWRKhaEvtykaFCsDCB7akNdcArjgrCnFhuDjmV
 
-
   bob-bridge:
     image: bridge_node:latest
     build:
       context: bridge_node
     restart: always
     depends_on:
-      - postgres
-      - alice-bridge
-      - bob-tap
+      postgres:
+        condition: service_healthy
+      alice-bridge:
+        condition: service_started
+      bob-tap:
+        condition: service_started
     ports:
       - 127.0.0.1:8182:8080
     volumes:
       - ./volumes/lnd/bob-lnd:/var/bridge/lnd
       - ./volumes/tapd/bob-tap:/var/bridge/tapd
+      # These need to be shared and created once
+      # - ./secrets/certs/ca-key.pem:/srv/bridge_backend/certs/ca-key.pem
+      # - ./secrets/certs/ca-cert.pem:/srv/bridge_backend/certs/ca-cert.pem
     environment:
       # NOTE: the private keys and other secrets are supposed to be here -- they are not used in the real world, only regtest. Don't report them.
       - BRIDGE_NODE_ID=bob-node
@@ -209,7 +212,7 @@ services:
       - BRIDGE_EVM_BLOCK_SAFETY_MARGIN=1
       - BRIDGE_EVM_BRIDGE_CONTRACT_ADDRESS=0x5FbDB2315678afecb367f032d93F642f64180aa3
       - BRIDGE_EVM_RPC_URL=http://hardhat:8545
-      - BRIDGE_PEERS=alice-node@alice-bridge:5000
+      - BRIDGE_PEERS=alice-node@alice-bridge:5000,bob-node@bob-bridge:5000
       - BRIDGE_BTC_NETWORK=regtest
       - BRIDGE_BTC_RPC_URL=http://polaruser:polarpass@bitcoind:18443
       # Taproot Assets
@@ -232,7 +235,8 @@ services:
       - BRIDGE_RUNES_BTC_RPC_WALLET_URL=http://polaruser:polarpass@bitcoind:18443/wallet/bob-runes
       - BRIDGE_SECRET_RUNES_EVM_PRIVATE_KEY=0x034262349de8b7bb1d8fdd7a9b6096aae0906a8f3b58ecc31af58b9f9a30e567
       - BRIDGE_SECRET_RUNES_BTC_MASTER_XPRIV=tprv8ZgxMBicQKsPdMXsXv4Ddkgimo1m89QjXBNUrCgAaDRX5tEDMVA8HotnZmHcMvUVtgh1yXbN74StoJqv76jvRxJmkr2wvkPwTbZb1zeXv3Y
-
+    labels:
+      - "node.type=bridge"
 
   alice-lnd:
     environment:
@@ -256,10 +260,6 @@ services:
     restart: always
     volumes:
       - ./volumes/lnd/alice-lnd:/home/lnd/.lnd
-    expose:
-      - '8080'
-      - '10009'
-      - '9735'
     ports:
       - '8082:8080'
       - '10002:10009'
@@ -287,10 +287,6 @@ services:
     restart: always
     volumes:
       - ./volumes/lnd/bob-lnd:/home/lnd/.lnd
-    expose:
-      - '8080'
-      - '10009'
-      - '9735'
     ports:
       - '8083:8080'
       - '10003:10009'
@@ -319,10 +315,6 @@ services:
 #    restart: always
 #    volumes:
 #      - ./volumes/lnd/carol-lnd:/home/lnd/.lnd
-#    expose:
-#      - '8080'
-#      - '10009'
-#      - '9735'
 #    ports:
 #      - '8084:8080'
 #      - '10004:10009'
@@ -350,10 +342,6 @@ services:
     restart: always
     volumes:
       - ./volumes/lnd/user-lnd:/home/lnd/.lnd
-    expose:
-      - '8080'
-      - '10009'
-      - '9735'
     ports:
       - '8085:8080'
       - '10005:10009'
@@ -379,12 +367,10 @@ services:
     volumes:
       - ./volumes/lnd/alice-lnd:/home/tap/.lnd
       - ./volumes/tapd/alice-tap:/home/tap/.tapd
-    expose:
-      - '8089'
-      - '10029'
     ports:
       - '8289:8089'
       - '12029:10029'
+
   bob-tap:
     environment:
       USERID: ${USERID:-1000}
@@ -405,9 +391,6 @@ services:
     volumes:
       - ./volumes/lnd/bob-lnd:/home/tap/.lnd
       - ./volumes/tapd/bob-tap:/home/tap/.tapd
-    expose:
-      - '8089'
-      - '10029'
     ports:
       - '8290:8089'
       - '12030:10029'
@@ -433,9 +416,6 @@ services:
 #    volumes:
 #      - ./volumes/lnd/carol-lnd:/home/tap/.lnd
 #      - ./volumes/tapd/carol-tap:/home/tap/.tapd
-#    expose:
-#      - '8089'
-#      - '10029'
 #    ports:
 #      - '8291:8089'
 #      - '12031:10029'
@@ -460,9 +440,6 @@ services:
     volumes:
       - ./volumes/lnd/user-lnd:/home/tap/.lnd
       - ./volumes/tapd/user-tap:/home/tap/.tapd
-    expose:
-      - '8089'
-      - '10029'
     ports:
       - '8292:8089'
       - '12032:10029'

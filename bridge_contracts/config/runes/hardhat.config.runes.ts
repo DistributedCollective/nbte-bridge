@@ -290,6 +290,34 @@ task(`${PREFIX}set-access-control`)
     }));
 
 
+task(`${PREFIX}set-paused`)
+    .addParam("bridgeAddress", "RuneBridge contract address")
+    .addParam("paused", "RuneBridge contract address", undefined, types.boolean)
+    .setAction(jsonAction(async ({
+        bridgeAddress,
+        paused
+    }, hre) => {
+        const ethers = hre.ethers;
+
+        console.log(paused ? "Pausing" : "Unpausing" + " Rune bridge at " + bridgeAddress);
+        const bridge = await ethers.getContractAt("RuneBridge", bridgeAddress);
+        let tx;
+        if (paused) {
+            console.log("Pausing");
+            tx = await bridge.pause();
+        } else {
+            console.log("Unpausing");
+            tx = await bridge.unpause();
+        }
+        console.log('tx hash:', tx.hash, 'waiting for tx...');
+        await tx.wait();
+
+        return {
+            success: true,
+        }
+    }));
+
+
 task(`${PREFIX}check-token-balances`)
     .addParam('bridge', 'Rune Bridge Address')
     .addParam('user', 'User address')

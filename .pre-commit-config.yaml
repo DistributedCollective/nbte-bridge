@@ -23,7 +23,7 @@ repos:
       - id: trailing-whitespace
 
   - repo: https://github.com/astral-sh/ruff-pre-commit
-    rev: v0.1.11
+    rev: v0.3.7
     hooks:
       # Run the linter.
       - id: ruff
@@ -35,8 +35,6 @@ repos:
     rev: "1.7.1"
     hooks:
       - id: poetry-check
-        args: ["-C", "./bridge_node"]
-      - id: poetry-lock
         args: ["-C", "./bridge_node"]
       - id: poetry-install
         args: ["-C", "./bridge_node"]

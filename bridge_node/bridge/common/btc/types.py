@@ -1,12 +1,19 @@
 import binascii
 import dataclasses
 from decimal import Decimal
-from typing import Any, Optional
+from typing import Any, Literal
 
 from bitcointx.core import COutPoint
 from bitcointx.core.script import CScript
 
 from .utils import from_satoshi, to_satoshi
+
+BitcoinNetwork = Literal["mainnet", "testnet", "signet", "regtest"]
+BITCOIN_NETWORKS = ["mainnet", "testnet", "signet", "regtest"]
+
+
+def is_bitcoin_network(network: str) -> bool:
+    return network in BITCOIN_NETWORKS
 
 
 @dataclasses.dataclass(frozen=True)
@@ -18,9 +25,9 @@ class UTXO:
     spendable: bool
     solvable: bool
     safe: bool
-    desc: Optional[str] = None  # only if solvable
-    address: Optional[str] = None
-    witness_script: Optional[CScript] = None
+    desc: str | None = None  # only if solvable
+    address: str | None = None
+    witness_script: CScript | None = None
     # raw: dict[str, Any] = dataclasses.field(repr=False, default_factory=dict)
 
     @classmethod
@@ -35,9 +42,7 @@ class UTXO:
             safe=rpc_dict["safe"],
             desc=rpc_dict.get("desc"),
             address=rpc_dict.get("address"),
-            witness_script=(
-                CScript.fromhex(rpc_dict["witnessScript"]) if "witnessScript" in rpc_dict else None
-            ),
+            witness_script=(CScript.fromhex(rpc_dict["witnessScript"]) if "witnessScript" in rpc_dict else None),
             # raw=rpc_dict,
         )
         assert r.amount_btc == Decimal(rpc_dict["amount"])

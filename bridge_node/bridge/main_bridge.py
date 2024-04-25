@@ -3,10 +3,10 @@ import time
 
 from anemic.ioc import Container, auto, autowired, service
 
-from bridge.common.p2p.messaging import MessageEnvelope
 from bridge.common.p2p.network import Network
-from .bridges.tap_rsk.bridge import TapRskBridge
+
 from .bridges.runes.bridge import RuneBridge
+from .bridges.tap_rsk.bridge import TapRskBridge
 from .common.interfaces.bridge import Bridge
 from .config import Config
 
@@ -23,29 +23,23 @@ class MainBridge(Bridge):
 
     def __init__(self, container: Container):
         self.container = container
-        self.network.add_listener(self.on_message)
         self.enabled_bridge_names = set(self.config.enabled_bridges)
         logger.info("Enabled bridges: %s", self.enabled_bridge_names)
+        self._pong_nonce = 0
 
     @property
     def bridges(self) -> list[Bridge]:
-        all_bridges = [self.tap_rsk_bridge, self.rune_bridge]
-        if "all" in self.enabled_bridge_names:
-            return all_bridges
-        return [bridge for bridge in all_bridges if bridge.name in self.enabled_bridge_names]
+        bridges = []
+        if "tap_rsk" in self.enabled_bridge_names or "all" in self.enabled_bridge_names:
+            bridges.append(self.tap_rsk_bridge)
+        if "runesrsk" in self.enabled_bridge_names or "all" in self.enabled_bridge_names:
+            bridges.append(self.rune_bridge)
+        return bridges
 
     def init(self):
         for bridge in self.bridges:
             bridge.init()
-
-    def on_message(self, envelope: MessageEnvelope):
-        logger.debug("Received message %r from node %s", envelope.message, envelope.sender)
-
-        if envelope.message == "Ping":
-            self.network.send(envelope.sender, "Pong")
-
-    def ping(self):
-        self.network.broadcast("Ping")
+        self.network.answer_with("main:ping", self._answer_pong)
 
     def enter_main_loop(self):
         while True:
@@ -66,3 +60,23 @@ class MainBridge(Bridge):
                 bridge.run_iteration()
             except Exception:
                 logger.exception("Error in iteration from bridge %s", bridge.name)
+
+    def ping(self):
+        # self.network.broadcast("Ping")
+        answers = self.network.ask("main:ping", nonce=self._pong_nonce)
+        self._pong_nonce += 1
+        for answer in answers:
+            logger.debug(
+                "Received pong to nonce %d from node %s",
+                answer["nonce"],
+                answer["sender"],
+            )
+        logger.info(
+            "Node: %s; Is leader?: %s; Nodes online: %d",
+            self.network.node_id,
+            self.network.is_leader(),
+            len(answers) + 1,
+        )
+
+    def _answer_pong(self, nonce: int):
+        return {"message": "pong", "nonce": nonce, "sender": self.network.node_id}

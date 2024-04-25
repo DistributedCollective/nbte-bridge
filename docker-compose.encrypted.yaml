@@ -1,0 +1,146 @@
+version: "3.8"
+name: sovryn-nbte-bridge
+services:
+  postgres:
+    image: bridge-postgres:latest
+    build:
+      context: ./docker/postgres
+    restart: always
+    volumes:
+      # Using named volume for db data to allow automatic removal with docker compose down -v
+      # This does not work for bind mounts (i.e. volumes that are not managed by docker like initsql)
+      - ./volumes/postgres:/var/lib/postgresql/data
+      - ./docker/postgres/initsql:/docker-entrypoint-initdb.d
+    environment:
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+    ports:
+      # VERY IMPORTANT: no connections outside localhost
+      - 127.0.0.1:65432:5432
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U bridge1 -d bridge1 -h postgres"]
+      interval: 1s
+      timeout: 120s
+
+  bitcoind:
+    image:
+      sovryn-runes-bitcoind:latest
+
+    build:
+      context: ./docker/bitcoind/
+
+    volumes:
+      - ./volumes/bitcoind:/home/bitcoin/.bitcoin
+
+    command: >-
+      bitcoind
+      -server=1
+      -testnet
+      -rpcuser=bitcoinuser -rpcpassword=bitcoinpass
+      -debug=1 -printtoconsole
+      -listenonion=0
+      -rpcbind=0.0.0.0 -rpcallowip=0.0.0.0/0
+      -rpcport=18332 -port=18333
+      -txindex=1
+
+    healthcheck:
+      test: [
+        "CMD",
+        "bitcoin-cli",
+        "-testnet",
+        "-rpcport=18332",
+        "-rpcuser=bitcoinuser",
+        "-rpcpassword=bitcoinpass",
+        "getblockchaininfo"
+      ]
+      interval: 5s
+
+    ports:
+      - 127.0.0.1:18333:18333
+      - 127.0.0.1:18332:18332
+
+  ord:
+    image:
+      bridge-ord:latest
+
+    build:
+      context: ./docker/ord/
+
+    volumes:
+      - ./volumes/ord:/home/ord/data
+
+    command: >-
+      ord
+      --bitcoin-rpc-username bitcoinuser
+      --bitcoin-rpc-password bitcoinpass
+      --bitcoin-rpc-url bitcoind:18332
+      --chain testnet
+      --index-runes
+      --data-dir /home/ord/data
+      server
+      --http
+      --http-port 80
+      --polling-interval 1s
+
+    depends_on:
+      bitcoind:
+        condition: service_healthy
+
+    ports:
+      - 127.0.0.1:3080:80
+
+  bridge-node:
+    image: bridge_node:latest
+    build:
+      context: bridge_node
+    restart: always
+    depends_on:
+      postgres:
+        condition: service_healthy
+    ports:
+      - 127.0.0.1:8181:8080
+    labels:
+      - "node.type=bridge"
+      - "traefik.http.routers.alice-bridge.rule=PathPrefix(`/api/`)"
+      - "traefik.http.services.alice-bridge.loadbalancer.server.port=8080"
+      - "traefik.enable=true"
+    env_file:
+      - env.encrypted-common
+    stdin_open: true
+    environment:
+      - BRIDGE_ENCRYPTED_SECRETS=1
+      - BRIDGE_NODE_ID=node-1
+      - BRIDGE_HOSTNAME=bridge-node-1
+      - BRIDGE_PEERS=node-2@bridge-node-2:5000,node-3@bridge-node-3:5000
+      - BRIDGE_DB_URL=${DB_URL_1}
+      - BRIDGE_RUNES_BTC_RPC_WALLET_URL=${BTC_RPC_1}
+      - BRIDGE_SECRET_RUNES_BTC_MASTER_XPUBS=${BTC_XPUBS}
+
+  web:
+    image: bridge_frontend:latest
+    build:
+      context: bridge_frontend
+      args:
+        - REACT_APP_API_BASE_URL=
+        - REACT_APP_RUNE_BRIDGE_CONTRACT_ADDRESS=0xBF6291ba5a47f6034abd23a71d2a720b42918533
+    restart: always
+    ports:
+      - 127.0.0.1:3003:3000
+    healthcheck:
+      test: curl -f http://localhost:3000 || exit 1
+      interval: 10s
+      timeout: 10s
+      retries: 5
+      start_period: 5s
+    labels:
+      - "traefik.http.routers.web.rule=PathPrefix(`/`)"
+      - "traefik.http.services.web.loadbalancer.server.port=3000"
+      - "traefik.enable=true"
+
+  reverse-proxy:
+    image: traefik:v2.11
+    command: --providers.docker --providers.docker.exposedbydefault=false
+    ports:
+      - "80:80"
+    volumes:
+      # So that Traefik can listen to the Docker events
+      - /var/run/docker.sock:/var/run/docker.sock

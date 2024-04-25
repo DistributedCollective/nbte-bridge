@@ -41,11 +41,12 @@ FROM base as final
 COPY --from=builder /srv/bridge_backend/.venv ./.venv
 COPY --from=builder /srv/bridge_backend/dist .
 COPY --from=builder /srv/bridge_backend/migrations ./migrations
+COPY --from=builder /srv/bridge_backend/bridge/api/monitor/templates ./templates
 COPY entrypoint.sh ./
 COPY alembic.ini ./
 
 COPY scripts /srv/bridge_backend/certs/
-RUN cd /srv/bridge_backend/certs/ && ./create_ca_cert.sh
+RUN cd /srv/bridge_backend/certs/ && ./create_ca_cert.py
 
 # Run entrypoint.sh
 ENTRYPOINT ["/srv/bridge_backend/entrypoint.sh"]

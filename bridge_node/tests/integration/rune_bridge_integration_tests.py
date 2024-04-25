@@ -1,13 +1,14 @@
 import logging
-import pyord
 
+import pyord
 import pytest
 from web3.contract import Contract
 
-from bridge.common.evm.utils import load_abi
 from bridge.bridges.runes.evm import load_rune_bridge_abi
+from bridge.common.evm.utils import load_abi
+
 from .. import services
-from .utils import wait_for_condition, from_wei, to_wei
+from .utils import from_wei, to_wei, wait_for_condition
 
 logger = logging.getLogger(__name__)
 
@@ -55,22 +56,22 @@ def user_evm_token(
 def bitcoind():
     # Overrides default bitcoind fixture
     service = services.BitcoindService()
-    assert service.is_started()
+    assert service.is_running()
     return service
 
 
 @pytest.fixture()
-def ord(bitcoind):
+def ord(bitcoind):  # noqa A002
     # Overrides default ord fixture
     service = services.OrdService(
         bitcoind=bitcoind,
     )
-    assert service.is_started()
+    assert service.is_running()
     return service
 
 
 @pytest.fixture()
-def alice_ord_wallet(ord, bitcoind):
+def alice_ord_wallet(ord, bitcoind):  # noqa A002
     wallet = services.OrdWallet(
         ord=ord,
         name="alice-ord-test",
@@ -95,7 +96,7 @@ def alice_ord_wallet(ord, bitcoind):
 
 
 @pytest.fixture()
-def user_ord_wallet(ord, bitcoind, bitcoin_rpc, alice_ord_wallet):
+def user_ord_wallet(ord, bitcoind, bitcoin_rpc, alice_ord_wallet):  # noqa A002
     wallet = services.OrdWallet(
         ord=ord,
         name="user-ord-test",

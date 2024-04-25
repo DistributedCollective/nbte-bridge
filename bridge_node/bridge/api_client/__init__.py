@@ -1,8 +1,10 @@
 import logging
+
 import requests
 
-
 logger = logging.getLogger(__name__)
+
+TIMEOUT = 30
 
 
 class BridgeAPIClient:
@@ -11,7 +13,7 @@ class BridgeAPIClient:
 
     def is_healthy(self) -> bool:
         try:
-            response = requests.get(self._base_url + "/api/v1/stats/")
+            response = requests.get(self._base_url + "/api/v1/stats/", timeout=TIMEOUT)
         except requests.exceptions.ConnectionError:
             logger.info("Bridge API is not healthy (ConnectionError)")
             return False
@@ -52,6 +54,7 @@ class BridgeAPIClient:
                 "rsk_token_address": rsk_token_address,
                 "rsk_amount": rsk_amount,
             },
+            timeout=TIMEOUT,
         )
         response.raise_for_status()
         return response.json()["deposit_address"]
@@ -68,6 +71,7 @@ class BridgeAPIClient:
             json={
                 "address": address,
             },
+            timeout=TIMEOUT,
         )
 
         response.raise_for_status()
@@ -82,6 +86,7 @@ class BridgeAPIClient:
             json={
                 "evm_address": evm_address,
             },
+            timeout=TIMEOUT,
         )
         response.raise_for_status()
         return response.json()["deposit_address"]

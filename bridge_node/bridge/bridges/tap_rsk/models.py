@@ -1,15 +1,14 @@
 from enum import IntEnum
 from typing import TypedDict
 
-from hexbytes import HexBytes
 from eth_abi.packed import encode_packed
 from eth_utils import keccak, to_hex
-from sqlalchemy import Column, Integer, Text, ForeignKey, UniqueConstraint, LargeBinary
+from hexbytes import HexBytes
+from sqlalchemy import Column, ForeignKey, Integer, LargeBinary, Text, UniqueConstraint
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import relationship
 
 from bridge.common.models.meta import Base
-
 
 # NOTE: do not change this without understanding the consequences!
 PREFIX = "taprsk"
@@ -81,9 +80,7 @@ class RskToTapTransferBatch(Base):
         default=RskToTapTransferBatchStatus.CREATED,
     )
 
-    transfers = relationship(
-        "RskToTapTransfer", back_populates="transfer_batch", order_by="RskToTapTransfer.counter"
-    )
+    transfers = relationship("RskToTapTransfer", back_populates="transfer_batch", order_by="RskToTapTransfer.counter")
     # TODO: vpsbt
     sending_result = Column(JSONB, nullable=False, server_default="{}", default=dict)
 
@@ -101,9 +98,7 @@ class TapToRskTransferBatch(Base):
     )
     signatures = Column(JSONB, nullable=False, server_default="{}", default=dict)
 
-    transfers = relationship(
-        "TapToRskTransfer", back_populates="transfer_batch", order_by="TapToRskTransfer.counter"
-    )
+    transfers = relationship("TapToRskTransfer", back_populates="transfer_batch", order_by="TapToRskTransfer.counter")
     executed_tx_hash = Column(Text, nullable=True)
 
     def compute_hash(self) -> bytes:
@@ -171,9 +166,7 @@ class RskToTapTransfer(Base):
     rsk_event_tx_index = Column(Integer, nullable=False)
     rsk_event_log_index = Column(Integer, nullable=False)
 
-    transfer_batch_id = Column(
-        Integer, ForeignKey(f"{PREFIX}_rsk_to_tap_transfer_batch.id"), nullable=True, index=True
-    )
+    transfer_batch_id = Column(Integer, ForeignKey(f"{PREFIX}_rsk_to_tap_transfer_batch.id"), nullable=True, index=True)
     transfer_batch = relationship(RskToTapTransferBatch, back_populates="transfers")
 
     # executed_evm_tx_hash = Column(Text)
@@ -216,9 +209,7 @@ class TapToRskTransfer(Base):
     #     default=TapToRskTransferStatus.SEEN,
     # )
 
-    transfer_batch_id = Column(
-        Integer, ForeignKey(f"{PREFIX}_tap_to_rsk_transfer_batch.id"), nullable=True, index=True
-    )
+    transfer_batch_id = Column(Integer, ForeignKey(f"{PREFIX}_tap_to_rsk_transfer_batch.id"), nullable=True, index=True)
     transfer_batch = relationship(TapToRskTransferBatch, back_populates="transfers")
 
     # rsk_executed_event_block_number = Column(Integer)
@@ -235,7 +226,10 @@ class TapToRskTransfer(Base):
     )
 
     def __repr__(self):
-        return f"TapToRskTransfer({self.counter}, {self.deposit_address.tap_address} -> {self.deposit_address.rsk_address}))"
+        return (
+            f"TapToRskTransfer({self.counter}, {self.deposit_address.tap_address} "
+            f"-> {self.deposit_address.rsk_address}))"
+        )
 
     def compute_hash(self):
         return keccak(

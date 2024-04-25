@@ -1,11 +1,12 @@
-import logging
-import threading
 import dataclasses
+import logging
+import socket
+import threading
+from collections.abc import Callable
 from decimal import Decimal
 from types import SimpleNamespace
 from typing import (
     Any,
-    Callable,
     Protocol,
     TypedDict,
 )
@@ -16,12 +17,14 @@ from anemic.ioc import (
     Container,
     service,
 )
+from Pyro5.errors import CommunicationError
 
 from bridge.common.p2p.auth.bridge_ssl import (
     PyroSecureContext,
     SecureContextFactory,
 )
 from bridge.config import Config
+
 from .client import BoundPyroProxy
 from .messaging import MessageEnvelope
 
@@ -29,8 +32,7 @@ logger = logging.getLogger(__name__)
 
 
 class Listener(Protocol):
-    def __call__(self, msg: MessageEnvelope):
-        ...
+    def __call__(self, msg: MessageEnvelope): ...
 
 
 class Network(Protocol):
@@ -39,20 +41,15 @@ class Network(Protocol):
     def is_leader(self) -> bool:
         pass
 
-    def ask(self, question: str, **kwargs: Any) -> list[Any]:
-        ...
+    def ask(self, question: str, **kwargs: Any) -> list[Any]: ...
 
-    def answer_with(self, question: str, callback: Callable[..., Any]):
-        ...
+    def answer_with(self, question: str, callback: Callable[..., Any]): ...
 
-    def broadcast(self, msg):
-        ...
+    def broadcast(self, msg): ...
 
-    def send(self, to, msg):
-        ...
+    def send(self, to, msg): ...
 
-    def add_listener(self, listener: Listener):
-        ...
+    def add_listener(self, listener: Listener): ...
 
 
 class PyroMessageEnvelope(TypedDict):
@@ -125,7 +122,12 @@ class PyroNetwork(Network):
         logger.debug("ask serialized kwargs %s", serialized_kwargs)
         for peer in self.peers:
             try:
-                answer = peer.answer(question, **serialized_kwargs)
+                try:
+                    answer = peer.answer(question, **serialized_kwargs)
+                except CommunicationError as e:
+                    # TODO: handle ConnectionRefused and have less spam
+                    logger.exception("Error communicating with peer %s: %s", peer, e)
+                    answer = None
                 if answer is not None:
                     # TODO: proper return type for null answer
                     deserialized_answer = self.deserialize(answer)
@@ -162,11 +164,7 @@ class PyroNetwork(Network):
                 # Instead just return a SimpleNamespace with deserialized values. It should conform to the same API
                 # with the exception that it doesn't have the methods of the dataclass. Good enough for now.
                 return SimpleNamespace(
-                    **{
-                        key: self.deserialize(value)
-                        for key, value in value.items()
-                        if key not in ["_is_dataclass"]
-                    }
+                    **{key: self.deserialize(value) for key, value in value.items() if key not in ["_is_dataclass"]}
                 )
             if value.get("_is_decimal"):
                 return Decimal(value["value"])
@@ -234,9 +232,7 @@ class PyroNetwork(Network):
             ret = self.serialize(ret)
             logger.debug("answer serialized ret: %s", ret)
         except Exception:
-            logger.exception(
-                "Error answering question %r (thread %s)", question, threading.current_thread().name
-            )
+            logger.exception("Error answering question %r (thread %s)", question, threading.current_thread().name)
             return None
         return ret
 
@@ -346,9 +342,11 @@ def create_pyro_network(container: Container):
         ],
     )
 
+    hostname = socket.gethostname()
     network = PyroNetwork(
         node_id=config.node_id,
-        host=config.hostname,
+        # host=config.hostname,
+        host=hostname,
         port=config.port,
         peers=config.peers,
         context_cls=PyroSecureContext,

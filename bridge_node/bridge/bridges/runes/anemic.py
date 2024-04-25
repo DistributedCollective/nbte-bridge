@@ -6,6 +6,9 @@ from anemic.ioc import (
     service,
 )
 
+from ...common.p2p.network import Network
+from ...common.services.transactions import TransactionManager
+from ...config import Config
 from .bridge import RuneBridge
 from .config import (
     RuneBridgeConfig,
@@ -16,9 +19,6 @@ from .wiring import (
     RuneBridgeWiring,
     wire_rune_bridge,
 )
-from ...common.p2p.network import Network
-from ...common.services.transactions import TransactionManager
-from ...config import Config
 
 
 @service(scope="global", interface_override=RuneBridgeWiring)
@@ -35,7 +35,10 @@ def rune_bridge_wiring_factory(container: Container):
             btc_num_required_signers=config.runes_btc_num_required_signers,
             evm_block_safety_margin=config.evm_block_safety_margin,
             evm_default_start_block=config.runes_evm_default_start_block,
+            btc_min_confirmations=config.btc_min_confirmations,
+            btc_listsinceblock_buffer=config.btc_listsinceblock_buffer,
             runes_to_evm_fee_percentage_decimal=config.runes_to_evm_fee_percentage_decimal,
+            btc_network=config.btc_network,
         ),
         secrets=RuneBridgeSecrets(
             evm_private_key=config.secret_runes_evm_private_key,

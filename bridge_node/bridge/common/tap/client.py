@@ -1,10 +1,9 @@
 import dataclasses
 import pathlib
-from typing import Union, TypedDict, Any
 import urllib.parse
+from typing import Any, TypedDict
 
 import requests
-
 
 DEFAULT_ASSET_VERSION = "ASSET_VERSION_V0"
 
@@ -142,8 +141,8 @@ class TapRestClient:
         self,
         *,
         rest_host: str,
-        macaroon_path: Union[pathlib.Path, str],
-        tls_cert_path: Union[pathlib.Path, str],
+        macaroon_path: pathlib.Path | str,
+        tls_cert_path: pathlib.Path | str,
         public_universe_host: str = None,
     ):
         self.public_universe_host = public_universe_host
@@ -157,8 +156,8 @@ class TapRestClient:
         self,
         method: str,
         path: str,
-        data: Union[dict, None] = None,
-        query: Union[dict, None] = None,
+        data: dict | None = None,
+        query: dict | None = None,
     ):
         if path.startswith("/"):
             path = path[1:]
@@ -181,16 +180,16 @@ class TapRestClient:
             raise TapRestError(response=r) from e
         return r.json()
 
-    def get(self, path: str, query: Union[dict, None] = None):
+    def get(self, path: str, query: dict | None = None):
         return self.request("GET", path, query=query)
 
-    def post(self, path: str, data: dict = None, *, query: Union[dict, None] = None):
+    def post(self, path: str, data: dict = None, *, query: dict | None = None):
         return self.request("POST", path, data=data, query=query)
 
-    def put(self, path: str, data: dict = None, *, query: Union[dict, None] = None):
+    def put(self, path: str, data: dict = None, *, query: dict | None = None):
         return self.request("PUT", path, data=data, query=query)
 
-    def delete(self, path: str, *, query: Union[dict, None] = None):
+    def delete(self, path: str, *, query: dict | None = None):
         return self.request("DELETE", path, query=query)
 
     # Derived methods, should have their own class probably

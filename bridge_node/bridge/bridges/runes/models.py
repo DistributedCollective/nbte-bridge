@@ -2,19 +2,19 @@ from decimal import Decimal
 from enum import IntEnum
 
 from sqlalchemy import (
-    Column,
-    Integer,
     BigInteger,
-    Text,
-    ForeignKey,
-    UniqueConstraint,
-    DateTime,
-    func,
     Boolean,
+    Column,
+    DateTime,
+    ForeignKey,
+    Integer,
+    Text,
+    UniqueConstraint,
+    func,
 )
 from sqlalchemy.dialects.postgresql import JSONB
-from sqlalchemy.orm import relationship
 from sqlalchemy.ext.mutable import MutableList
+from sqlalchemy.orm import relationship
 
 from bridge.common.models.meta import Base
 from bridge.common.models.types import (
@@ -55,9 +55,7 @@ class User(Base):
 
     created_at = Column(DateTime(timezone=True), nullable=False, server_default=func.now())
 
-    __table_args__ = (
-        UniqueConstraint("bridge_id", "evm_address", name="uq_runes_user_evm_address"),
-    )
+    __table_args__ = (UniqueConstraint("bridge_id", "evm_address", name="uq_runes_user_evm_address"),)
 
 
 class DepositAddress(Base):
@@ -150,9 +148,7 @@ class IncomingBtcTx(Base):
 
     created_at = Column(DateTime(timezone=True), nullable=False, server_default=func.now())
 
-    __table_args__ = (
-        UniqueConstraint("bridge_id", "tx_id", "vout", name="uq_incoming_bitcoin_tx_id_vout"),
-    )
+    __table_args__ = (UniqueConstraint("bridge_id", "tx_id", "vout", name="uq_incoming_bitcoin_tx_id_vout"),)
 
 
 class Rune(Base):
@@ -167,6 +163,8 @@ class Rune(Base):
     symbol = Column(Text, nullable=False)
     divisibility = Column(Integer, nullable=False)
     turbo = Column(Boolean, nullable=False)
+
+    deposits = relationship("RuneDeposit", back_populates="rune")
 
     __table_args__ = (UniqueConstraint("bridge_id", "n", name="uq_rune_n"),)
 
@@ -190,7 +188,7 @@ class RuneDeposit(Base):
     rune_number = Column(Uint128, nullable=False)
 
     rune_id = Column(Integer, ForeignKey("rune.id"), nullable=False)
-    rune = relationship(Rune)
+    rune = relationship(Rune, back_populates="deposits")
 
     user_id = Column(Integer, ForeignKey("user.id"), nullable=False)
     user = relationship(User)
@@ -206,12 +204,8 @@ class RuneDeposit(Base):
     evm_tx_hash = Column(Text, nullable=True)
 
     accept_transfer_message_hash = Column(Text, nullable=True)
-    accept_transfer_signatures = Column(
-        MutableList.as_mutable(JSONB), nullable=False, server_default="[]"
-    )
-    accept_transfer_signers = Column(
-        MutableList.as_mutable(JSONB), nullable=False, server_default="[]"
-    )
+    accept_transfer_signatures = Column(MutableList.as_mutable(JSONB), nullable=False, server_default="[]")
+    accept_transfer_signers = Column(MutableList.as_mutable(JSONB), nullable=False, server_default="[]")
 
     status = Column(
         Integer,
@@ -238,7 +232,10 @@ class RuneDeposit(Base):
     def __repr__(self):
         rune_name = self.rune.spaced_name
         net_amount = self.rune.decimal_amount(self.net_amount_raw)
-        return f"RuneDeposit(id={self.id}, {net_amount} {rune_name} => {self.user.evm_address} ({self.tx_id}:{self.vout}, status={self.status}))"
+        return (
+            f"RuneDeposit(id={self.id}, {net_amount} {rune_name} => {self.user.evm_address} "
+            f"({self.tx_id}:{self.vout}, status={self.status}))"
+        )
 
     @property
     def fee_raw(self) -> int:
@@ -300,4 +297,7 @@ class RuneTokenDeposit(Base):
 
     def __repr__(self):
         # nice repr
-        return f"RuneTokenDeposit(id={self.id}, f{self.rune.decimal_amount(self.net_rune_amount_raw)} {self.rune.name} => {self.receiver_btc_address})"
+        return (
+            f"RuneTokenDeposit(id={self.id}, {self.rune.decimal_amount(self.net_rune_amount_raw)} "
+            f"{self.rune.name} => {self.receiver_btc_address})"
+        )

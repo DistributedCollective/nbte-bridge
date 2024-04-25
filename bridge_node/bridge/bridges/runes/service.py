@@ -2,9 +2,9 @@ import dataclasses
 import functools
 import logging
 import time
+from collections.abc import Callable
 from decimal import Decimal
 from typing import (
-    Callable,
     Protocol,
 )
 
@@ -19,13 +19,29 @@ from sqlalchemy.orm import (
 )
 from web3 import Web3
 from web3.contract import Contract
-from web3.types import EventData
 from web3.exceptions import (
     TransactionIndexingInProgress,
     TransactionNotFound,
 )
+from web3.types import EventData
 
+from bridge.common.btc.fees import BitcoinFeeEstimator
 from bridge.common.btc.rpc import BitcoinRPC
+
+from ...common.btc.types import BitcoinNetwork
+from ...common.evm.scanner import EvmEventScanner
+from ...common.evm.utils import recover_message
+from ...common.models.key_value_store import KeyValuePair
+from ...common.ord.client import OrdApiClient
+from ...common.ord.multisig import (
+    OrdMultisig,
+    RuneTransfer,
+)
+from ...common.ord.types import (
+    rune_from_str,
+)
+from ...common.services.key_value_store import KeyValueStore
+from ...common.services.transactions import TransactionManager
 from . import messages
 from .evm import load_rune_bridge_abi
 from .models import (
@@ -40,19 +56,6 @@ from .models import (
     RuneTokenDepositStatus,
     User,
 )
-from ...common.evm.scanner import EvmEventScanner
-from ...common.evm.utils import recover_message
-from ...common.models.key_value_store import KeyValuePair
-from ...common.ord.client import OrdApiClient
-from ...common.ord.multisig import (
-    OrdMultisig,
-    RuneTransfer,
-)
-from ...common.ord.types import (
-    rune_from_str,
-)
-from ...common.services.key_value_store import KeyValueStore
-from ...common.services.transactions import TransactionManager
 
 logger = logging.getLogger(__name__)
 
@@ -79,6 +82,7 @@ class RuneBridgeServiceConfig(Protocol):
     btc_min_confirmations: int
     btc_min_postage_sat: int
     btc_listsinceblock_buffer: int
+    btc_network: BitcoinNetwork
 
 
 class RuneBridgeService:
@@ -103,6 +107,10 @@ class RuneBridgeService:
         self.evm_account = evm_account
         self.web3 = web3
         self._bridge_id = None
+        self._btc_fee_estimator = BitcoinFeeEstimator(
+            rpc=bitcoin_rpc,
+            network=config.btc_network,
+        )
 
         self._get_block_time_by_hash = functools.lru_cache(256)(self._get_block_time_by_hash)
 
@@ -133,11 +141,7 @@ class RuneBridgeService:
         except Exception as e:
             raise ValueError(f"Invalid EVM address: {evm_address}") from e
 
-        user = (
-            dbsession.query(User)
-            .filter_by(bridge_id=self.bridge_id, evm_address=evm_address)
-            .first()
-        )
+        user = dbsession.query(User).filter_by(bridge_id=self.bridge_id, evm_address=evm_address).first()
         if not user:
             user = User(
                 bridge_id=self.bridge_id,
@@ -165,6 +169,12 @@ class RuneBridgeService:
 
         required_confirmations = self.config.btc_min_confirmations
         listsinceblock_buffer = self.config.btc_listsinceblock_buffer
+        if listsinceblock_buffer < required_confirmations:
+            raise ValueError(
+                f"listsinceblock_buffer ({listsinceblock_buffer}) must be "
+                f">= required_confirmations ({required_confirmations})"
+            )
+
         if not last_bitcoin_block:
             logger.info("Scanning Rune deposits from the beginning")
             resp = self.bitcoin_rpc.call("listsinceblock", "", listsinceblock_buffer)
@@ -205,16 +215,26 @@ class RuneBridgeService:
             tx_confirmations = tx["confirmations"]
             ord_output = tx["ord_output"] = None
             if tx_confirmations > 0:
+                logger.debug("tx: %s", tx)
                 # TXs without confirmations are not indexed by ord
-                for _ in range(10):
+                retries = 10
+                for i in range(retries):
                     ord_output = self.ord_client.get_output(txid, vout)
                     if ord_output["indexed"]:
                         tx["ord_output"] = ord_output
                         break
-                    logger.info("Output %s:%s not indexed in ord yet, waiting", txid, vout)
-                    self._sleep()
+                    if ord_output["spent"]:
+                        # This "JUST HAPPENS" sometimes...
+                        # Argh! Probably because of the listsinceblock buffer.
+                        # Maybe ord's default behaviour
+                        # being too fast for ord, hopefully only in tests.
+                        # I guess we ignore these, but there's a chance we miss some deposits.
+                        logger.warning("Unindexed spent output %s:%s (%s), ignoring", txid, vout, ord_output)
+                        break
+                    logger.info("Output %s:%s (%s) not indexed in ord yet, waiting", txid, vout, ord_output)
+                    self._sleep(i)
                 else:
-                    raise RuntimeError("Output not indexed in ord after 10 tries")
+                    raise RuntimeError(f"Output not indexed in ord after {retries} tries")
 
             if ord_output:
                 for spaced_rune_name, _ in ord_output["runes"]:
@@ -237,11 +257,7 @@ class RuneBridgeService:
             logger.info("Indexing %s runes", len(rune_entries))
             for rune_entry in rune_entries:
                 pyord_rune = rune_from_str(rune_entry["spaced_rune"])
-                rune = (
-                    dbsession.query(Rune)
-                    .filter_by(bridge_id=self.bridge_id, n=pyord_rune.n)
-                    .one_or_none()
-                )
+                rune = dbsession.query(Rune).filter_by(bridge_id=self.bridge_id, n=pyord_rune.n).one_or_none()
                 if not rune:
                     logger.info("Creating rune %s (%s)", pyord_rune, rune_entry)
                     rune = Rune(
@@ -264,7 +280,8 @@ class RuneBridgeService:
                 btc_address = tx["address"]
                 ord_output = tx["ord_output"]
                 if ord_output:
-                    assert ord_output["indexed"]
+                    if not ord_output["indexed"]:
+                        raise AssertionError(f"Output {txid}:{vout} not indexed in ord")
 
                 btc_tx = (
                     dbsession.query(IncomingBtcTx)
@@ -287,10 +304,7 @@ class RuneBridgeService:
                     )
                     dbsession.add(btc_tx)
 
-                if (
-                    tx_confirmations >= required_confirmations
-                    and btc_tx.status == IncomingBtcTxStatus.DETECTED
-                ):
+                if tx_confirmations >= required_confirmations and btc_tx.status == IncomingBtcTxStatus.DETECTED:
                     btc_tx.status = IncomingBtcTxStatus.ACCEPTED
                 btc_tx.block_number = tx.get("blockheight")
                 btc_tx.time = tx["time"]
@@ -298,9 +312,7 @@ class RuneBridgeService:
                 btc_tx.address = btc_address
                 dbsession.flush()
 
-                deposit_address = (
-                    dbsession.query(DepositAddress).filter_by(btc_address=btc_address).one_or_none()
-                )
+                deposit_address = dbsession.query(DepositAddress).filter_by(btc_address=btc_address).one_or_none()
                 if not deposit_address:
                     logger.warning("No deposit address found for %s", tx)
                     continue
@@ -341,11 +353,7 @@ class RuneBridgeService:
 
                 for spaced_rune_name, balance_entry in ord_output["runes"]:
                     pyord_rune = rune_from_str(spaced_rune_name)
-                    rune = (
-                        dbsession.query(Rune)
-                        .filter_by(bridge_id=self.bridge_id, n=pyord_rune.n)
-                        .one()
-                    )
+                    rune = dbsession.query(Rune).filter_by(bridge_id=self.bridge_id, n=pyord_rune.n).one()
                     amounts = self._calculate_rune_to_evm_transfer_amounts(
                         amount_raw=balance_entry["amount"],
                         divisibility=balance_entry["divisibility"],
@@ -389,10 +397,7 @@ class RuneBridgeService:
                     deposit.transfer_amount_raw = balance_entry["amount"]
                     deposit.net_amount_raw = amounts.net_amount_raw
                     deposit.rune_id = rune.id
-                    if (
-                        tx_confirmations >= required_confirmations
-                        and deposit.status == RuneDepositStatus.DETECTED
-                    ):
+                    if tx_confirmations >= required_confirmations and deposit.status == RuneDepositStatus.DETECTED:
                         deposit.status = RuneDepositStatus.ACCEPTED
                     dbsession.flush()
 
@@ -402,7 +407,7 @@ class RuneBridgeService:
             check = key_value_store.get_value(last_block_key, default_value=None)
             if check != last_bitcoin_block:
                 raise RuntimeError(
-                    f"Last block changed from {last_bitcoin_block} to {check} while processing deposits!"
+                    f"Last block changed from {last_bitcoin_block} to " f"{check} while processing deposits!"
                 )
             key_value_store.set_value(last_block_key, new_last_block)
         return num_transfers
@@ -499,19 +504,22 @@ class RuneBridgeService:
             else:
                 for rune_deposit in tx.rune_deposits:
                     rune = rune_deposit.rune
+
+                    # TODO: use token symbol? but for now we just hardcode POWA
+                    if rune.spaced_name == "POWA•RANGERS•GO":
+                        symbol = "POWA"
+                    else:
+                        symbol = rune.symbol
+
                     deposits.append(
                         {
                             "btc_deposit_txid": rune_deposit.tx_id,
                             "btc_deposit_vout": rune_deposit.vout,
                             "rune_name": rune.spaced_name,
-                            "rune_symbol": rune.symbol,
-                            "amount_decimal": str(
-                                rune.decimal_amount(rune_deposit.transfer_amount_raw)
-                            ),
+                            "rune_symbol": symbol,
+                            "amount_decimal": str(rune.decimal_amount(rune_deposit.transfer_amount_raw)),
                             "fee_decimal": str(rune.decimal_amount(rune_deposit.fee_raw)),
-                            "receive_amount_decimal": str(
-                                rune.decimal_amount(rune_deposit.net_amount_raw)
-                            ),
+                            "receive_amount_decimal": str(rune.decimal_amount(rune_deposit.net_amount_raw)),
                             "status": rune_deposit.get_status_for_ui(),
                             "evm_transfer_tx_hash": rune_deposit.evm_tx_hash,
                         }
@@ -542,9 +550,7 @@ class RuneBridgeService:
             )
             return [deposit.id for deposit in deposits]
 
-    def get_sign_rune_to_evm_transfer_question(
-        self, deposit_id: int
-    ) -> messages.SignRuneToEvmTransferQuestion:
+    def get_sign_rune_to_evm_transfer_question(self, deposit_id: int) -> messages.SignRuneToEvmTransferQuestion:
         with self.transaction_manager.transaction() as tx:
             dbsession = tx.find_service(Session)
             deposit = (
@@ -700,8 +706,8 @@ class RuneBridgeService:
                 status=RuneDepositStatus.SENT_TO_EVM,
             )
             ids = [deposit.id for deposit in deposits]
-        for id in ids:
-            self._confirm_sent_rune_deposit(id)
+        for deposit_id in ids:
+            self._confirm_sent_rune_deposit(deposit_id)
 
     def _confirm_sent_rune_deposit(self, deposit_id: int):
         with self.transaction_manager.transaction() as tx:
@@ -767,9 +773,7 @@ class RuneBridgeService:
             divisibility=divisibility,
         )
         if transfer.amount_raw != calculated_amounts.amount_raw:
-            raise ValidationError(
-                f"Amount mismatch: {transfer.amount_decimal!r} != {calculated_amounts.amount_raw}"
-            )
+            raise ValidationError(f"Amount mismatch: {transfer.amount_decimal!r} != {calculated_amounts.amount_raw}")
 
         if transfer.net_amount_raw != calculated_amounts.net_amount_raw:
             raise ValidationError(
@@ -848,9 +852,7 @@ class RuneBridgeService:
             HexBytes(answer.signature),
         )
         if recovered != answer.signer:
-            raise ValidationError(
-                f"Recovered signer {recovered} does not match expected {answer.signer}"
-            )
+            raise ValidationError(f"Recovered signer {recovered} does not match expected {answer.signer}")
 
     def answer_sign_rune_token_to_btc_transfer_question(
         self,
@@ -862,6 +864,8 @@ class RuneBridgeService:
                 dbsession.query(RuneTokenDeposit)
                 .filter_by(
                     bridge_id=self.bridge_id,
+                    evm_tx_hash=message.transfer.event_tx_hash,
+                    evm_log_index=message.transfer.event_log_index,
                 )
                 .one()
             )
@@ -869,7 +873,7 @@ class RuneBridgeService:
                 raise ValidationError(f"Deposit {deposit} not accepted (got {deposit.status})")
 
         unsigned_psbt = self.ord_multisig.deserialize_psbt(message.unsigned_psbt_serialized)
-        # TODO: recreate the psbt here
+        # NOTE: we could recreate the PSBT here
 
         hex_tx = unsigned_psbt.unsigned_tx.serialize().hex()
         runestone = pyord.Runestone.decipher_hex(hex_tx)
@@ -890,9 +894,7 @@ class RuneBridgeService:
             signer_xpub=self.ord_multisig.signer_xpub,
         )
 
-    def _get_rune_to_evm_transfer_key_value_store_key(
-        self, transfer: messages.RuneToEvmTransfer
-    ) -> str:
+    def _get_rune_to_evm_transfer_key_value_store_key(self, transfer: messages.RuneToEvmTransfer) -> str:
         return f"{self.bridge_name}:rune-to-evm-transfer:{transfer.txid}:{transfer.vout}:{transfer.rune_name}"
 
     def scan_rune_token_deposits(self) -> int:
@@ -1014,9 +1016,11 @@ class RuneBridgeService:
                 event_log_index=deposit.evm_log_index,
             )
 
+        fee_rate_sats_per_vb = self._btc_fee_estimator.get_fee_sats_per_vb()
+        logger.info("Fee rate: %s sats/vb", fee_rate_sats_per_vb)
         num_required_signatures = self.get_rune_tokens_to_btc_num_required_signers()
-        fee_rate_sat_per_vbyte  = 50  # TODO get from somewhere or calculate
         unsigned_psbt = self.ord_multisig.create_rune_psbt(
+            fee_rate_sat_per_vbyte=fee_rate_sats_per_vb,
             transfers=[
                 RuneTransfer(
                     rune=transfer.rune_name,
@@ -1024,12 +1028,11 @@ class RuneBridgeService:
                     amount=transfer.net_rune_amount,
                 )
             ],
-            fee_rate_sat_per_vbyte=fee_rate_sat_per_vbyte,
         )
         message = messages.SignRuneTokenToBtcTransferQuestion(
             transfer=transfer,
             unsigned_psbt_serialized=self.ord_multisig.serialize_psbt(unsigned_psbt),
-            fee_rate_sat_per_vbyte=fee_rate_sat_per_vbyte,
+            fee_rate_sats_per_vb=fee_rate_sats_per_vb,
         )
         self_response = self.answer_sign_rune_token_to_btc_transfer_question(message=message)
         self_signed_psbt = self.ord_multisig.deserialize_psbt(self_response.signed_psbt_serialized)
@@ -1037,8 +1040,7 @@ class RuneBridgeService:
         responses = ask_signatures(message)
         signed_psbts = [self_signed_psbt]
         signed_psbts.extend(
-            self.ord_multisig.deserialize_psbt(response.signed_psbt_serialized)
-            for response in responses
+            self.ord_multisig.deserialize_psbt(response.signed_psbt_serialized) for response in responses
         )
         signed_psbts = signed_psbts[:num_required_signatures]
 
@@ -1106,9 +1108,7 @@ class RuneBridgeService:
     def _sleep(self, multiplier: float = 1.0):
         time.sleep(1.0 * multiplier)
 
-    def _calculate_rune_to_evm_transfer_amounts(
-        self, amount_raw: int, divisibility: int
-    ) -> TransferAmounts:
+    def _calculate_rune_to_evm_transfer_amounts(self, amount_raw: int, divisibility: int) -> TransferAmounts:
         if not isinstance(amount_raw, int):
             raise ValueError(f"Amount must be int, got {amount_raw!r}")
         if not isinstance(divisibility, int):

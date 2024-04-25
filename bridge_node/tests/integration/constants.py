@@ -1,5 +1,6 @@
-from typing import cast
 import pathlib
+from typing import cast
+
 from eth_typing import ChecksumAddress
 
 # __base__/bridge_node/tests/integration

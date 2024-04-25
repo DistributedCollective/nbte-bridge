@@ -2,6 +2,7 @@ import logging
 
 from bridge.common.interfaces.bridge import Bridge
 from bridge.common.p2p.network import Network
+
 from .service import (
     RuneBridgeService,
 )
@@ -23,9 +24,7 @@ class RuneBridge(Bridge):
         self.service = service
 
         self.sign_rune_to_evm_transfer_question = f"{bridge_id}:sign-rune-to-evm-transfer"
-        self.sign_rune_token_to_btc_transfer_question = (
-            f"{bridge_id}:sign-rune-token-to-btc-transfer"
-        )
+        self.sign_rune_token_to_btc_transfer_question = f"{bridge_id}:sign-rune-token-to-btc-transfer"
         self.max_retries = 10
 
     def init(self) -> None:
@@ -67,9 +66,7 @@ class RuneBridge(Bridge):
                 if not self.service.validate_rune_deposit_for_sending(deposit_id):
                     continue
                 message = self.service.get_sign_rune_to_evm_transfer_question(deposit_id)
-                self_response = self.service.answer_sign_rune_to_evm_transfer_question(
-                    message=message
-                )
+                self_response = self.service.answer_sign_rune_to_evm_transfer_question(message=message)
                 message_hash = self_response.message_hash
                 logger.info("Asking for signatures for deposit %s", message)
                 responses = self.network.ask(
@@ -77,7 +74,7 @@ class RuneBridge(Bridge):
                     message=message,
                 )
                 ready_to_send = self.service.update_rune_deposit_signatures(
-                    deposit_id, message_hash=message_hash, answers=[self_response] + responses
+                    deposit_id, message_hash=message_hash, answers=[self_response, *responses]
                 )
                 if ready_to_send:
                     self.service.send_rune_deposit_to_evm(deposit_id)

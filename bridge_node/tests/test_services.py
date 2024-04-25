@@ -2,11 +2,11 @@ import json
 
 
 def test_postgres(postgres):
-    assert postgres.is_started()
+    assert postgres.is_running()
 
 
 def test_bitcoind(bitcoind):
-    assert bitcoind.is_started()
+    assert bitcoind.is_running()
     wallet = bitcoind.create_test_wallet()
     resp = bitcoind.cli("listwallets")
     assert isinstance(resp, str)  # we cannot blindly json-parse these

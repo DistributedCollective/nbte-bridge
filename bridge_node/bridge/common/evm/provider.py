@@ -3,6 +3,7 @@ from web3 import Web3
 
 from bridge.common.evm.utils import create_web3
 from bridge.config import Config
+
 from .account import Account
 
 
