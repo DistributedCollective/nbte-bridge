@@ -434,10 +434,22 @@ class RuneBridgeUtil:
         ]
         assert transactions, f"No transactions received at {transfer.receiver_btc_address}"
         assert len(transactions) == 1, f"Expected 1 transaction, got {len(transactions)}"
-        ord_output = self._ord.api_client.get_output(
-            txid=transactions[0]["txid"],
-            vout=transactions[0]["vout"],
-        )
+
+        ord_output = None
+        for _ in range(10):
+            ord_output = self._ord.api_client.get_output(
+                txid=transactions[0]["txid"],
+                vout=transactions[0]["vout"],
+            )
+            if ord_output["indexed"]:
+                break
+            assert not ord_output["spent"], f"Indexed spent output: {ord_output}"
+            logger.info("Output %s not yet indexed, retrying", ord_output)
+            time.sleep(0.5)
+        else:
+            raise AssertionError(f"ord output {ord_output} not indexed after retries")
+
+        logger.info("ord output: %s", ord_output)
         assert ord_output, f"Output not found for transaction {transactions[0]['txid']}:{transactions[0]['vout']}"
         assert len(ord_output["runes"]) == 1, f"Expected 1 rune, got {len(ord_output['runes'])}"
         assert (
