@@ -922,8 +922,8 @@ class RuneBridgeService:
         if edict.output != 2:
             raise ValidationError(f"Expected output 2, got {edict.output}")
 
-        if len(unsigned_tx.vout) != 4:
-            raise ValidationError(f"Expected 4 outputs, got {len(unsigned_tx.vout)}")
+        if len(unsigned_tx.vout) not in (3, 4):
+            raise ValidationError(f"Expected 3-4 outputs, got {len(unsigned_tx.vout)}")
 
         expected_postage = TARGET_POSTAGE_SAT
         if unsigned_tx.vout[0].nValue != 0:
@@ -936,8 +936,11 @@ class RuneBridgeService:
             raise ValidationError(f"Expected postage {expected_postage} at output 2, got {unsigned_tx.vout[2].nValue}")
         if unsigned_tx.vout[1].scriptPubKey != self.ord_multisig.change_script_pubkey:
             raise ValidationError(f"Expected change address {self.ord_multisig.change_script_pubkey} at output 1")
-        if unsigned_tx.vout[3].scriptPubKey != self.ord_multisig.change_script_pubkey:
-            raise ValidationError(f"Expected change address {self.ord_multisig.change_script_pubkey} at output 3")
+
+        # Validate the change output only if we have it
+        if len(unsigned_tx.vout) == 4:
+            if unsigned_tx.vout[3].scriptPubKey != self.ord_multisig.change_script_pubkey:
+                raise ValidationError(f"Expected change address {self.ord_multisig.change_script_pubkey} at output 3")
 
         expected_fee_rate_sat_per_vb = self._btc_fee_estimator.get_fee_sats_per_vb()
         fee_rate_margin = 2
