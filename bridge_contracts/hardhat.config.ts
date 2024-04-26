@@ -31,6 +31,11 @@ const config: HardhatUserConfig = {
             chainId: 31,
             accounts: TESTNET_DEPLOYER_PRIVATE_KEY ? [TESTNET_DEPLOYER_PRIVATE_KEY] : [],
         },
+        "bob-testnet": {
+            url: "https://testnet.rpc.gobob.xyz",
+            chainId: 111,
+            accounts: TESTNET_DEPLOYER_PRIVATE_KEY ? [TESTNET_DEPLOYER_PRIVATE_KEY] : [],
+        },
         "rsk-mainnet": {
             url: "https://mainnet.sovryn.app/rpc",
             chainId: 30,
