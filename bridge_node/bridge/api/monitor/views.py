@@ -80,7 +80,7 @@ class MonitorViews:
     @view_config(
         route_name="monitor_runes",
         request_method="GET",
-        renderer="templates/monitor/deposits.jinja2",
+        renderer="templates/monitor/runes.jinja2",
     )
     def runes(self):
         runes = (
