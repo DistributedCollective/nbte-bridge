@@ -64,9 +64,9 @@ class RuneBridge(Bridge):
     def _handle_rune_transfers_to_evm(self):
         for deposit_id in self.service.get_accepted_rune_deposit_ids():
             try:
-                logger.info("Processing Rune->EVM deposit %s", deposit_id)
                 if not self.service.validate_rune_deposit_for_sending(deposit_id):
                     continue
+                logger.info("Processing Rune->EVM deposit %s", deposit_id)
                 message = self.service.get_sign_rune_to_evm_transfer_question(deposit_id)
                 self_response = self.service.answer_sign_rune_to_evm_transfer_question(message=message)
                 message_hash = self_response.message_hash
