@@ -155,6 +155,28 @@ task(`upgrade-rune-bridge`)
     }));
 
 
+// TODO: temporary task, don't need it
+task(`${PREFIX}test-access-control`)
+    .addParam("bridgeAddress", "RuneBridge contract address")
+    .setAction(async ({
+        bridgeAddress,
+    }, hre) => {
+        const { ethers, upgrades } = hre;
+
+        const runeBridge = await ethers.getContractAt("RuneBridge", bridgeAddress);
+
+        const accessControlAddress = await runeBridge.accessControl();
+        console.log(`Access control address: ${accessControlAddress}`);
+        const accessControl = await ethers.getContractAt("NBTEBridgeAccessControl", accessControlAddress);
+
+        const addr = "0x0000000000000000000000000000000000000000";
+        console.log("Checking from access control");
+        console.log(await accessControl.isFederator(addr));
+        console.log("Checking from rune bridge control");
+        console.log(await runeBridge.isFederator(addr));
+    });
+
+
 task(`${PREFIX}register-rune`)
     .addParam("bridgeAddress", "RuneBridge contract address")
     .addParam("runeNumber", "Rune number")
