@@ -24,7 +24,7 @@ requires = ["poetry-core>=1.0.0"]
 build-backend = "poetry.core.masonry.api"
 
 [tool.poetry.dependencies]
-anemic = { git = "https://github.com/tetframework/anemic.git", rev = "3a397a5" }
+anemic = {git = "https://github.com/tetframework/anemic.git", rev = "61829ca"}
 python = "^3.11"
 transaction = "*"
 waitress = "*"
