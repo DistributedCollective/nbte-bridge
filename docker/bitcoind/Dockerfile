@@ -37,6 +37,11 @@ FROM ubuntu:latest
 VOLUME ["/home/bitcoin/.bitcoin"]
 WORKDIR /home/bitcoin
 
+ARG GROUP_ID=1000
+ARG USER_ID=1000
+RUN groupadd -g ${GROUP_ID} bitcoin \
+    && useradd -u ${USER_ID} -g bitcoin -d /bitcoin bitcoin
+
 COPY --from=builder /opt/ /opt/
 
 RUN apt update \
