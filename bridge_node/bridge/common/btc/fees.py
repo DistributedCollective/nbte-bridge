@@ -1,5 +1,6 @@
 import logging
 import math
+import time
 
 import requests
 
@@ -12,7 +13,10 @@ logger = logging.getLogger(__name__)
 class BitcoinFeeEstimator:
     def __init__(self, *, network: BitcoinNetwork, rpc: BitcoinRPC):
         self._network = network
-        self._mempool_space_fee_estimator = MempoolSpaceFeeEstimator(network=network)
+        self._mempool_space_fee_estimator = MempoolSpaceFeeEstimator(
+            network=network,
+            cache_ttl=60,
+        )
         self._rpc_fee_estimator = BitcoinRpcFeeEstimator(network=network, rpc=rpc)
 
     def get_fee_sats_per_vb(self):
@@ -37,6 +41,7 @@ class MempoolSpaceFeeEstimator:
         self,
         *,
         network: BitcoinNetwork,
+        cache_ttl: int = 0,
     ):
         if not is_bitcoin_network(network):
             raise ValueError(f"Invalid network: {network}")
@@ -45,8 +50,17 @@ class MempoolSpaceFeeEstimator:
         self._mempool_url = "https://mempool.space"
         if self._network != "mainnet":
             self._mempool_url += f"/{self._network}"
+        self._cache_ttl = cache_ttl
+        self._cached_fee_sats_per_vb = None
+        self._cache_time = 0
 
-    def get_fee_sats_per_vb(self):
+    def get_fee_sats_per_vb(self) -> int:
+        if self._cached_fee_sats_per_vb is None or self._cache_time + self._cache_ttl < time.time():
+            self._cached_fee_sats_per_vb = self._get_fee_sats_per_vb()
+            self._cache_time = time.time()
+        return self._cached_fee_sats_per_vb
+
+    def _get_fee_sats_per_vb(self) -> int:
         # Original from bidi fastbtc
         # private async fetchFeeSatsPerVBFromMempoolSpace(): Promise<number> {
         #     let url: string;
