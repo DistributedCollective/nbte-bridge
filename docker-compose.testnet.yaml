@@ -96,7 +96,8 @@ services:
     depends_on:
       - postgres
     ports:
-      - 127.0.0.1:8181:8080
+      #- 127.0.0.1:8181:8080
+      - 80:8080
     labels:
       - "traefik.http.routers.alice-bridge.rule=PathPrefix(`/api/`)"
       - "traefik.http.services.alice-bridge.loadbalancer.server.port=8080"
@@ -154,32 +155,32 @@ services:
       - BRIDGE_SECRET_RUNES_BTC_MASTER_XPRIV=${BTC_XPRIV_3}
       - BRIDGE_SECRET_RUNES_BTC_MASTER_XPUBS=${BTC_XPUBS}
 
-  web:
-    image: bridge_frontend:latest
-    build:
-      context: bridge_frontend
-      args:
-        - REACT_APP_API_BASE_URL=
-        - REACT_APP_RUNE_BRIDGE_CONTRACT_ADDRESS=0xBF6291ba5a47f6034abd23a71d2a720b42918533
-    restart: always
-    ports:
-      - 127.0.0.1:3003:3000
-    healthcheck:
-      test: curl -f http://localhost:3000 || exit 1
-      interval: 10s
-      timeout: 10s
-      retries: 5
-      start_period: 5s
-    labels:
-      - "traefik.http.routers.web.rule=PathPrefix(`/`)"
-      - "traefik.http.services.web.loadbalancer.server.port=3000"
-      - "traefik.enable=true"
-
-  reverse-proxy:
-    image: traefik:v2.11
-    command: --providers.docker --providers.docker.exposedbydefault=false
-    ports:
-      - "80:80"
-    volumes:
-      # So that Traefik can listen to the Docker events
-      - /var/run/docker.sock:/var/run/docker.sock
+#  web:
+#    image: bridge_frontend:latest
+#    build:
+#      context: bridge_frontend
+#      args:
+#        - REACT_APP_API_BASE_URL=
+#        - REACT_APP_RUNE_BRIDGE_CONTRACT_ADDRESS=0xBF6291ba5a47f6034abd23a71d2a720b42918533
+#    restart: always
+#    ports:
+#      - 127.0.0.1:3003:3000
+#    healthcheck:
+#      test: curl -f http://localhost:3000 || exit 1
+#      interval: 10s
+#      timeout: 10s
+#      retries: 5
+#      start_period: 5s
+#    labels:
+#      - "traefik.http.routers.web.rule=PathPrefix(`/`)"
+#      - "traefik.http.services.web.loadbalancer.server.port=3000"
+#      - "traefik.enable=true"
+#
+#  reverse-proxy:
+#    image: traefik:v2.11
+#    command: --providers.docker --providers.docker.exposedbydefault=false
+#    ports:
+#      - "80:80"
+#    volumes:
+#      # So that Traefik can listen to the Docker events
+#      - /var/run/docker.sock:/var/run/docker.sock
