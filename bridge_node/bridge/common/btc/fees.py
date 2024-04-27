@@ -126,13 +126,15 @@ class BitcoinRpcFeeEstimator:
         response_1 = self._rpc.call("estimaterawfee", 1)
         fee_btc_per_kb = response_1["short"].get("feerate")
         if fee_btc_per_kb:
-            return fee_btc_per_kb
+            # our bitcoin rpc returns decimals
+            return float(fee_btc_per_kb)
 
         logger.warning(f"estimaterawfee 1 failed with response {response_1} -- falling back to estimaterawfee 2")
         response_2 = self._rpc.call("estimaterawfee", 2)
         fee_in_2_blocks_btc_per_kb = response_2["short"].get("feerate")
         if fee_in_2_blocks_btc_per_kb:
-            return fee_in_2_blocks_btc_per_kb
+            # our bitcoin rpc returns decimals
+            return float(fee_in_2_blocks_btc_per_kb)
 
         raise ValueError(
             f"Unable to deduce gas fee, got {response_1} for response for estimaterawfee1 "
