@@ -37,9 +37,9 @@ class MonitorViews:
     @view_config(
         route_name="monitor_deposits",
         request_method="GET",
-        renderer="templates/monitor.jinja2",
+        renderer="templates/monitor/deposits.jinja2",
     )
-    def monitor(self):
+    def deposits(self):
         rune_deposits = (
             self.dbsession.query(RuneDeposit)
             .filter_by(
@@ -70,6 +70,19 @@ class MonitorViews:
             )
             .limit(100)
         )
+
+        return {
+            "rune_deposits": rune_deposits,
+            "rune_token_deposits": rune_token_deposits,
+            "incoming_btc_txs": incoming_btc_txs,
+        }
+
+    @view_config(
+        route_name="monitor_runes",
+        request_method="GET",
+        renderer="templates/monitor/deposits.jinja2",
+    )
+    def runes(self):
         runes = (
             self.dbsession.query(Rune)
             .filter_by(
@@ -82,9 +95,6 @@ class MonitorViews:
         )
 
         return {
-            "rune_deposits": rune_deposits,
-            "rune_token_deposits": rune_token_deposits,
-            "incoming_btc_txs": incoming_btc_txs,
             "runes": runes,
         }
 
@@ -92,3 +102,4 @@ class MonitorViews:
 def includeme(config: Configurator):
     config.add_jinja2_search_path("/srv/bridge_backend/templates")
     config.add_route("monitor_deposits", "/:bridge/deposits")
+    config.add_route("monitor_runes", "/:bridge/runes")
