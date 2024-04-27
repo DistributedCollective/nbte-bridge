@@ -123,13 +123,13 @@ class BitcoinRpcFeeEstimator:
         # }
         if self._network == "regtest":
             return 10 / 1e8 * 1000
-        response_1 = self._rpc.call("estimaterawfee", [1])
+        response_1 = self._rpc.call("estimaterawfee", 1)
         fee_btc_per_kb = response_1["short"].get("feerate")
         if fee_btc_per_kb:
             return fee_btc_per_kb
 
         logger.warning(f"estimaterawfee 1 failed with response {response_1} -- falling back to estimaterawfee 2")
-        response_2 = self._rpc.call("estimaterawfee", [2])
+        response_2 = self._rpc.call("estimaterawfee", 2)
         fee_in_2_blocks_btc_per_kb = response_2["short"].get("feerate")
         if fee_in_2_blocks_btc_per_kb:
             return fee_in_2_blocks_btc_per_kb
