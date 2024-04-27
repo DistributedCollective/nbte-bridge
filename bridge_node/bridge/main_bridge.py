@@ -52,7 +52,7 @@ class MainBridge(Bridge):
             time.sleep(10)
 
     def run_iteration(self):
-        logger.debug("Running main loop iteration from node: %s", self.network.node_id)
+        logger.info("Running main loop iteration from node: %s", self.network.node_id)
         if self.network.is_leader():
             self.ping()
         for bridge in self.bridges:
@@ -60,6 +60,7 @@ class MainBridge(Bridge):
                 bridge.run_iteration()
             except Exception:
                 logger.exception("Error in iteration from bridge %s", bridge.name)
+        logger.info("Finished main loop iteration from node: %s", self.network.node_id)
 
     def ping(self):
         # self.network.broadcast("Ping")

@@ -40,6 +40,7 @@ class RuneBridge(Bridge):
             )
 
     def run_iteration(self) -> None:
+        logger.info("Running iteration from %s", self.bridge_id)
         num_rune_deposits = self.service.scan_rune_deposits()
         logger.info("Found %s Rune->EVM transfers", num_rune_deposits)
         num_rune_token_deposits = self.service.scan_rune_token_deposits()
@@ -48,6 +49,7 @@ class RuneBridge(Bridge):
         self.service.confirm_sent_rune_deposits()
 
         if not self.network.is_leader():
+            logger.info("Not leader, stopping here")
             return
 
         if self.service.is_bridge_frozen():
