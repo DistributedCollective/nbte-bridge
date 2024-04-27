@@ -15,7 +15,7 @@ class RuneBridgeConfig:
     ord_api_url: str
     btc_num_required_signers: int
     btc_network: BitcoinNetwork
-    btc_base_derivation_path: str = "m/13/0/0"
+    btc_base_derivation_path: str
     evm_block_safety_margin: int = 0
     evm_default_start_block: int = 1
     runes_to_evm_fee_percentage_decimal: Decimal = Decimal("0.4")
