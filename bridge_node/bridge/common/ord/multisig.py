@@ -53,6 +53,18 @@ from .utxos import (
 logger = logging.getLogger(__name__)
 
 
+class PSBTFundingError(ValueError):
+    pass
+
+
+class InsufficientBTCBalanceError(PSBTFundingError):
+    pass
+
+
+class InsufficientRuneBalanceError(PSBTFundingError):
+    pass
+
+
 class OrdMultisig:
     DUST_SAT = 1000  # dust limit in satoshis
     signer_xpub: str
@@ -345,8 +357,13 @@ class OrdMultisig:
                 # Change is handled automatically by the protocol as long as the
                 # default output in the Runestone is set correctly
                 break
+
+            # required rune amounts can get negative, because we always have to spend full utxos
+            # hence we have <= 0 above, and don't assert this here:
+            # assert all(v >= 0 for v in required_rune_amounts.values()), \
+            #   f"Negative rune balance: {required_rune_amounts}"
         else:
-            raise ValueError(
+            raise InsufficientRuneBalanceError(
                 f"Missing required rune balances: {required_rune_amounts}",
             )
 
@@ -385,7 +402,7 @@ class OrdMultisig:
                     if not ord_output.has_rune_balances():
                         break
             except IndexError as e:
-                raise ValueError("Don't have enough BTC to fund PSBT") from e
+                raise InsufficientBTCBalanceError("Don't have enough BTC to fund PSBT") from e
             if not utxo.witness_script:
                 logger.warning("UTXO doesn't have witnessScript, cannot use: %s", utxo)
                 continue

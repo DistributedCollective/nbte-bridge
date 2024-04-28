@@ -2,7 +2,13 @@ from decimal import Decimal
 
 import pytest
 
-from bridge.common.ord.transfers import RuneTransfer, ZeroTransferAmountError
+from bridge.common.ord.multisig import (
+    InsufficientRuneBalanceError,
+)
+from bridge.common.ord.transfers import (
+    RuneTransfer,
+    ZeroTransferAmountError,
+)
 from bridge.common.utils import (
     to_base_units,
     to_decimal,
@@ -245,4 +251,83 @@ def test_zero_transfers_are_rejected(
         )
 
 
+def test_creating_psbt_fails_on_insufficient_rune_balance(
+    ord: OrdService,  # noqa A002
+    bitcoind: BitcoindService,
+    rune_factory,
+    multisig_factory,
+):
+    """
+    Test that create_rune_psbt rejects transfers with 0 amount.
+    This is an important test -- edicts have special behaviour if amount == 0
+    """
+    multisig, _, _ = multisig_factory(
+        required=2,
+        num_signers=3,
+    )
+
+    test_wallet = ord.create_test_wallet("test")
+    supply = Decimal("100")
+    rune_a, rune_b = rune_factory(
+        "AAAAAA",
+        "BBBBBB",
+        receiver=multisig.change_address,
+        supply=supply,
+        divisibility=18,
+    )
+
+    with pytest.raises(InsufficientRuneBalanceError):
+        multisig.create_rune_psbt(
+            transfers=[
+                RuneTransfer(
+                    rune=rune_a,
+                    amount=to_base_units(supply, 18) + 1,
+                    receiver=test_wallet.get_receiving_address(),
+                ),
+            ]
+        )
+
+    with pytest.raises(InsufficientRuneBalanceError):
+        multisig.create_rune_psbt(
+            transfers=[
+                RuneTransfer(
+                    rune=rune_a,
+                    amount=100,
+                    receiver=test_wallet.get_receiving_address(),
+                ),
+                RuneTransfer(
+                    rune=rune_b,
+                    amount=to_base_units(supply, 18) + 1,
+                    receiver=test_wallet.get_receiving_address(),
+                ),
+            ]
+        )
+
+    # Test limits are still ok
+    multisig.create_rune_psbt(
+        transfers=[
+            RuneTransfer(
+                rune=rune_a,
+                amount=to_base_units(supply, 18),
+                receiver=test_wallet.get_receiving_address(),
+            ),
+        ]
+    )
+    multisig.create_rune_psbt(
+        transfers=[
+            RuneTransfer(
+                rune=rune_a,
+                amount=to_base_units(supply, 18),
+                receiver=test_wallet.get_receiving_address(),
+            ),
+            RuneTransfer(
+                rune=rune_b,
+                amount=to_base_units(supply, 18),
+                receiver=test_wallet.get_receiving_address(),
+            ),
+        ]
+    )
+
+
+# TODO: test more than we have balances for
 # TODO: test won't use rune outputs for paying for transaction fees (though maybe it's not important)
