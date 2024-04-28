@@ -5,6 +5,10 @@ from bitcointx.wallet import CCoinAddress
 TARGET_POSTAGE_SAT = 10_000  # sat locked in rune outputs
 
 
+class ZeroTransferAmountError(ValueError):
+    pass
+
+
 class RuneTransfer:
     rune: pyord.Rune
     receiver: str
@@ -40,7 +44,9 @@ class RuneTransfer:
         if not isinstance(self.postage, int) or self.postage <= 0:
             raise ValueError("postage must be a positive non-zero integer")
         if self.amount == 0:
-            raise ValueError("zero transfer amounts are not supported as they have a special meaning in Runes")
+            raise ZeroTransferAmountError(
+                "zero transfer amounts are not supported as they have a special meaning in Runes"
+            )
         if self.amount <= 0 or not isinstance(self.amount, int):
             raise ValueError(f"invalid amount: {self.amount} (must be a positive integer)")
         parsed_address = self.parse_receiver_address()

@@ -43,6 +43,7 @@ from .client import OrdApiClient
 from .transfers import (
     TARGET_POSTAGE_SAT,
     RuneTransfer,
+    ZeroTransferAmountError,
 )
 from .utxos import (
     OrdOutputCache,
@@ -149,7 +150,12 @@ class OrdMultisig:
             if not result.get("success"):
                 raise ValueError(f"Failed to import descriptor: {response}")
 
-    def get_rune_balance(self, rune_name: str, wait_for_indexing: float = None) -> int:
+    def get_rune_balance(
+        self,
+        rune_name: str,
+        *,
+        wait_for_indexing: bool = False,
+    ) -> int:
         utxos = self._list_utxos()
         ret = 0
         for utxo in utxos:
@@ -162,7 +168,7 @@ class OrdMultisig:
                     )
                     break
                 except UnindexedOutput:
-                    if wait_for_indexing is not None:
+                    if not wait_for_indexing:
                         raise
                     time.sleep(1)
             else:
@@ -202,6 +208,9 @@ class OrdMultisig:
         edicts: list[pyord.Edict] = []
         rune_outputs = []
 
+        if len(transfers) == 0:
+            raise ValueError("Expecting at least one transfer")
+
         # Rune outputs and edicts
         for output_index, transfer in enumerate(transfers, start=first_rune_output_index):
             transfer.assert_valid()
@@ -210,7 +219,10 @@ class OrdMultisig:
                 raise LookupError(f"Rune {transfer.rune} not found (transfer {transfer})")
             rune_id = pyord.RuneId.from_str(rune_response["id"])
             if transfer.amount == 0:
-                raise ValueError("Zero transfer amounts are not supported as they have a special meaning in Edicts")
+                raise ZeroTransferAmountError(
+                    "Zero transfer amounts are not supported as they have a special meaning in Edicts"
+                )
+            assert transfer.amount > 0  # must not be negative either, but this should be already asserted for
             edicts.append(
                 pyord.Edict(
                     id=rune_id,
