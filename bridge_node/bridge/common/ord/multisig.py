@@ -78,6 +78,7 @@ class OrdMultisig:
         base_derivation_path: str,
         bitcoin_rpc: BitcoinRPC,
         ord_client: OrdApiClient,
+        btc_wallet_name: str | None = None,  # optional bitcoin wallet name for testing
     ):
         _xprv = CCoinExtKey(master_xpriv)
         self._get_master_xpriv = lambda: _xprv
@@ -104,6 +105,14 @@ class OrdMultisig:
         self._ord_output_cache = OrdOutputCache(
             ord_client=ord_client,
         )
+
+        self._btc_wallet_name = btc_wallet_name
+
+    @property
+    def name(self) -> str:
+        if self._btc_wallet_name is None:
+            raise ValueError("btc_wallet_name not set")
+        return self._btc_wallet_name
 
     @property
     def change_address(self):
@@ -166,12 +175,12 @@ class OrdMultisig:
         self,
         rune_name: str,
         *,
-        wait_for_indexing: bool = False,
+        wait_for_indexing: bool = True,
     ) -> int:
         utxos = self._list_utxos()
         ret = 0
         for utxo in utxos:
-            for _ in range(10):
+            for i in range(20):
                 try:
                     ret += self.get_rune_balance_at_output(
                         txid=utxo.txid,
@@ -182,9 +191,9 @@ class OrdMultisig:
                 except UnindexedOutput:
                     if not wait_for_indexing:
                         raise
-                    time.sleep(1)
+                    time.sleep(0.1 * i)
             else:
-                raise UnindexedOutput(f"UTXO {utxo} not indexed after 10 tries")
+                raise UnindexedOutput(f"UTXO {utxo} not indexed after 20 tries")
         return ret
 
     def get_rune_balance_at_output(self, *, txid: str, vout: int, rune_name: str) -> int:

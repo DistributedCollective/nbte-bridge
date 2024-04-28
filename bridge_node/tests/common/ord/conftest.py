@@ -18,7 +18,7 @@ def root_ord_wallet(ord: OrdService, bitcoind: BitcoindService):  # noqa A002
     return root
 
 
-@pytest.fixture()
+@pytest.fixture(scope="module")
 def rune_factory(root_ord_wallet, ord, bitcoind):  # noqa A002
     def create_runes(*names, supply=100_000_000, divisibility=18, receiver: str = None):
         etchings = [
@@ -46,7 +46,7 @@ def rune_factory(root_ord_wallet, ord, bitcoind):  # noqa A002
     return create_runes
 
 
-@pytest.fixture()
+@pytest.fixture(scope="module")
 def multisig_factory(
     bitcoind: BitcoindService,
     ord: OrdService,  # noqa A002
@@ -71,6 +71,7 @@ def multisig_factory(
             base_derivation_path=base_derivation_path,
             bitcoin_rpc=wallet.rpc,
             ord_client=ord.api_client,
+            btc_wallet_name=wallet.name,
         )
         multisig.import_descriptors_to_bitcoind(
             desc_range=100,
