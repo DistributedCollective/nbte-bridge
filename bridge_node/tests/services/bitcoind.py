@@ -127,8 +127,11 @@ class BitcoindService(compose.ComposeService):
 
         self.mine(1)
 
-    def get_wallet_rpc_url(self, wallet_name):
+    def get_wallet_rpc_url(self, wallet_name: str) -> str:
         return f"{self.rpc_url}/wallet/{wallet_name}"
+
+    def get_wallet_rpc(self, wallet_name: str) -> BitcoinRPC:
+        return BitcoinRPC(self.get_wallet_rpc_url(wallet_name))
 
     def load_or_create_wallet(
         self, wallet_name: str, *, blank: bool = False, disable_private_keys: bool = False
@@ -145,7 +148,10 @@ class BitcoindService(compose.ComposeService):
         )
 
         logger.info("Created wallet %s", wallet_name)
-        wallet = BitcoinWallet(name=wallet_name, rpc=BitcoinRPC(self.get_wallet_rpc_url(wallet_name)))
+        wallet = BitcoinWallet(
+            name=wallet_name,
+            rpc=self.get_wallet_rpc(wallet_name),
+        )
 
         return wallet, True
 

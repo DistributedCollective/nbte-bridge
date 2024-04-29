@@ -202,12 +202,20 @@ class OrdMultisig:
             vout=vout,
         ).get_rune_balance(rune_name)
 
-    def send_runes(self, transfers: list[RuneTransfer]):
+    def send_runes(
+        self,
+        transfers: list[RuneTransfer],
+        *,
+        fee_rate_sat_per_vbyte: int = 50,
+    ):
         if self._num_required_signers != 1:
             raise ValueError(
                 "send_runes can only be used with a 1-of-m multisig",
             )
-        psbt = self.create_rune_psbt(transfers)
+        psbt = self.create_rune_psbt(
+            transfers,
+            fee_rate_sat_per_vbyte=fee_rate_sat_per_vbyte,
+        )
         signed_psbt = self.sign_psbt(psbt, finalize=True)
         return self.broadcast_psbt(signed_psbt)
 

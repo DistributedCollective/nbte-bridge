@@ -55,6 +55,7 @@ pre-commit = "^3.6.0"
 ipython = "^8.19.0"
 ipdb = "^0.13.13"
 pyyaml = "^6.0.1"
+hypothesis = "^6.100.2"
 
 [tool.pytest.ini_options]
 addopts = [
@@ -71,6 +72,7 @@ testpaths = ["tests"]
 python_files = ["test_*.py", "tests.py", "*_tests.py"]
 markers = [
     "integration: marks tests as integration test, requiring startup of the slow integration testing harness (deselect with '-m \"not integration\"')",
+    "fuzz: marks tests as a hypothesis fuzz test, which might take a long time (deselect with '-m \"not fuzz\"')",
 ]
 filterwarnings = [
   "ignore:Secrets file not found.*:UserWarning:.*",
