@@ -43,7 +43,7 @@ const config: HardhatUserConfig = {
             accounts: RSK_MAINNET_DEPLOYER_PRIVATE_KEY ? [RSK_MAINNET_DEPLOYER_PRIVATE_KEY] : [],
         },
         "bob-mainnet": {
-            url: "https://mainnet.sovryn.app/rpc",
+            url: "https://rpc.gobob.xyz",
             chainId: 60808,
             accounts: BOB_MAINNET_DEPLOYER_PRIVATE_KEY ? [BOB_MAINNET_DEPLOYER_PRIVATE_KEY] : [],
         },
