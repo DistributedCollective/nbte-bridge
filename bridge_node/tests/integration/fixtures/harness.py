@@ -44,8 +44,16 @@ class IntegrationTestHarness:
         # BIG STRING WOO WOO
         "wsh(sortedmulti(2,tpubD6NzVbkrYhZ4WokHnVXX8CVBt1S88jkmeG78yWbLxn7Wd89nkNDe2J8b6opP4K38mRwXf9d9VVN5uA58epPKjj584R1rnDDbk6oHUD1MoWD/13/0/0/*,tpubD6NzVbkrYhZ4WpZfRZip3ALqLpXhHUbe6UyG8iiTzVDuvNUyysyiUJWejtbszZYrDaUM8UZpjLmHyvtV7r1QQNFmTqciAz1fYSYkw28Ux6y/13/0/0/*,tpubD6NzVbkrYhZ4WQZnWqU8ieBsujhoZKZLF6wMvTApJ4ZiGmipk481DyM2su3y5BDeB9fFLwSmmmsGDGJum79he2fnuQMnpWhe3bGir7Mf4uS/13/0/0/*))#qqwc9q36"
     )
+    assert isinstance(RUNE_BRIDGE_MULTISIG_DESCRIPTOR, str)
     # this also needs changing when the above changes
     RUNE_BRIDGE_MULTISIG_CHANGE_ADDRESS = "bcrt1qenkjz7gt2jtys84dwdh75696arc85ld7dl85p7jd77ksxds55tjqtl627a"
+
+    BOB_RUNE_BRIDGE_MULTISIG_DESCRIPTOR = (
+        # BIG STRING :D
+        "wsh(sortedmulti(2,tpubD6NzVbkrYhZ4WokHnVXX8CVBt1S88jkmeG78yWbLxn7Wd89nkNDe2J8b6opP4K38mRwXf9d9VVN5uA58epPKjj584R1rnDDbk6oHUD1MoWD/26/0/0/*,tpubD6NzVbkrYhZ4WpZfRZip3ALqLpXhHUbe6UyG8iiTzVDuvNUyysyiUJWejtbszZYrDaUM8UZpjLmHyvtV7r1QQNFmTqciAz1fYSYkw28Ux6y/26/0/0/*,tpubD6NzVbkrYhZ4WQZnWqU8ieBsujhoZKZLF6wMvTApJ4ZiGmipk481DyM2su3y5BDeB9fFLwSmmmsGDGJum79he2fnuQMnpWhe3bGir7Mf4uS/26/0/0/*))#85hefqgz"
+    )
+    assert isinstance(BOB_RUNE_BRIDGE_MULTISIG_DESCRIPTOR, str)
+    BOB_RUNE_BRIDGE_MULTISIG_CHANGE_ADDRESS = "bcrt1qegjt74yc9vnznks5p80a3qey4gae4hr2yccpqyhy7p4vl2a7kr5s6f8em0"
 
     bitcoind: BitcoindService
 
@@ -162,37 +170,41 @@ class IntegrationTestHarness:
 
     def _init_rune_bridge(self):
         # Rune bridge wallets
-        any_created = False
-        for federator in self.FEDERATORS:
-            wallet_name = f"{federator}-runes"
-            wallet, created = self.bitcoind.load_or_create_wallet(
-                wallet_name,
-                blank=True,
-                disable_private_keys=True,
-            )
-
-            if created:
-                logger.info("Created wallet %s, importing descriptors", wallet_name)
-                any_created = True
-                wallet.rpc.call(
-                    "importdescriptors",
-                    [
-                        {
-                            "desc": self.RUNE_BRIDGE_MULTISIG_DESCRIPTOR,
-                            "timestamp": "now",
-                            "range": 10000,
-                        },
-                    ],
+        for walletpostfix, descriptor, change_address in [
+            ("runes", self.RUNE_BRIDGE_MULTISIG_DESCRIPTOR, self.RUNE_BRIDGE_MULTISIG_CHANGE_ADDRESS),
+            ("runesbob", self.BOB_RUNE_BRIDGE_MULTISIG_DESCRIPTOR, self.BOB_RUNE_BRIDGE_MULTISIG_CHANGE_ADDRESS),
+        ]:
+            any_created = False
+            for federator in self.FEDERATORS:
+                wallet_name = f"{federator}-{walletpostfix}"
+                wallet, created = self.bitcoind.load_or_create_wallet(
+                    wallet_name,
+                    blank=True,
+                    disable_private_keys=True,
                 )
-            else:
-                logger.info("Wallet %s already created", wallet_name)
 
-        if any_created:
-            logger.info(
-                "Funding rune multisig wallet (address %s)",
-                self.RUNE_BRIDGE_MULTISIG_CHANGE_ADDRESS,
-            )
-            self.bitcoind.mine(2, address=self.RUNE_BRIDGE_MULTISIG_CHANGE_ADDRESS)
+                if created:
+                    logger.info("Created wallet %s, importing descriptors", wallet_name)
+                    any_created = True
+                    wallet.rpc.call(
+                        "importdescriptors",
+                        [
+                            {
+                                "desc": descriptor,
+                                "timestamp": "now",
+                                "range": 10000,
+                            },
+                        ],
+                    )
+                else:
+                    logger.info("Wallet %s already created", wallet_name)
+
+            if any_created:
+                logger.info(
+                    "Funding rune multisig wallet (address %s)",
+                    change_address,
+                )
+                self.bitcoind.mine(2, address=change_address)
 
     def _run_docker_compose_command(self, *args, verbose=None):
         if verbose is None:

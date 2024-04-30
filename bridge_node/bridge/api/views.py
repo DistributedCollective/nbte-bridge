@@ -183,5 +183,5 @@ def includeme(config: Configurator):
     from .monitor import views as monitor_views
 
     config.include("pyramid_jinja2")
-    config.include(rune_bridge_views, route_prefix="/runes")
+    config.include(rune_bridge_views)
     config.include(monitor_views, route_prefix="/monitor")

@@ -77,12 +77,9 @@ class BridgeAPIClient:
         response.raise_for_status()
         return response.json()["transfers"]
 
-    def generate_rune_deposit_address(
-        self,
-        evm_address,
-    ) -> str:
+    def generate_rune_deposit_address(self, *, evm_address, bridge_name: str) -> str:
         response = requests.post(
-            self._base_url + "/api/v1/runes/deposit-addresses/",
+            self._base_url + f"/api/v1/{bridge_name}/deposit-addresses/",
             json={
                 "evm_address": evm_address,
             },

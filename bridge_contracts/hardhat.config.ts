@@ -133,7 +133,7 @@ task("deploy-regtest")
             nonBech32Prefixes: 'm',
         });
 
-        console.log("Deploying rune bridge");
+        console.log("Deploying rune bridge (RSK)");
         const runesResult = await hre.run("runes-deploy-regtest", {
             accessControl: accessControlResult.address,
             addressValidator: btcAddressValidatorResult.address,
@@ -145,12 +145,28 @@ task("deploy-regtest")
             "runeDivisibility": 18,
             "runeName": "MYRUNEISGOODER",
             "runeSymbol": "R",
-        })
+        });
+
+        // Faux bob bridge deployment
+        console.log("Deploying rune bridge (BOB)");
+        const runesBobResult = await hre.run("runes-deploy-regtest", {
+            accessControl: accessControlResult.address,
+            addressValidator: btcAddressValidatorResult.address,
+        });
+
+        await hre.run("runes-register-rune", {
+            "bridgeAddress": runesBobResult.addresses.RuneBridge,
+            "runeNumber": "34709819113397941387",
+            "runeDivisibility": 18,
+            "runeName": "MYRUNEISGOODER (BoB)",
+            "runeSymbol": "R",
+        });
 
         return {
             addresses: {
                 TapBridge: tapBridgeResult.addresses.TapBridge,
                 RuneBridge: runesResult.addresses.RuneBridge,
+                RuneBridgeBob: runesBobResult.addresses.RuneBridge,
                 NBTEBridgeAccessControl: accessControlResult.address,
                 BTCAddressValidator: btcAddressValidatorResult.address,
             },

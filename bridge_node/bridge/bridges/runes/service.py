@@ -935,7 +935,10 @@ class RuneBridgeService:
         if unsigned_tx.vout[2].nValue != expected_postage:
             raise ValidationError(f"Expected postage {expected_postage} at output 2, got {unsigned_tx.vout[2].nValue}")
         if unsigned_tx.vout[1].scriptPubKey != self.ord_multisig.change_script_pubkey:
-            raise ValidationError(f"Expected change address {self.ord_multisig.change_script_pubkey} at output 1")
+            raise ValidationError(
+                f"Expected script pubkey {self.ord_multisig.change_script_pubkey!r} of the change address "
+                f"{self.ord_multisig.change_address!r} at output 1, got {unsigned_tx.vout[1].scriptPubKey!r}"
+            )
 
         # Validate the change output only if we have it
         if len(unsigned_tx.vout) == 4:

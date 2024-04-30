@@ -5,6 +5,7 @@ from anemic.ioc import (
     autowired,
 )
 from pyramid.config import Configurator
+from pyramid.httpexceptions import HTTPNotFound
 from pyramid.request import Request
 from pyramid.view import (
     view_config,
@@ -15,6 +16,7 @@ from sqlalchemy.orm import Session
 from bridge.api.exceptions import ApiException
 from bridge.common.evm.provider import Web3
 
+from .models import Bridge
 from .service import RuneBridgeService
 
 logger = logging.getLogger(__name__)
@@ -30,6 +32,13 @@ class RuneBridgeApiViews:
     def __init__(self, request):
         self.request = request
         self.container = request.container
+        bridge_name = self.request.matchdict["bridge"]
+        if bridge_name == "runes":  # support the old /runes/ namespace
+            bridge_name = "runesrsk"
+        bridge = self.dbsession.query(Bridge).filter_by(name=bridge_name).first()
+        if not bridge:
+            raise HTTPNotFound("bridge not found")
+        self.bridge_id = bridge.id
 
     @view_config(route_name="runes_generate_deposit_address", request_method="POST")
     def generate_deposit_address(self):
@@ -67,9 +76,9 @@ class RuneBridgeApiViews:
 
 
 def includeme(config: Configurator):
-    config.add_route("runes_generate_deposit_address", "/deposit-addresses/")
-    config.add_route("runes_get_last_scanned_bitcoin_block", "/last-scanned-btc-block/")
+    config.add_route("runes_generate_deposit_address", "/:bridge/deposit-addresses/")
+    config.add_route("runes_get_last_scanned_bitcoin_block", "/:bridge/last-scanned-btc-block/")
     config.add_route(
         "runes_get_deposits_since_block_for_evm_address",
-        "/deposits/:evm_address/:lastblock",
+        "/:bridge/deposits/:evm_address/:lastblock",
     )

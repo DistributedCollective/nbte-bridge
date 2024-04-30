@@ -1,11 +1,11 @@
 import logging
+from dataclasses import dataclass
 
 import pyord
 import pytest
 from web3.contract import Contract
 
 from bridge.bridges.runes.evm import load_rune_bridge_abi
-from bridge.common.evm.utils import load_abi
 
 from .. import services
 from .utils import from_wei, to_wei, wait_for_condition
@@ -13,30 +13,40 @@ from .utils import from_wei, to_wei, wait_for_condition
 logger = logging.getLogger(__name__)
 
 
-RUNE_BRIDGE_ADDRESS = "0xB7f8BC63BbcaD18155201308C8f3540b07f84F5e"
 RUNE_NAME = "MYRUNEISGOODER"
 RUNE = pyord.Rune.from_str(RUNE_NAME)
 
 
-@pytest.fixture()
-def evm_token(
-    harness,
-    alice_web3,
-):
-    deploy_response = harness.run_hardhat_json_command("deploy-testtoken")
-    address = deploy_response["address"]
-    return alice_web3.eth.contract(
-        address,
-        abi=load_abi("TestToken"),
-    )
+@dataclass
+class BridgeConfig:
+    bridge_name: str
+    bridge_address: str = None
+
+
+CONFIGS_BY_BRIDGE_NAME = {
+    "runesrsk": BridgeConfig(
+        bridge_name="runesrsk",
+        bridge_address="0xB7f8BC63BbcaD18155201308C8f3540b07f84F5e",
+    ),
+    "runesbob": BridgeConfig(
+        bridge_name="runesrsk",
+        bridge_address="0x9A676e781A523b5d0C0e43731313A708CB607508",
+    ),
+}
+
+
+@pytest.fixture(params=["runesrsk", "runesbob"])
+def bridge_config(request) -> BridgeConfig:
+    return CONFIGS_BY_BRIDGE_NAME[request.param]
 
 
 @pytest.fixture()
 def user_rune_bridge_contract(
+    bridge_config,
     user_web3,
 ) -> Contract:
     return user_web3.eth.contract(
-        address=RUNE_BRIDGE_ADDRESS,
+        address=bridge_config.bridge_address,
         abi=load_rune_bridge_abi("RuneBridge"),
     )
 
@@ -133,6 +143,7 @@ def test_integration_rune_bridge(
     bitcoin_rpc,
     user_rune_bridge_contract,
     bitcoind,
+    bridge_config,
 ):
     assert user_ord_wallet.get_rune_balance_decimal(RUNE_NAME) == 1000
     assert user_evm_token.functions.balanceOf(user_evm_account.address).call() == 0  # sanity check
@@ -141,6 +152,7 @@ def test_integration_rune_bridge(
     # Test runes to evm
     deposit_address = bridge_api.generate_rune_deposit_address(
         evm_address=user_evm_account.address,
+        bridge_name=bridge_config.bridge_name,
     )
     logger.info("DEPOSIT ADDRESS: %s", deposit_address)
     user_ord_wallet.send_runes(
