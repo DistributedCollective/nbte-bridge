@@ -1,7 +1,6 @@
 import json
 import logging
 import socket
-from decimal import Decimal
 from getpass import getpass
 from typing import Literal
 
@@ -60,24 +59,6 @@ class Config:
     # TODO: this global btc rpc url is not needed
     btc_rpc_url = secret("bridge_btc_rpc_url", environ.var())
     evm_private_key = secret("bridge_evm_private_key")
-
-    # Rune bridge config
-    runes_rune_bridge_contract_address = environ.var()
-    runes_evm_rpc_url = environ.var()
-    runes_evm_default_start_block = environ.var(converter=int, default=1)
-    runes_btc_num_required_signers = environ.var(converter=int)
-    runes_btc_rpc_wallet_url = environ.var()
-    runes_ord_api_url = environ.var()
-    runes_btc_base_derivation_path = environ.var()
-    runes_to_evm_fee_percentage_decimal = environ.var(default="0.4", converter=Decimal)
-
-    secret_runes_btc_master_xpubs = environ.var(converter=comma_separated)
-
-    secret_runes_evm_private_key = secret("bridge_secret_runes_evm_private_key")
-    secret_runes_btc_master_xpriv = secret("bridge_secret_runes_btc_master_xpriv")
-
-    secret_runes_btc_rpc_auth = secret("bridge_secret_runes_btc_rpc_auth", "")
-    secret_runes_ord_api_auth = secret("bridge_secret_runes_ord_api_auth", "")
 
 
 @service(interface_override=Config, scope="global")
