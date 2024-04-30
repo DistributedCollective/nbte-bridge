@@ -26,19 +26,21 @@ logger = logging.getLogger(__name__)
 class RuneBridgeApiViews:
     request: Request
     web3: Web3 = autowired(auto)
-    service: RuneBridgeService = autowired(auto)
+    runesrsk_service: RuneBridgeService = autowired(RuneBridgeService, name="runesrsk-service")
+    runesbob_service: RuneBridgeService = autowired(RuneBridgeService, name="runesbob-service")
     dbsession: Session = autowired(auto)
 
     def __init__(self, request):
         self.request = request
         self.container = request.container
         bridge_name = self.request.matchdict["bridge"]
-        if bridge_name == "runes":  # support the old /runes/ namespace
+        if bridge_name == "runes":  # support the old /api/v1/runes/ namespace
             bridge_name = "runesrsk"
         bridge = self.dbsession.query(Bridge).filter_by(name=bridge_name).first()
         if not bridge:
             raise HTTPNotFound("bridge not found")
         self.bridge_id = bridge.id
+        self.bridge_name = bridge_name
 
     @view_config(route_name="runes_generate_deposit_address", request_method="POST")
     def generate_deposit_address(self):
@@ -46,7 +48,7 @@ class RuneBridgeApiViews:
         evm_address = data.get("evm_address")
         if not evm_address:
             raise ApiException("Must specify evm_address")
-        deposit_address = self.service.generate_deposit_address(
+        deposit_address = self._get_service().generate_deposit_address(
             evm_address=evm_address,
             dbsession=self.dbsession,
         )
@@ -54,7 +56,7 @@ class RuneBridgeApiViews:
 
     @view_config(route_name="runes_get_last_scanned_bitcoin_block", request_method="GET")
     def get_last_scanned_bitcoin_block(self):
-        last_scanned_block = self.service.get_last_scanned_bitcoin_block(self.dbsession)
+        last_scanned_block = self._get_service().get_last_scanned_bitcoin_block(self.dbsession)
         return {"last_scanned_block": last_scanned_block}
 
     @view_config(
@@ -65,7 +67,7 @@ class RuneBridgeApiViews:
         # TODO: This api is kinda badly designed
         evm_address = self.request.matchdict["evm_address"]
         lastblock = self.request.matchdict["lastblock"]
-        deposits = self.service.get_pending_deposits_for_evm_address(
+        deposits = self._get_service().get_pending_deposits_for_evm_address(
             evm_address=evm_address,
             last_block=lastblock,
             dbsession=self.dbsession,
@@ -73,6 +75,14 @@ class RuneBridgeApiViews:
         return {
             "deposits": deposits,
         }
+
+    def _get_service(self):
+        if self.bridge_name == "runesrsk":
+            return self.runesrsk_service
+        elif self.bridge_name == "runesbob":
+            return self.runesbob_service
+        else:
+            raise ApiException(f"Invalid bridge name: {self.bridge_name}")
 
 
 def includeme(config: Configurator):

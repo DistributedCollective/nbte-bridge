@@ -53,6 +53,8 @@ services:
         "getblockchaininfo"
       ]
       interval: 5s
+      timeout: 300s
+      start_period: 5s
 
     ports:
       - 127.0.0.1:18333:18333
@@ -107,13 +109,18 @@ services:
     environment:
       - BRIDGE_NODE_ID=node-1
       - BRIDGE_HOSTNAME=bridge-node-1
-      - BRIDGE_PEERS=node-2@bridge-node-2:5000,node-3@bridge-node-3:5000
       - BRIDGE_DB_URL=${DB_URL_1}
       - BRIDGE_EVM_PRIVATE_KEY=${EVM_PRIVKEY_1}
-      - BRIDGE_RUNES_BTC_RPC_WALLET_URL=${BTC_RPC_1}
+      # runes rsk
+      - BRIDGE_RUNES_BTC_RPC_WALLET_URL=${BTC_RPC_RSK_1}
       - BRIDGE_SECRET_RUNES_EVM_PRIVATE_KEY=${EVM_PRIVKEY_1}
       - BRIDGE_SECRET_RUNES_BTC_MASTER_XPRIV=${BTC_XPRIV_1}
       - BRIDGE_SECRET_RUNES_BTC_MASTER_XPUBS=${BTC_XPUBS}
+      # runes bob
+      - BRIDGE_RUNESBOB_BTC_RPC_WALLET_URL=${BTC_RPC_BOB_1}
+      - BRIDGE_SECRET_RUNESBOB_EVM_PRIVATE_KEY=${EVM_PRIVKEY_1}
+      - BRIDGE_SECRET_RUNESBOB_BTC_MASTER_XPRIV=${BTC_XPRIV_1}
+      - BRIDGE_SECRET_RUNESBOB_BTC_MASTER_XPUBS=${BTC_XPUBS}
 
   bridge-node-2:
     image: bridge_node:latest
@@ -127,13 +134,18 @@ services:
     environment:
       - BRIDGE_NODE_ID=node-2
       - BRIDGE_HOSTNAME=bridge-node-2
-      - BRIDGE_PEERS=node-1@bridge-node-1:5000,node-3@bridge-node-3:5000
       - BRIDGE_DB_URL=${DB_URL_2}
       - BRIDGE_EVM_PRIVATE_KEY=${EVM_PRIVKEY_2}
-      - BRIDGE_RUNES_BTC_RPC_WALLET_URL=${BTC_RPC_2}
+      # runes rsk
+      - BRIDGE_RUNES_BTC_RPC_WALLET_URL=${BTC_RPC_RSK_2}
       - BRIDGE_SECRET_RUNES_EVM_PRIVATE_KEY=${EVM_PRIVKEY_2}
       - BRIDGE_SECRET_RUNES_BTC_MASTER_XPRIV=${BTC_XPRIV_2}
       - BRIDGE_SECRET_RUNES_BTC_MASTER_XPUBS=${BTC_XPUBS}
+      # runes bob
+      - BRIDGE_RUNESBOB_BTC_RPC_WALLET_URL=${BTC_RPC_BOB_2}
+      - BRIDGE_SECRET_RUNESBOB_EVM_PRIVATE_KEY=${EVM_PRIVKEY_2}
+      - BRIDGE_SECRET_RUNESBOB_BTC_MASTER_XPRIV=${BTC_XPRIV_2}
+      - BRIDGE_SECRET_RUNESBOB_BTC_MASTER_XPUBS=${BTC_XPUBS}
 
   bridge-node-3:
     image: bridge_node:latest
@@ -147,13 +159,18 @@ services:
     environment:
       - BRIDGE_NODE_ID=node-3
       - BRIDGE_HOSTNAME=bridge-node-3
-      - BRIDGE_PEERS=node-1@bridge-node-1:5000,node-2@bridge-node-2:5000
       - BRIDGE_DB_URL=${DB_URL_3}
       - BRIDGE_EVM_PRIVATE_KEY=${EVM_PRIVKEY_3}
-      - BRIDGE_RUNES_BTC_RPC_WALLET_URL=${BTC_RPC_3}
+      # runes rsk
+      - BRIDGE_RUNES_BTC_RPC_WALLET_URL=${BTC_RPC_RSK_3}
       - BRIDGE_SECRET_RUNES_EVM_PRIVATE_KEY=${EVM_PRIVKEY_3}
       - BRIDGE_SECRET_RUNES_BTC_MASTER_XPRIV=${BTC_XPRIV_3}
       - BRIDGE_SECRET_RUNES_BTC_MASTER_XPUBS=${BTC_XPUBS}
+      # runes bob
+      - BRIDGE_RUNESBOB_BTC_RPC_WALLET_URL=${BTC_RPC_BOB_3}
+      - BRIDGE_SECRET_RUNESBOB_EVM_PRIVATE_KEY=${EVM_PRIVKEY_3}
+      - BRIDGE_SECRET_RUNESBOB_BTC_MASTER_XPRIV=${BTC_XPRIV_3}
+      - BRIDGE_SECRET_RUNESBOB_BTC_MASTER_XPUBS=${BTC_XPUBS}
 
 #  web:
 #    image: bridge_frontend:latest

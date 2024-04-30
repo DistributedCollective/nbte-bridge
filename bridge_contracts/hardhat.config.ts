@@ -6,7 +6,8 @@ import './config/tap/hardhat.config.tap';
 import './config/runes/hardhat.config.runes';
 
 const TESTNET_DEPLOYER_PRIVATE_KEY = process.env.TESTNET_DEPLOYER_PRIVATE_KEY || '';
-const MAINNET_DEPLOYER_PRIVATE_KEY = process.env.MAINNET_DEPLOYER_PRIVATE_KEY || '';
+const RSK_MAINNET_DEPLOYER_PRIVATE_KEY = process.env.RSK_MAINNET_DEPLOYER_PRIVATE_KEY || '';
+const BOB_MAINNET_DEPLOYER_PRIVATE_KEY = process.env.BOB_MAINNET_DEPLOYER_PRIVATE_KEY || '';
 
 const config: HardhatUserConfig = {
     solidity: {
@@ -39,7 +40,12 @@ const config: HardhatUserConfig = {
         "rsk-mainnet": {
             url: "https://mainnet.sovryn.app/rpc",
             chainId: 30,
-            accounts: MAINNET_DEPLOYER_PRIVATE_KEY ? [MAINNET_DEPLOYER_PRIVATE_KEY] : [],
+            accounts: RSK_MAINNET_DEPLOYER_PRIVATE_KEY ? [RSK_MAINNET_DEPLOYER_PRIVATE_KEY] : [],
+        },
+        "bob-mainnet": {
+            url: "https://mainnet.sovryn.app/rpc",
+            chainId: 60808,
+            accounts: BOB_MAINNET_DEPLOYER_PRIVATE_KEY ? [BOB_MAINNET_DEPLOYER_PRIVATE_KEY] : [],
         },
     },
 };

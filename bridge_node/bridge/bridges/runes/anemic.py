@@ -91,8 +91,8 @@ def wire_rune_bridge_from_environ(
     )
 
 
-@service(scope="global", interface_override=RuneBridgeWiring)
-def rune_bridge_wiring_factory(container: Container):
+@service(scope="global", interface_override=RuneBridgeWiring, name="runesrsk-wiring")
+def runesrsk_wiring_factory(container: Container):
     return wire_rune_bridge_from_environ(
         bridge_name="runesrsk",
         environ_prefix="runes",
@@ -100,13 +100,34 @@ def rune_bridge_wiring_factory(container: Container):
     )
 
 
-@service(scope="global", interface_override=RuneBridge)
-def rune_bridge_factory(container: Container):
-    wiring: RuneBridgeWiring = container.get(interface=RuneBridgeWiring)
+@service(scope="global", interface_override=RuneBridge, name="runesrsk-bridge")
+def runesrsk_bridge_factory(container: Container):
+    wiring: RuneBridgeWiring = container.get(interface=RuneBridgeWiring, name="runesrsk-wiring")
     return wiring.bridge
 
 
-@service(scope="global", interface_override=RuneBridgeService)
-def rune_bridge_service_factory(container: Container):
-    wiring: RuneBridgeWiring = container.get(interface=RuneBridgeWiring)
+@service(scope="global", interface_override=RuneBridgeService, name="runesrsk-service")
+def runesrsk_service_factory(container: Container):
+    wiring: RuneBridgeWiring = container.get(interface=RuneBridgeWiring, name="runesrsk-wiring")
+    return wiring.service
+
+
+@service(scope="global", interface_override=RuneBridgeWiring, name="runesbob-wiring")
+def runesbob_wiring_factory(container: Container):
+    return wire_rune_bridge_from_environ(
+        bridge_name="runesbob",
+        environ_prefix="runesbob",
+        container=container,
+    )
+
+
+@service(scope="global", interface_override=RuneBridge, name="runesbob-bridge")
+def runesbob_bridge_factory(container: Container):
+    wiring: RuneBridgeWiring = container.get(interface=RuneBridgeWiring, name="runesbob-wiring")
+    return wiring.bridge
+
+
+@service(scope="global", interface_override=RuneBridgeService, name="runesbob-service")
+def runesbob_service_factory(container: Container):
+    wiring: RuneBridgeWiring = container.get(interface=RuneBridgeWiring, name="runesbob-wiring")
     return wiring.service

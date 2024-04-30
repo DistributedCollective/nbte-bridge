@@ -19,7 +19,8 @@ class MainBridge(Bridge):
     config: Config = autowired(auto)
     network: Network = autowired(auto)
     tap_rsk_bridge: TapRskBridge = autowired(auto)
-    rune_bridge: RuneBridge = autowired(auto)
+    runesrsk_bridge: RuneBridge = autowired(RuneBridge, name="runesrsk-bridge")
+    runesbob_bridge: RuneBridge = autowired(RuneBridge, name="runesbob-bridge")
 
     def __init__(self, container: Container):
         self.container = container
@@ -33,7 +34,9 @@ class MainBridge(Bridge):
         if "tap_rsk" in self.enabled_bridge_names or "all" in self.enabled_bridge_names:
             bridges.append(self.tap_rsk_bridge)
         if "runesrsk" in self.enabled_bridge_names or "all" in self.enabled_bridge_names:
-            bridges.append(self.rune_bridge)
+            bridges.append(self.runesrsk_bridge)
+        if "runesbob" in self.enabled_bridge_names or "all" in self.enabled_bridge_names:
+            bridges.append(self.runesbob_bridge)
         return bridges
 
     def init(self):
