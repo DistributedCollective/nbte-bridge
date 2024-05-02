@@ -1,0 +1,269 @@
+{
+  "manifestVersion": "3.2",
+  "proxies": [
+    {
+      "address": "0x8989E07E565966463C73dadE4c095DaC991e1dD2",
+      "txHash": "0xbfe39ea9cd3a4c82b2e8f472142e9e60af335e66242eb07e5199c3198af2cb58",
+      "kind": "transparent"
+    }
+  ],
+  "impls": {
+    "c33ae24f9f7cb5e030fbccd1b6d79b3791fabe4e0e2e5871ccffa7359abcf441": {
+      "address": "0x635aA2A53f269EC3fEd18fdb9cB634E49545fF76",
+      "txHash": "0x090d367fc6704981f8187930585b2840cb070116c9212c4bf55c58656243c94d",
+      "layout": {
+        "solcVersion": "0.8.19",
+        "storage": [
+          {
+            "label": "_initialized",
+            "offset": 0,
+            "slot": "0",
+            "type": "t_uint8",
+            "contract": "Initializable",
+            "src": "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol:63",
+            "retypedFrom": "bool"
+          },
+          {
+            "label": "_initializing",
+            "offset": 1,
+            "slot": "0",
+            "type": "t_bool",
+            "contract": "Initializable",
+            "src": "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol:68"
+          },
+          {
+            "label": "accessControl",
+            "offset": 2,
+            "slot": "0",
+            "type": "t_contract(INBTEBridgeAccessControl)4108",
+            "contract": "NBTEBridgeAccessControllable",
+            "src": "contracts/shared/NBTEBridgeAccessControllable.sol:10"
+          },
+          {
+            "label": "_frozen",
+            "offset": 22,
+            "slot": "0",
+            "type": "t_bool",
+            "contract": "Freezable",
+            "src": "contracts/shared/Freezable.sol:27"
+          },
+          {
+            "label": "__gap",
+            "offset": 0,
+            "slot": "1",
+            "type": "t_array(t_uint256)50_storage",
+            "contract": "ContextUpgradeable",
+            "src": "@openzeppelin/contracts-upgradeable/utils/ContextUpgradeable.sol:40"
+          },
+          {
+            "label": "_paused",
+            "offset": 0,
+            "slot": "51",
+            "type": "t_bool",
+            "contract": "PausableUpgradeable",
+            "src": "@openzeppelin/contracts-upgradeable/security/PausableUpgradeable.sol:29"
+          },
+          {
+            "label": "__gap",
+            "offset": 0,
+            "slot": "52",
+            "type": "t_array(t_uint256)49_storage",
+            "contract": "PausableUpgradeable",
+            "src": "@openzeppelin/contracts-upgradeable/security/PausableUpgradeable.sol:116"
+          },
+          {
+            "label": "btcAddressValidator",
+            "offset": 0,
+            "slot": "101",
+            "type": "t_contract(IBTCAddressValidator)3979",
+            "contract": "RuneBridge",
+            "src": "contracts/runes/RuneBridge.sol:114"
+          },
+          {
+            "label": "numTransfersTotal",
+            "offset": 0,
+            "slot": "102",
+            "type": "t_uint256",
+            "contract": "RuneBridge",
+            "src": "contracts/runes/RuneBridge.sol:117"
+          },
+          {
+            "label": "tokensByRune",
+            "offset": 0,
+            "slot": "103",
+            "type": "t_mapping(t_uint256,t_address)",
+            "contract": "RuneBridge",
+            "src": "contracts/runes/RuneBridge.sol:120"
+          },
+          {
+            "label": "runesByToken",
+            "offset": 0,
+            "slot": "104",
+            "type": "t_mapping(t_address,t_uint256)",
+            "contract": "RuneBridge",
+            "src": "contracts/runes/RuneBridge.sol:123"
+          },
+          {
+            "label": "runeTokens",
+            "offset": 0,
+            "slot": "105",
+            "type": "t_array(t_address)dyn_storage",
+            "contract": "RuneBridge",
+            "src": "contracts/runes/RuneBridge.sol:126"
+          },
+          {
+            "label": "runeRegistrationRequestsEnabled",
+            "offset": 0,
+            "slot": "106",
+            "type": "t_bool",
+            "contract": "RuneBridge",
+            "src": "contracts/runes/RuneBridge.sol:129"
+          },
+          {
+            "label": "runeRegistrationFee",
+            "offset": 0,
+            "slot": "107",
+            "type": "t_uint256",
+            "contract": "RuneBridge",
+            "src": "contracts/runes/RuneBridge.sol:132"
+          },
+          {
+            "label": "runeRegistrationRequested",
+            "offset": 0,
+            "slot": "108",
+            "type": "t_mapping(t_uint256,t_bool)",
+            "contract": "RuneBridge",
+            "src": "contracts/runes/RuneBridge.sol:135"
+          },
+          {
+            "label": "processedTransfersFromBtc",
+            "offset": 0,
+            "slot": "109",
+            "type": "t_mapping(t_bytes32,t_mapping(t_uint256,t_mapping(t_uint256,t_bool)))",
+            "contract": "RuneBridge",
+            "src": "contracts/runes/RuneBridge.sol:138"
+          },
+          {
+            "label": "evmToBtcTransferPoliciesByToken",
+            "offset": 0,
+            "slot": "110",
+            "type": "t_mapping(t_address,t_struct(EvmToBtcTransferPolicy)2192_storage)",
+            "contract": "RuneBridge",
+            "src": "contracts/runes/RuneBridge.sol:141"
+          },
+          {
+            "label": "__gap",
+            "offset": 0,
+            "slot": "111",
+            "type": "t_array(t_uint256)50_storage",
+            "contract": "RuneBridge",
+            "src": "contracts/runes/RuneBridge.sol:144"
+          }
+        ],
+        "types": {
+          "t_address": {
+            "label": "address",
+            "numberOfBytes": "20"
+          },
+          "t_array(t_address)dyn_storage": {
+            "label": "address[]",
+            "numberOfBytes": "32"
+          },
+          "t_array(t_uint256)49_storage": {
+            "label": "uint256[49]",
+            "numberOfBytes": "1568"
+          },
+          "t_array(t_uint256)50_storage": {
+            "label": "uint256[50]",
+            "numberOfBytes": "1600"
+          },
+          "t_bool": {
+            "label": "bool",
+            "numberOfBytes": "1"
+          },
+          "t_bytes32": {
+            "label": "bytes32",
+            "numberOfBytes": "32"
+          },
+          "t_contract(IBTCAddressValidator)3979": {
+            "label": "contract IBTCAddressValidator",
+            "numberOfBytes": "20"
+          },
+          "t_contract(INBTEBridgeAccessControl)4108": {
+            "label": "contract INBTEBridgeAccessControl",
+            "numberOfBytes": "20"
+          },
+          "t_mapping(t_address,t_struct(EvmToBtcTransferPolicy)2192_storage)": {
+            "label": "mapping(address => struct RuneBridge.EvmToBtcTransferPolicy)",
+            "numberOfBytes": "32"
+          },
+          "t_mapping(t_address,t_uint256)": {
+            "label": "mapping(address => uint256)",
+            "numberOfBytes": "32"
+          },
+          "t_mapping(t_bytes32,t_mapping(t_uint256,t_mapping(t_uint256,t_bool)))": {
+            "label": "mapping(bytes32 => mapping(uint256 => mapping(uint256 => bool)))",
+            "numberOfBytes": "32"
+          },
+          "t_mapping(t_uint256,t_address)": {
+            "label": "mapping(uint256 => address)",
+            "numberOfBytes": "32"
+          },
+          "t_mapping(t_uint256,t_bool)": {
+            "label": "mapping(uint256 => bool)",
+            "numberOfBytes": "32"
+          },
+          "t_mapping(t_uint256,t_mapping(t_uint256,t_bool))": {
+            "label": "mapping(uint256 => mapping(uint256 => bool))",
+            "numberOfBytes": "32"
+          },
+          "t_struct(EvmToBtcTransferPolicy)2192_storage": {
+            "label": "struct RuneBridge.EvmToBtcTransferPolicy",
+            "members": [
+              {
+                "label": "maxTokenAmount",
+                "type": "t_uint256",
+                "offset": 0,
+                "slot": "0"
+              },
+              {
+                "label": "minTokenAmount",
+                "type": "t_uint256",
+                "offset": 0,
+                "slot": "1"
+              },
+              {
+                "label": "flatFeeBaseCurrency",
+                "type": "t_uint256",
+                "offset": 0,
+                "slot": "2"
+              },
+              {
+                "label": "flatFeeTokens",
+                "type": "t_uint256",
+                "offset": 0,
+                "slot": "3"
+              },
+              {
+                "label": "dynamicFeeTokens",
+                "type": "t_uint256",
+                "offset": 0,
+                "slot": "4"
+              }
+            ],
+            "numberOfBytes": "160"
+          },
+          "t_uint256": {
+            "label": "uint256",
+            "numberOfBytes": "32"
+          },
+          "t_uint8": {
+            "label": "uint8",
+            "numberOfBytes": "1"
+          }
+        },
+        "namespaces": {}
+      }
+    }
+  }
+}
