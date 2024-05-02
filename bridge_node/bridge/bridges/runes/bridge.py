@@ -40,6 +40,9 @@ class RuneBridge(Bridge):
 
     def run_iteration(self) -> None:
         self.logger.info("Running iteration from %s", self.bridge_id)
+
+        self.service.check()
+
         num_rune_deposits = self.service.scan_rune_deposits()
         self.logger.info("Found %s Rune->EVM transfers", num_rune_deposits)
         num_rune_token_deposits = self.service.scan_rune_token_deposits()

@@ -149,6 +149,21 @@ class OrdMultisig:
         descriptor = f"wsh(sortedmulti({required},{keys_str}))"
         return descriptors.descsum_create(descriptor)
 
+    def check(self) -> None:
+        descriptors_response = self._bitcoin_rpc.call("listdescriptors")
+        if len(descriptors_response["descriptors"]) != 1:
+            raise ValueError(
+                f"Bitcoin RPC wallet has too many or too few descriptors: {descriptors_response} "
+                "(expected exactly 1 descriptor)"
+            )
+        descriptor_info = descriptors_response["descriptors"][0]
+        expected_descriptor = self.get_descriptor()
+        if descriptor_info["desc"] != expected_descriptor:
+            raise ValueError(
+                f"Bitcoin RPC wallet has invalid descriptors. Expected {expected_descriptor!r}, "
+                f"got {descriptor_info['desc']!r}"
+            )
+
     def import_descriptors_to_bitcoind(
         self,
         *,

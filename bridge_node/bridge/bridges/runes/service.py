@@ -135,6 +135,9 @@ class RuneBridgeService:
     def bridge_name(self) -> str:
         return self.config.bridge_id
 
+    def check(self) -> None:
+        self.ord_multisig.check()
+
     def generate_deposit_address(self, *, evm_address: str, dbsession: Session) -> str:
         # TODO: dbsession now passed as parameter, seems ugly?
         try:
