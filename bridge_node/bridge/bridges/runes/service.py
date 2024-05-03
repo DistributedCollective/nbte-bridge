@@ -1,5 +1,6 @@
 import dataclasses
 import functools
+import itertools
 import logging
 import time
 from collections.abc import Callable
@@ -876,44 +877,56 @@ class RuneBridgeService:
         self,
         message: messages.SignRuneTokenToBtcTransferQuestion,
     ) -> messages.SignRuneTokenToBtcTransferAnswer:
+        # transfers = message.transfers
+        transfers = [message.transfer]
+        num_transfers = len(transfers)
+        num_unique_transfers = len(set((transfer.event_tx_hash, transfer.event_log_index) for transfer in transfers))
+        if num_unique_transfers != num_transfers:
+            raise ValidationError(f"Duplicate transfers: {transfers}")
+
         with self.transaction_manager.transaction() as tx:
             dbsession = tx.find_service(Session)
-            deposit = (
-                dbsession.query(RuneTokenDeposit)
-                .filter_by(
-                    bridge_id=self.bridge_id,
-                    evm_tx_hash=message.transfer.event_tx_hash,
-                    evm_log_index=message.transfer.event_log_index,
+            for transfer in transfers:
+                deposit = (
+                    dbsession.query(RuneTokenDeposit)
+                    .filter_by(
+                        bridge_id=self.bridge_id,
+                        evm_tx_hash=transfer.event_tx_hash,
+                        evm_log_index=transfer.event_log_index,
+                    )
+                    .one()
                 )
-                .one()
-            )
-            # This validates that the transfer happened on the smart contract side and is seen by us
-            if deposit.status != RuneTokenDepositStatus.ACCEPTED:
-                raise ValidationError(f"Deposit {deposit} not accepted (got {deposit.status})")
+                # This validates that the transfer happened on the smart contract side and is seen by us
+                if deposit.status != RuneTokenDepositStatus.ACCEPTED:
+                    raise ValidationError(
+                        f"Deposit {deposit} not accepted (got {deposit.status} (transfer: {transfer}))"
+                    )
 
-            receiver_btc_address = deposit.receiver_btc_address
-            if receiver_btc_address != message.transfer.receiver_address:
-                raise ValidationError(
-                    f"Receiver BTC address mismatch: {receiver_btc_address} != {message.transfer.receiver_address}"
-                )
-            if deposit.net_rune_amount_raw != message.transfer.net_rune_amount:
-                raise ValidationError(
-                    f"Net rune amount mismatch: {deposit.net_rune_amount_raw} != {message.transfer.net_rune_amount}"
-                )
+                receiver_btc_address = deposit.receiver_btc_address
+                if receiver_btc_address != transfer.receiver_address:
+                    raise ValidationError(
+                        f"Receiver BTC address mismatch: {receiver_btc_address} != {transfer.receiver_address} "
+                        f"(transfer: {transfer}))"
+                    )
+                if deposit.net_rune_amount_raw != transfer.net_rune_amount:
+                    raise ValidationError(
+                        f"Net rune amount mismatch: {deposit.net_rune_amount_raw} != {transfer.net_rune_amount} "
+                        f"(transfer: {transfer}))"
+                    )
 
-            rune = rune_from_str(message.transfer.rune_name)
-            if deposit.rune.n != rune.n:
-                raise ValidationError(f"Rune number mismatch: {deposit.rune.n} != {rune.n}")
-            if rune.n != message.transfer.rune_number:
-                raise ValidationError(f"Rune number/name mismatch: {rune.n} != {message.transfer.rune_number}")
+                rune = rune_from_str(transfer.rune_name)
+                if deposit.rune.n != rune.n:
+                    raise ValidationError(f"Rune number mismatch: {deposit.rune.n} != {rune.n} (transfer: {transfer}))")
+                if rune.n != transfer.rune_number:
+                    raise ValidationError(
+                        f"Rune number/name mismatch: {rune.n} != {transfer.rune_number}  (transfer: {transfer}))"
+                    )
 
-            net_rune_amount_raw = deposit.net_rune_amount_raw
-
-        rune_response = self.ord_client.get_rune(rune.name)
-        if not rune_response:
-            raise ValidationError(f"Rune {rune.name} not found in ord")
-
-        rune_id = pyord.RuneId.from_str(rune_response["id"])
+                if deposit.net_rune_amount_raw != transfer.net_rune_amount:
+                    raise ValidationError(
+                        f"Net rune amount mismatch: {deposit.net_rune_amount_raw} != {transfer.net_rune_amount} "
+                        f"(transfer: {transfer}))"
+                    )
 
         unsigned_psbt = self.ord_multisig.deserialize_psbt(message.unsigned_psbt_serialized)
         # NOTE: we could recreate the PSBT here
@@ -926,20 +939,17 @@ class RuneBridgeService:
         if runestone.is_cenotaph:
             raise ValidationError(f"Runestone is a cenotaph: {runestone}")
 
-        # NOTE: for now, we expect 3 outputs, a single Edict to output 2 with postage 10k, and outputs 1 and 3 to the
-        # change address. This is of course expected to change after we do transfer batching
-        if len(runestone.edicts) != 1:
-            raise ValidationError(f"Expected 1 edict, got {len(runestone.edicts)}")
-        edict = runestone.edicts[0]
-        if edict.amount != net_rune_amount_raw:
-            raise ValidationError(f"Amount mismatch: {edict.amount} != {net_rune_amount_raw}")
-        if edict.id != rune_id:
-            raise ValidationError(f"Rune ID mismatch: {edict.id} != {rune_id}")
-        if edict.output != 2:
-            raise ValidationError(f"Expected output 2, got {edict.output}")
+        # NOTE: for now, we expect:
+        # output 0: Runestone with an edict for each transfer
+        # output 1: amount = postage (10k sat), to = change_address
+        # outputs 2...N-2: amount = postage (10k sat), to = user address
+        # output N-1: bitcoin change to our address
 
-        if len(unsigned_tx.vout) not in (3, 4):
-            raise ValidationError(f"Expected 3-4 outputs, got {len(unsigned_tx.vout)}")
+        if len(unsigned_tx.vout) not in (num_transfers + 2, num_transfers + 3):
+            # output for each transfer, op return, rune change output, and possibly btc change output
+            raise ValidationError(
+                f"Expected {num_transfers + 2}-{num_transfers + 3} outputs, got {len(unsigned_tx.vout)}"
+            )
 
         expected_postage = TARGET_POSTAGE_SAT
         if unsigned_tx.vout[0].nValue != 0:
@@ -948,18 +958,54 @@ class RuneBridgeService:
             raise ValidationError("Expected runestone at output 0")
         if unsigned_tx.vout[1].nValue != expected_postage:
             raise ValidationError(f"Expected postage {expected_postage} at output 2, got {unsigned_tx.vout[1].nValue}")
-        if unsigned_tx.vout[2].nValue != expected_postage:
-            raise ValidationError(f"Expected postage {expected_postage} at output 2, got {unsigned_tx.vout[2].nValue}")
         if unsigned_tx.vout[1].scriptPubKey != self.ord_multisig.change_script_pubkey:
             raise ValidationError(
                 f"Expected script pubkey {self.ord_multisig.change_script_pubkey!r} of the change address "
                 f"{self.ord_multisig.change_address!r} at output 1, got {unsigned_tx.vout[1].scriptPubKey!r}"
             )
 
-        # Validate the change output only if we have it
-        if len(unsigned_tx.vout) == 4:
-            if unsigned_tx.vout[3].scriptPubKey != self.ord_multisig.change_script_pubkey:
-                raise ValidationError(f"Expected change address {self.ord_multisig.change_script_pubkey} at output 3")
+        if len(unsigned_tx.vout) == num_transfers + 3:
+            # Validate the change output only if we have it
+            if unsigned_tx.vout[-1].scriptPubKey != self.ord_multisig.change_script_pubkey:
+                raise ValidationError(
+                    f"Expected change address {self.ord_multisig.change_script_pubkey} at last output"
+                )
+
+        if len(runestone.edicts) != num_transfers:
+            raise ValidationError(f"Expected {num_transfers} edicts, got {len(runestone.edicts)}")
+
+        for transfer_vout, (edict, transfer) in enumerate(
+            itertools.zip_longest(runestone.edicts, transfers),
+            start=2,
+        ):
+            rune_response = self.ord_client.get_rune(transfer.rune_name)
+            if not rune_response:
+                raise ValidationError(f"Rune {rune.name} not found in ord")
+
+            rune_id = pyord.RuneId.from_str(rune_response["id"])
+
+            edict = runestone.edicts[0]
+            if edict.amount != transfer.net_rune_amount:
+                raise ValidationError(
+                    f"Amount mismatch: {edict.amount} != {transfer.net_rune_amount} "
+                    f"(transfer: {transfer} @ {transfer_vout})"
+                )
+            if edict.id != rune_id:
+                raise ValidationError(
+                    f"Rune ID mismatch: {edict.id} != {rune_id} (transfer: {transfer} @ {transfer_vout})"
+                )
+            if edict.output != transfer_vout:
+                raise ValidationError(f"Expected output {transfer_vout}, got {edict.output} (transfer: {transfer})")
+
+            if unsigned_tx.vout[transfer_vout].nValue != expected_postage:
+                raise ValidationError(
+                    f"Expected postage {expected_postage} at output {transfer_vout}, "
+                    f"got {unsigned_tx.vout[transfer_vout].nValue} (transfer: {transfer})"
+                )
+
+            # TODO: validate scriptPubKey matches the bitcoin address of transfer
+            # NOTE: receiver bitcoin address is already validated as a part of fetching the RuneTokenDeposit
+            # from the DB
 
         expected_fee_rate_sat_per_vb = self._btc_fee_estimator.get_fee_sats_per_vb()
         fee_rate_margin = 2
