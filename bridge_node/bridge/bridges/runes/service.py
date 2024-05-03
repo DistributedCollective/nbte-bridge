@@ -228,11 +228,12 @@ class RuneBridgeService:
                         tx["ord_output"] = ord_output
                         break
                     if ord_output["spent"]:
-                        # This "JUST HAPPENS" sometimes...
-                        # Argh! Probably because of the listsinceblock buffer.
-                        # Maybe ord's default behaviour
-                        # being too fast for ord, hopefully only in tests.
-                        # I guess we ignore these, but there's a chance we miss some deposits.
+                        # ORD drops spent outputs from the index and no longer shows the rune balances for them
+                        # this is a problem, because
+                        # 1) we have the listsinceblock buffer
+                        # 2) a node that's down a while might not get to index an output
+                        # From my understanding, it's hard to do this properly right now.
+                        # See https://github.com/ordinals/ord/issues/3723
                         self.logger.warning("Unindexed spent output %s:%s (%s), ignoring", txid, vout, ord_output)
                         break
                     self.logger.info("Output %s:%s (%s) not indexed in ord yet, waiting", txid, vout, ord_output)
