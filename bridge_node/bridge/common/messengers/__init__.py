@@ -1,4 +1,3 @@
-import datetime
 import json
 import logging
 from abc import ABC, abstractmethod
@@ -7,12 +6,10 @@ import requests
 
 logger = logging.getLogger(__name__)
 
-SLACK_CHANNEL = "#sovryn-nbte-bridge-alerts"
-
 
 class Messenger(ABC):
     @abstractmethod
-    def send_message(self, *, title, message, msg_type):
+    def send_message(self, *, title, message):
         pass
 
 
@@ -20,13 +17,13 @@ class CombinedMessenger(Messenger):
     def __init__(self, messengers):
         self.messengers = messengers
 
-    def send_message(self, *, title, message, msg_type):
+    def send_message(self, *, title, message):
         for messenger in self.messengers:
-            messenger.send_message(title=title, message=message, msg_type=msg_type)
+            messenger.send_message(title=title, message=message)
 
 
 class NullMessenger(Messenger):
-    def send_message(self, *, title, message, _):
+    def send_message(self, *, title, message):
         logger.warning(f"NullMessenger: {title} {message}")
 
 
@@ -39,7 +36,7 @@ class DiscordMessenger(Messenger):
         self.webhook_url = webhook_url
         self.username = username
 
-    def send_message(self, *, title, message, msg_type):
+    def send_message(self, *, title, message):
         data = {
             "username": self.username,
             "content": "Testing Discord Webhook",
@@ -67,44 +64,13 @@ class SlackMessenger(Messenger):
         self,
         webhook_url: str,
         username: str = "Sovryn BOT",
+        channel: str = "",
     ):
         self.webhook_url = webhook_url
         self.username = username
+        self.channel = channel
 
-    @staticmethod
-    def message_type(msg_type: str):
-        color = {"danger": "#f72d2d", "good": "#0ce838", "warning": "#f2c744"}
-        return color[msg_type]
-
-    def create_attachment_template(self, title, message, msg_type):
-        color_code = self.message_type(msg_type)
-        now = datetime.datetime.now(tz=datetime.UTC)
-        slack_report_at = "<!date^{timestamp}^{date} at {time}|{date_str}>".format(
-            timestamp=int(now.timestamp()),
-            date_str=now.strftime("%B %d, %Y %H:%M:%S"),
-            date="{date}",
-            time="{time}",
-        )
-        return [
-            {
-                "color": color_code,
-                "blocks": [
-                    {
-                        "type": "section",
-                        "text": {
-                            "type": "mrkdwn",
-                            "text": f"*{title}* ({slack_report_at})",
-                        },
-                    },
-                    {
-                        "type": "section",
-                        "text": {"type": "mrkdwn", "text": f"{message}"},
-                    },
-                ],
-            }
-        ]
-
-    def send_message(self, *, title, message, msg_type):
+    def send_message(self, *, title, message):
         """Minted
         notification_message: str
         attachments: list
@@ -112,13 +78,26 @@ class SlackMessenger(Messenger):
         data = {
             "username": self.username,
             "icon_emoji": ":robot_face:",
+            "channel": self.channel,
+            "blocks": [
+                {
+                    "type": "header",
+                    "text": {
+                        "type": "plain_text",
+                        "text": title,
+                    },
+                }
+            ]
+            if title
+            else [],
         }
-        attachments = self.create_attachment_template(title, message, msg_type)
-        if not attachments:
-            logger.warning("No attachments provided")
 
-        data["channel"] = SLACK_CHANNEL
-        data["attachments"] = attachments
+        data["blocks"].append(
+            {
+                "type": "section",
+                "text": {"type": "mrkdwn", "text": message},
+            },
+        )
 
         response = requests.post(
             self.webhook_url,
