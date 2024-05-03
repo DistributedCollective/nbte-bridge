@@ -13,6 +13,7 @@ import eth_utils
 import pyord
 import sqlalchemy as sa
 from bitcointx.core.script import CScript
+from bitcointx.wallet import CCoinAddress
 from eth_account.account import LocalAccount
 from eth_account.messages import encode_defunct
 from hexbytes import HexBytes
@@ -929,7 +930,6 @@ class RuneBridgeService:
                     )
 
         unsigned_psbt = self.ord_multisig.deserialize_psbt(message.unsigned_psbt_serialized)
-        # NOTE: we could recreate the PSBT here
 
         unsigned_tx = unsigned_psbt.unsigned_tx
         hex_tx = unsigned_tx.serialize().hex()
@@ -1003,9 +1003,14 @@ class RuneBridgeService:
                     f"got {unsigned_tx.vout[transfer_vout].nValue} (transfer: {transfer})"
                 )
 
-            # TODO: validate scriptPubKey matches the bitcoin address of transfer
-            # NOTE: receiver bitcoin address is already validated as a part of fetching the RuneTokenDeposit
-            # from the DB
+            expected_parsed_address = CCoinAddress(transfer.receiver_address)
+            script_pubkey = unsigned_tx.vout[transfer_vout].scriptPubKey
+            if script_pubkey != expected_parsed_address.to_scriptPubKey():
+                raise ValidationError(
+                    f"Expected script pubkey {expected_parsed_address.to_scriptPubKey()} "
+                    "(address {expected_parsed_address}) at output {transfer_vout}, "
+                    f"got {script_pubkey} (transfer: {transfer})"
+                )
 
         expected_fee_rate_sat_per_vb = self._btc_fee_estimator.get_fee_sats_per_vb()
         fee_rate_margin = 2
