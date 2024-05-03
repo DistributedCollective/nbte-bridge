@@ -60,6 +60,11 @@ class Config:
     btc_rpc_url = secret("bridge_btc_rpc_url", environ.var())
     evm_private_key = secret("bridge_evm_private_key")
 
+    # Messenger settings
+    discord_webhook_url = environ.var(default="")
+    slack_webhook_url = environ.var(default="")
+    slack_webhook_channel = environ.var(default="")
+
 
 @service(interface_override=Config, scope="global")
 def create_config(_):
