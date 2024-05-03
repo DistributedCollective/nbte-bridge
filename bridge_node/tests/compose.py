@@ -38,11 +38,20 @@ def run_command(
         extra_kwargs["stdout"] = subprocess.DEVNULL
         extra_kwargs["stderr"] = subprocess.DEVNULL
 
-    return subprocess.run(
-        COMPOSE_BASE_ARGS + args,
-        cwd=PROJECT_BASE_DIR,
-        **extra_kwargs,
-    )
+    try:
+        return subprocess.run(
+            COMPOSE_BASE_ARGS + args,
+            cwd=PROJECT_BASE_DIR,
+            **extra_kwargs,
+        )
+    except subprocess.CalledProcessError as e:
+        logger.error(
+            "Docker compose exception %s, stdout: %s, stderr: %s",
+            e,
+            e.stdout,
+            e.stderr,
+        )
+        raise
 
 
 def compose_popen(*args, **kwargs) -> subprocess.Popen:
@@ -100,7 +109,7 @@ class ComposeService:
 
         logger.info("Starting docker compose service %s", self.service)
 
-        run_command(*start_args)
+        run_command(*start_args, capture=True)
 
         logger.info("Service %s started.", self.service)
 
