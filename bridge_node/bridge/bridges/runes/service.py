@@ -499,13 +499,13 @@ class RuneBridgeService:
             .filter_by(
                 bridge_id=self.bridge_id,
                 user_id=user.id,
-                status=IncomingBtcTxStatus.ACCEPTED,
             )
             .filter(
+                IncomingBtcTx.status != IncomingBtcTxStatus.DETECTED,
                 IncomingBtcTx.block_number >= block_number,
             )
             .order_by(
-                IncomingBtcTx.time,
+                IncomingBtcTx.block_number,
             )
             .all()
         )
