@@ -502,7 +502,7 @@ class RuneBridgeService:
                 status=IncomingBtcTxStatus.ACCEPTED,
             )
             .filter(
-                IncomingBtcTx.block_number > block_number,
+                IncomingBtcTx.block_number >= block_number,
             )
             .order_by(
                 IncomingBtcTx.time,
