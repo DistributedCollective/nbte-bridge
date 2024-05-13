@@ -115,6 +115,7 @@ class RuneBridgeService:
         )
 
         self._get_block_time_by_hash = functools.lru_cache(256)(self._get_block_time_by_hash)
+        self._get_block_number_by_hash = functools.lru_cache(256)(self._get_block_number_by_hash)
         self.logger = logging.getLogger(f"{__name__}:{self.bridge_name}")
 
     def init(self):
@@ -469,17 +470,21 @@ class RuneBridgeService:
             self.logger.info("Invalid block hash %s", last_block)
             return []
 
+        block_number = self._get_block_time_by_hash(last_block)
+        block_number += self.config.btc_listsinceblock_buffer
+
         deposit_address = user.deposit_address
         if not deposit_address:
             self.logger.info("No deposit address found for %s", evm_address)
             return []
 
         self.logger.info("User %s has deposit address %s", evm_address, deposit_address.btc_address)
-        btc_transactions = (
+        pending_btc_transactions = (
             dbsession.query(IncomingBtcTx)
             .filter_by(
                 bridge_id=self.bridge_id,
                 user_id=user.id,
+                status=IncomingBtcTxStatus.DETECTED,
             )
             .filter(
                 IncomingBtcTx.time >= block_time,
@@ -489,6 +494,23 @@ class RuneBridgeService:
             )
             .all()
         )
+        accepted_btc_transactions = (
+            dbsession.query(IncomingBtcTx)
+            .filter_by(
+                bridge_id=self.bridge_id,
+                user_id=user.id,
+                status=IncomingBtcTxStatus.ACCEPTED,
+            )
+            .filter(
+                IncomingBtcTx.block_number > block_number,
+            )
+            .order_by(
+                IncomingBtcTx.time,
+            )
+            .all()
+        )
+
+        btc_transactions = pending_btc_transactions + accepted_btc_transactions
 
         deposits = []
         for tx in btc_transactions:
@@ -537,6 +559,14 @@ class RuneBridgeService:
         try:
             block = self.bitcoin_rpc.call("getblock", block_hash)
             return block["time"]
+        except Exception as e:
+            self.logger.info("Invalid block hash %s (%s)", block_hash, e)
+            return None
+
+    def _get_block_number_by_hash(self, block_hash) -> int | None:
+        try:
+            block = self.bitcoin_rpc.call("getblock", block_hash)
+            return block["height"]
         except Exception as e:
             self.logger.info("Invalid block hash %s (%s)", block_hash, e)
             return None
