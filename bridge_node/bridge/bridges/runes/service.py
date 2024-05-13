@@ -470,7 +470,7 @@ class RuneBridgeService:
             self.logger.info("Invalid block hash %s", last_block)
             return []
 
-        block_number = self._get_block_time_by_hash(last_block)
+        block_number = self._get_block_number_by_hash(last_block)
         block_number += self.config.btc_listsinceblock_buffer
 
         deposit_address = user.deposit_address
@@ -499,9 +499,9 @@ class RuneBridgeService:
             .filter_by(
                 bridge_id=self.bridge_id,
                 user_id=user.id,
+                status=IncomingBtcTxStatus.ACCEPTED,
             )
             .filter(
-                IncomingBtcTx.status != IncomingBtcTxStatus.DETECTED,
                 IncomingBtcTx.block_number >= block_number,
             )
             .order_by(
