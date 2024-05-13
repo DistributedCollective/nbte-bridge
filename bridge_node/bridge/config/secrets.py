@@ -29,7 +29,7 @@ def wait_for_secrets():
         sys.exit(1)
 
 
-ENCRYPTED_SECRETS_ENABLED = os.environ.get("BRIDGE_ENCRYPTED_SECRETS", False)
+ENCRYPTED_SECRETS_ENABLED = os.environ.get("BRIDGE_ENCRYPTED_SECRETS", "0") == "1"
 
 
 if ENCRYPTED_SECRETS_ENABLED:

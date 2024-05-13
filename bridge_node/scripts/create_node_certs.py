@@ -12,7 +12,7 @@ alt_name_ip = f"IP:{node_ip}" if node_ip else None
 
 all_alt_names = [alt_name_node, alt_name_ip]
 
-assert any(all_alt_names), "At least one of BRIDGE_HOSTNAME or BRIDGE_IP must be set"
+assert any(all_alt_names), "At least one of BRIDGE_HOSTNAME or BRIDGE_NODE_IP must be set"
 
 san = "subjectAltName=" + ",".join([alt for alt in all_alt_names if alt])
 
