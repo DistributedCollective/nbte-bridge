@@ -159,6 +159,10 @@ services:
       - BRIDGE_PEERS=alice-node@alice-bridge:5000,bob-node@bob-bridge:5000
       - BRIDGE_BTC_NETWORK=regtest
       - BRIDGE_BTC_RPC_URL=http://polaruser:polarpass@bitcoind:18443
+      # Messengers from environ, allows testing them...
+      - BRIDGE_DISCORD_WEBHOOK_URL=${BRIDGE_DISCORD_WEBHOOK_URL:-}
+      - BRIDGE_SLACK_WEBHOOK_URL=${BRIDGE_SLACK_WEBHOOK_URL:-}
+      - BRIDGE_SLACK_WEBHOOK_CHANNEL=${BRIDGE_SLACK_WEBHOOK_CHANNEL:-}
       # Taproot Assets
       - BRIDGE_TAP_HOST=alice-tap:8089
       - BRIDGE_TAP_MACAROON_PATH=/var/bridge/tapd/data/regtest/admin.macaroon
