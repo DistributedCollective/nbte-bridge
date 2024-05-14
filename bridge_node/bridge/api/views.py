@@ -14,6 +14,7 @@ from bridge.common.evm.provider import Web3
 from ..bridges.tap_rsk.rsk import BridgeContract
 from ..bridges.tap_rsk.tap_deposits import TapDepositService
 from ..common.evm.account import Account
+from ..config import Config
 from .exceptions import ApiException
 
 logger = logging.getLogger(__name__)
@@ -25,6 +26,7 @@ logger = logging.getLogger(__name__)
 @view_defaults(renderer="json")
 class ApiViews:
     request: Request
+    config: Config
     web3: Web3 = autowired(auto)
     evm_account: Account = autowired(auto)
     bridge_contract: BridgeContract = autowired(auto)
@@ -36,21 +38,28 @@ class ApiViews:
         self.request = request
         self.container = request.container
 
+    def is_bridge_enabled(self, bridge_name: str):
+        return "all" in self.config.enabled_bridges or bridge_name in self.config.enabled_bridges
+
     @view_config(route_name="stats", request_method="GET")
     def stats(self):
         # TODO: cache this to avoid spam
+        healthy = True
+        reason = None
         if not self.web3.is_connected():
             healthy = False
             reason = "No connection to EVM node"
-        elif not self.web3.eth.get_code(self.bridge_contract.address):
-            healthy = False
-            reason = "Bridge contract not deployed"
-        elif not self.bridge_contract.functions.isFederator(self.evm_account.address).call():
-            healthy = False
-            reason = "Not a federator"
-        else:
-            healthy = True
-            reason = None
+
+        # TODO: work this api better
+        if healthy:
+            if self.is_bridge_enabled("taprsk"):
+                if not self.web3.eth.get_code(self.bridge_contract.address):
+                    healthy = False
+                    reason = "Tap Bridge contract not deployed"
+                elif not self.bridge_contract.functions.isFederator(self.evm_account.address).call():
+                    healthy = False
+                    reason = "Not a federator (tap bridge)"
+
         logger.info("Is healthy: %s, reason: %s", healthy, reason)
         return {
             "is_healthy": healthy,
@@ -59,6 +68,8 @@ class ApiViews:
 
     @view_config(route_name="tap_to_rsk_transfers", request_method="POST")
     def tap_to_rsk_transfers(self):
+        if not self.is_bridge_enabled("taprsk"):
+            raise ApiException("Tap to RSK bridge is not enabled")
         data = self.request.json_body
         address = data.get("address")
 
@@ -77,6 +88,8 @@ class ApiViews:
 
     @view_config(route_name="rsk_to_tap_transfers", request_method="POST")
     def rsk_to_tap_transfers(self):
+        if not self.is_bridge_enabled("taprsk"):
+            raise ApiException("Tap to RSK bridge is not enabled")
         data = self.request.json_body
         address = data.get("address")
 
@@ -95,6 +108,9 @@ class ApiViews:
 
     @view_config(route_name="generate_tap_deposit_address", request_method="POST")
     def generate_tap_deposit_address(self):
+        if not self.is_bridge_enabled("taprsk"):
+            raise ApiException("Tap to RSK bridge is not enabled")
+
         data = self.request.json_body
 
         rsk_address = data.get("rsk_address")
