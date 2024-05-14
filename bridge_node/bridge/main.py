@@ -17,7 +17,7 @@ from .sentry import init_sentry
 def main():
     logging.basicConfig(
         level=os.getenv("LOG_LEVEL", logging.INFO),
-        format="%(asctime)s:%(name)s:%(levelname)s:%(message)s",
+        format="%(asctime)s:%(levelname)s:%(name)s:%(message)s",
         force=True,
     )
 
