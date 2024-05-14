@@ -241,6 +241,7 @@ class OrdMultisig:
         *,
         # TODO: get rid of the default value
         fee_rate_sat_per_vbyte: int = 50,
+        max_num_inputs: int = 200,
     ):
         # We always have a change output, and we always have it at index 1
         # The first output (index 0) is the Runestone OP_RETURN
@@ -446,6 +447,11 @@ class OrdMultisig:
             add_psbt_input(utxo)
 
             # Loop from the start
+
+        if len(psbt.inputs) > max_num_inputs:
+            raise RuntimeError(
+                f"Number of inputs in PSBT {len(psbt.inputs)} exceeds the maximum {max_num_inputs}",
+            )
 
         # Assuming we got here, TX is funded properly.
         # Add a change output if necessary
