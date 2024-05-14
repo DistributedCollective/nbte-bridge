@@ -1109,8 +1109,9 @@ class RuneBridgeService:
 
         expected_fee_rate_sat_per_vb = self._btc_fee_estimator.get_fee_sats_per_vb()
         fee_rate_margin = 3
-        fee_rate_min = expected_fee_rate_sat_per_vb / fee_rate_margin
-        fee_rate_max = expected_fee_rate_sat_per_vb * fee_rate_margin
+        min_fee_rate = self._get_min_fee_rate_sat_per_vbyte()
+        fee_rate_min = max(expected_fee_rate_sat_per_vb // fee_rate_margin, min_fee_rate)
+        fee_rate_max = max(expected_fee_rate_sat_per_vb, min_fee_rate) * fee_rate_margin
         if fee_rate_min > message.fee_rate_sats_per_vb or fee_rate_max < message.fee_rate_sats_per_vb:
             raise ValidationError(
                 f"Fee rate {message.fee_rate_sats_per_vb} not within range [{fee_rate_min}, {fee_rate_max}]"
@@ -1271,7 +1272,9 @@ class RuneBridgeService:
 
         margin = 1.1  # TODO: hardcoded margin
         fee_rate_sats_per_vb = int(margin * fee_rate_sats_per_vb)
-        self.logger.info("Adjusted fee rate with margin %s: %s sats/vb", margin, fee_rate_sats_per_vb)
+        min_fee_rate = self._get_min_fee_rate_sat_per_vbyte()
+        fee_rate_sats_per_vb = max(fee_rate_sats_per_vb, min_fee_rate)
+        self.logger.info("Adjusted fee rate: %s sats/vb", fee_rate_sats_per_vb)
 
         num_required_signatures = self.get_rune_tokens_to_btc_num_required_signers()
         unsigned_psbt = self.ord_multisig.create_rune_psbt(
@@ -1395,3 +1398,9 @@ class RuneBridgeService:
             address=address,
             abi=load_rune_bridge_abi("RuneToken"),
         )
+
+    def _get_min_fee_rate_sat_per_vbyte(self) -> int:
+        # Try to avoid the situation where a tx gets stuck forever, even if we technically can CPFP
+        if self.config.btc_network == "mainnet":
+            return 15
+        return 1
