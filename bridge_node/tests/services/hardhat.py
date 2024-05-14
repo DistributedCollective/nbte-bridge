@@ -58,6 +58,9 @@ class HardhatService(compose.ComposeService):
             raise ValueError("Failed to revert")
         return result
 
+    def set_automine(self, enabled):
+        return self.make_request("evm_setAutomine", [enabled])
+
     def create_test_wallet(
         self,
         name=None,

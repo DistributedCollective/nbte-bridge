@@ -226,6 +226,106 @@ def test_runes_can_be_transferred_sequentially(
     )
 
 
+def test_runes_can_be_transferred_simultaneously(
+    bridge_util,
+    user_ord_wallet,
+    user_evm_wallet,
+):
+    expected_rune_balance = 10000
+    expected_token_balance = 0
+
+    rune = bridge_util.etch_and_register_test_rune(
+        prefix="SIMULTANEOUS",
+        fund=(user_ord_wallet, expected_rune_balance),
+    )
+
+    deposit_address = bridge_util.get_deposit_address(user_evm_wallet.address)
+    initial_balances = bridge_util.snapshot_balances(
+        user_ord_wallet=user_ord_wallet,
+        user_evm_wallet=user_evm_wallet,
+        rune=rune,
+    )
+    initial_balances.assert_values(
+        user_token_balance_decimal=expected_token_balance,
+        token_total_supply_decimal=expected_token_balance,
+        user_rune_balance_decimal=expected_rune_balance,
+        bridge_rune_balance_decimal=expected_token_balance,
+    )
+
+    for _ in range(5):
+        bridge_util.transfer_runes_to_evm(
+            wallet=user_ord_wallet,
+            amount_decimal=1000,
+            deposit_address=deposit_address,
+            rune=rune,
+            mine=False,
+        )
+
+        # Do NOT run iteration here
+
+        expected_rune_balance -= 1000
+        expected_token_balance += 1000
+
+    bridge_util.mine()
+
+    # We run the iteration twice as there's a hardoded limit for max 4 transactions in mempool
+    for _ in range(2):
+        bridge_util.run_bridge_iteration()
+
+    bridge_util.snapshot_balances_again(initial_balances).assert_values(
+        user_token_balance_decimal=expected_token_balance,
+        token_total_supply_decimal=expected_token_balance,
+        user_rune_balance_decimal=expected_rune_balance,
+        bridge_rune_balance_decimal=expected_token_balance,
+    )
+
+    for _ in range(5):
+        bridge_util.transfer_rune_tokens_to_btc(
+            sender=user_evm_wallet,
+            receiver_wallet=user_ord_wallet,
+            amount_decimal=500,
+            rune=rune,
+        )
+
+        # Do NOT run iteration
+
+        expected_rune_balance += 500
+        expected_token_balance -= 500
+
+    # TODO: get rid of this loop and run the iteration only once after transfer batching has been implemented
+    for _ in range(5):
+        bridge_util.run_bridge_iteration()
+
+    bridge_util.snapshot_balances_again(initial_balances).assert_values(
+        user_token_balance_decimal=expected_token_balance,
+        token_total_supply_decimal=expected_token_balance,
+        user_rune_balance_decimal=expected_rune_balance,
+        bridge_rune_balance_decimal=expected_token_balance,
+    )
+
+    # For some reason we have some additional checks here. Cannot hurt?
+
+    transfer = bridge_util.transfer_rune_tokens_to_btc(
+        sender=user_evm_wallet,
+        receiver_wallet=user_ord_wallet,
+        amount_decimal=2000,
+        rune=rune,
+    )
+    bridge_util.run_bridge_iteration()
+
+    bridge_util.assert_rune_tokens_transferred_to_btc(transfer)
+
+    expected_rune_balance += 2000
+    expected_token_balance -= 2000
+
+    bridge_util.snapshot_balances_again(initial_balances).assert_values(
+        user_token_balance_decimal=expected_token_balance,
+        token_total_supply_decimal=expected_token_balance,
+        user_rune_balance_decimal=expected_rune_balance,
+        bridge_rune_balance_decimal=expected_token_balance,
+    )
+
+
 @pytest.mark.parametrize(
     "enable_bob,enable_carol,expected_transfer_happened",
     [
