@@ -18,7 +18,7 @@
             <td>{{ deposit.tx_id }}:{{ deposit.vout }}</td>
             <td>{{ deposit.block_number }}</td>
             <td>{{ deposit.evm_tx_hash }}</td>
-            <td>{{ deposit.status }}</td>
+            <td>{{ deposit.status_repr }}</td>
             <td>{{ deposit.created_at }}</td>
         </tr>
         {% endfor %}
@@ -42,7 +42,7 @@
             <td>{{ deposit.evm_block_number }}</td>
             <td>{{ deposit.evm_tx_hash }}</td>
             <td>{{ deposit.receiver_btc_address }}</td>
-            <td>{{ deposit.status }}</td>
+            <td>{{ deposit.status_repr }}</td>
             <td>{{ deposit.created_at }}</td>
         </tr>
         {% endfor %}
