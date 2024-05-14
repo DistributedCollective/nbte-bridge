@@ -208,7 +208,7 @@ class RuneBridgeService:
 
         # New last block will be stored in the DB
         new_last_block = resp["lastblock"]
-        self.logger.info("New last block: %s", new_last_block)
+        self.logger.debug("New last block: %s", new_last_block)
 
         # Filter invalid transactions and map ord_output outside of db transaction
         # Also keep track of newly seen runes
@@ -224,7 +224,7 @@ class RuneBridgeService:
                 continue
 
             if btc_address == self.ord_multisig.change_address:
-                self.logger.info("Ignoring tx to change address %s", btc_address)
+                self.logger.debug("Ignoring tx to change address %s", btc_address)
                 continue
 
             txid = tx["txid"]
@@ -313,7 +313,7 @@ class RuneBridgeService:
                 if btc_tx:
                     self.logger.info("Updating IncomingBtcTx %s:%s: %s", txid, vout, btc_tx)
                 else:
-                    self.logger.info("Creating new IncomingBtcTx %s:%s", txid, vout)
+                    self.logger.info("New IncomingBtcTx detected: %s:%s", txid, vout)
                     btc_tx = IncomingBtcTx(
                         bridge_id=self.bridge_id,
                         tx_id=txid,
@@ -356,8 +356,8 @@ class RuneBridgeService:
                     self.logger.info("Ord output not yet indexed, will be scanned later")
                     continue
 
-                self.logger.info(
-                    "Received %s runes in outpoint %s:%s (user %s)",
+                self.logger.debug(
+                    "Transaction contains %s runes in outpoint %s:%s (user %s)",
                     len(ord_output["runes"]),
                     txid,
                     vout,
@@ -380,14 +380,6 @@ class RuneBridgeService:
                         amount_raw=balance_entry["amount"],
                         divisibility=balance_entry["divisibility"],
                     )
-                    self.logger.info(
-                        "Received %s %s for %s at %s:%s",
-                        amounts.amount_decimal,
-                        spaced_rune_name,
-                        evm_address,
-                        txid,
-                        vout,
-                    )
 
                     deposit = (
                         dbsession.query(RuneDeposit)
@@ -400,9 +392,24 @@ class RuneBridgeService:
                         .one_or_none()
                     )
                     if deposit:
-                        self.logger.info("Updating deposit %s", deposit.id)
+                        self.logger.debug(
+                            "Updating deposit %s (%s %s for %s at %s:%s)",
+                            deposit.id,
+                            amounts.amount_decimal,
+                            spaced_rune_name,
+                            evm_address,
+                            txid,
+                            vout,
+                        )
                     else:
-                        self.logger.info("Creating new deposit")
+                        self.logger.info(
+                            "Received new Rune deposit: %s %s for %s at %s:%s",
+                            amounts.amount_decimal,
+                            spaced_rune_name,
+                            evm_address,
+                            txid,
+                            vout,
+                        )
                         deposit = RuneDeposit(
                             bridge_id=self.bridge_id,
                             tx_id=txid,
@@ -432,7 +439,7 @@ class RuneBridgeService:
                         deposit.status = RuneDepositStatus.ACCEPTED
                     dbsession.flush()
 
-                    self.logger.info("Deposit: %s", deposit)
+                    self.logger.debug("Deposit: %s", deposit)
                     num_transfers += 1
 
             check = key_value_store.get_value(last_block_key, default_value=None)
@@ -471,7 +478,7 @@ class RuneBridgeService:
         dbsession: Session,
     ) -> list[dict]:
         evm_address = eth_utils.to_checksum_address(evm_address)
-        self.logger.info("Getting transactions for %s since %s", evm_address, last_block)
+        self.logger.debug("Getting transactions for %s since %s", evm_address, last_block)
         user = (
             dbsession.query(User)
             .filter_by(
@@ -481,16 +488,16 @@ class RuneBridgeService:
             .one_or_none()
         )
         if not user:
-            self.logger.info("No user found for %s", evm_address)
+            self.logger.debug("No user found for %s", evm_address)
             return []
 
         if len(last_block) != 64:
-            self.logger.info("Invalid block hash length %s", last_block)
+            self.logger.debug("Invalid block hash length %s", last_block)
             return []
 
         block_time = self._get_block_time_by_hash(last_block)
         if not block_time:
-            self.logger.info("Invalid block hash %s", last_block)
+            self.logger.debug("Invalid block hash %s", last_block)
             return []
 
         block_number = self._get_block_number_by_hash(last_block)
@@ -498,10 +505,10 @@ class RuneBridgeService:
 
         deposit_address = user.deposit_address
         if not deposit_address:
-            self.logger.info("No deposit address found for %s", evm_address)
+            self.logger.debug("No deposit address found for %s", evm_address)
             return []
 
-        self.logger.info("User %s has deposit address %s", evm_address, deposit_address.btc_address)
+        self.logger.debug("User %s has deposit address %s", evm_address, deposit_address.btc_address)
         pending_btc_transactions = (
             dbsession.query(IncomingBtcTx)
             .filter_by(
@@ -538,7 +545,7 @@ class RuneBridgeService:
         deposits = []
         for tx in btc_transactions:
             if tx.status == IncomingBtcTxStatus.DETECTED and not tx.rune_deposits:
-                self.logger.info("Found detected tx %s", tx.id)
+                self.logger.debug("Found detected tx %s", tx.id)
                 deposits.append(
                     {
                         "btc_deposit_txid": tx.tx_id,
@@ -648,16 +655,16 @@ class RuneBridgeService:
             )
             deposit_repr = repr(deposit)
             if deposit.status != RuneDepositStatus.ACCEPTED:
-                self.logger.info("Deposit %s has invalid status", deposit_repr)
+                self.logger.warning("Deposit %s has invalid status", deposit_repr)
                 return False
             rune_number = deposit.rune.n
             rune_name = deposit.rune.name
             postage = deposit.postage
         if not self.rune_bridge_contract.functions.isRuneRegistered(rune_number).call():
-            self.logger.info("Rune %s for deposit %s is not registered", rune_name, deposit_repr)
+            self.logger.warning("Rune %s for deposit %s is not registered", rune_name, deposit_repr)
             return False
         if postage < self.config.btc_min_postage_sat:
-            self.logger.info("Deposit %s has insufficient postage %s", deposit_repr, postage)
+            self.logger.warning("Deposit %s has insufficient postage %s", deposit_repr, postage)
             return False
         return True
 
@@ -1145,7 +1152,6 @@ class RuneBridgeService:
             def callback(batch: list[EventData]):
                 nonlocal num_transfers
                 for event in batch:
-                    print(event)
                     if event["event"] == "RuneTransferToBtc":
                         rune = (
                             dbsession.query(Rune)
@@ -1188,7 +1194,7 @@ class RuneBridgeService:
                         dbsession.add(deposit)
                         dbsession.flush()
                         num_transfers += 1
-                        # TODO: decimal amount
+                        # TODO: add decimal amount to message
                         self._messenger.send_message(
                             title=f"[{self.bridge_name}] New Rune Token deposit",
                             message=(
@@ -1308,7 +1314,7 @@ class RuneBridgeService:
         # TODO: validate responses
 
         if len(signed_psbts) < num_required_signatures:
-            self.logger.info(
+            self.logger.warning(
                 "Not enough signatures for transfer: %s (got %s, expected %s)",
                 transfer,
                 len(signed_psbts),
