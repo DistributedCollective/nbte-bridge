@@ -1,71 +1,73 @@
 {% extends "monitor/base.jinja2" %}
 {% block content %}
     <h2>Rune Deposits</h2>
-    <table class="table">
+    <table class="table table-striped">
         <tr>
+            <th>created_at</th>
+            <th>status</th>
             <th>rune</th>
             <th>amount</th>
             <th>tx_id:vout</th>
             <th>block</th>
             <th>evm_tx_hash</th>
-            <th>status</th>
-            <th>created_at</th>
         </tr>
         {% for deposit in rune_deposits %}
         <tr>
+            <td><small>{{ deposit.created_at }}</small></td>
+            <td>{{ deposit.status_repr }}</td>
             <th>{{ deposit.rune.spaced_name }}</th>
             <td>{{ deposit.transfer_amount_raw / (10**deposit.rune.divisibility) }}</td>
             <td>{{ deposit.tx_id }}:{{ deposit.vout }}</td>
             <td>{{ deposit.block_number }}</td>
             <td>{{ deposit.evm_tx_hash }}</td>
-            <td>{{ deposit.status }}</td>
-            <td>{{ deposit.created_at }}</td>
         </tr>
         {% endfor %}
     </table>
 
     <h2>Rune Token Deposits</h2>
-    <table class="table">
+    <table class="table table-striped">
         <tr>
+            <th>created_at</th>
+            <th>status</th>
             <th>rune</th>
             <th>amount</th>
             <th>evm_block_number</th>
             <th>evm_tx_hash</th>
             <th>receiver_btc_address</th>
-            <th>status</th>
-            <th>created_at</th>
+            <th>btc_tx_id</th>
         </tr>
         {% for deposit in rune_token_deposits %}
         <tr>
+            <td><small>{{ deposit.created_at }}</small></td>
+            <td>{{ deposit.status_repr }}</td>
             <th>{{ deposit.rune.spaced_name }}</th>
             <td>{{ deposit.transferred_token_amount / (10**18) }}</td>
             <td>{{ deposit.evm_block_number }}</td>
             <td>{{ deposit.evm_tx_hash }}</td>
             <td>{{ deposit.receiver_btc_address }}</td>
-            <td>{{ deposit.status }}</td>
-            <td>{{ deposit.created_at }}</td>
+            <td>{{ deposit.btc_tx_id }}</td>
         </tr>
         {% endfor %}
     <table>
 
     <h2>Incoming Bitcoin Transactions</h2>
-    <table class="table">
+    <table class="table table-striped">
         <tr>
+            <th>created_at</th>
+            <th>status</th>
             <th>tx_id:vout</th>
             <th>block</th>
             <th>amount</th>
             <th>num_rune_deposits</th>
-            <th>status</th>
-            <th>created_at</th>
         </tr>
         {% for tx in incoming_btc_txs %}
             <tr>
+                <td>{{ tx.created_at }}</td>
+                <td>{{ tx.status }}</td>
                 <td>{{ tx.tx_id }}:{{ tx.vout }}</td>
                 <td>{{ tx.block_number }}</td>
                 <td>{{ tx.amount_sat / (10**8) }}</td>
                 <td>{{ tx.rune_deposits|length }}</td>
-                <td>{{ tx.status }}</td>
-                <td>{{ tx.created_at }}</td>
             </tr>
         {% endfor %}
     </table>

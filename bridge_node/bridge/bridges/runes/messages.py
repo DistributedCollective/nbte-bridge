@@ -41,6 +41,7 @@ class SignRuneToEvmTransferAnswer:
 
 @dataclasses.dataclass
 class SignRuneTokenToBtcTransferQuestion:
+    # transfers: list[RuneTokenToBtcTransfer]
     transfer: RuneTokenToBtcTransfer
     unsigned_psbt_serialized: str
     fee_rate_sats_per_vb: int

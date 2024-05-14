@@ -1,0 +1,72 @@
+{% extends "monitor/base.jinja2" %}
+{% block content %}
+    <h2>Multisig</h2>
+    <table class="table">
+        <tr>
+            <th>Change address</th>
+            <td><code>{{ change_address }}</code></td>
+        </tr>
+    </table>
+
+    <h3>Rune balances</h3>
+    <table class="table">
+        <tr>
+            <th>BTC (cardinal)</th>
+            <td>{{ cardinal_balance_btc }}</td>
+        </tr>
+        <tr>
+            <th>BTC (runic)</th>
+            <td>{{ runic_balance_btc }}</td>
+        </tr>
+        <tr>
+            <th>BTC (unindexed)</th>
+            <td>{{ unindexed_balance_btc }}</td>
+        </tr>
+        {% for rune_name, amount_raw in rune_balances.items() %}
+            <tr>
+                <th>{{ rune_name }}</th>
+                <td>{{ format_raw_rune_amount(rune_name, amount_raw) }}</td>
+            </tr>
+        {% endfor %}
+    </table>
+
+    <h3>UTXOs</h3>
+    <table class="table table-striped">
+        <tr>
+            <th>txid:vout</th>
+            <th>address</th>
+            <th>amount sat</th>
+            <th>confirmations</th>
+            <th>rune balances</th>
+        </tr>
+        {% for utxo, ord_output in utxos_with_ord_outputs %}
+        <tr>
+            <td>{{ utxo.txid }}:{{ utxo.vout }}</td>
+            <td>
+                {{ utxo.address }}
+                {% if utxo.address == change_address %}
+                    <small>(change)</small>
+                {% endif %}
+            </td>
+            <td>{{ utxo.amount_satoshi }}</td>
+            <td>{{ utxo.confirmations }}</td>
+            <td>
+                {% if not ord_output %}
+                    (no ord output)
+                {% elif not ord_output.rune_balances %}
+                    -
+                {% else %}
+                    <table class="table table-borderless">
+                        {% for rune_name, amount_raw in ord_output.rune_balances.items() %}
+                            <tr>
+                                <th style="width: 200px; background: transparent">{{ rune_name }}</th>
+                                <td style="background: transparent">{{ format_raw_rune_amount(rune_name, amount_raw) }}</td>
+                            </tr>
+                        {% endfor %}
+                    </table>
+                {% endif %}
+            </td>
+        </tr>
+        {% endfor %}
+    </table>
+{% endblock %}

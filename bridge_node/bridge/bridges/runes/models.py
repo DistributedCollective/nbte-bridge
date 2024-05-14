@@ -198,7 +198,7 @@ class RuneDeposit(Base):
     rune = relationship(Rune, back_populates="deposits")
 
     user_id = Column(Integer, ForeignKey("user.id"), nullable=False)
-    user = relationship(User)
+    user = relationship(User, backref="rune_deposits")
 
     incoming_btc_tx_id = Column(Integer, ForeignKey("incoming_btc_tx.id"), nullable=False)
     incoming_btc_tx = relationship(IncomingBtcTx, back_populates="rune_deposits")
@@ -247,6 +247,13 @@ class RuneDeposit(Base):
     @property
     def fee_raw(self) -> int:
         return self.transfer_amount_raw - self.net_amount_raw
+
+    @property
+    def status_repr(self) -> str:
+        try:
+            return RuneDepositStatus(self.status).name
+        except ValueError:
+            return f"Unknown: {self.status}"
 
     def get_status_for_ui(self) -> str:
         # XXX maps status to a string that can be used in the UI
@@ -308,3 +315,10 @@ class RuneTokenDeposit(Base):
             f"RuneTokenDeposit(id={self.id}, {self.rune.decimal_amount(self.net_rune_amount_raw)} "
             f"{self.rune.name} => {self.receiver_btc_address})"
         )
+
+    @property
+    def status_repr(self) -> str:
+        try:
+            return RuneTokenDepositStatus(self.status).name
+        except ValueError:
+            return f"Unknown: {self.status}"
