@@ -17,7 +17,7 @@
     </table>
 
     <h3>Rune balances</h3>
-    <table>
+    <table class="table">
         {% for rune_name, amount_raw in rune_balances.items() %}
             <tr>
                 <th>{{ rune_name }}</th>
@@ -27,7 +27,7 @@
     </table>
 
     <h3>UTXOs</h3>
-    <table class="table">
+    <table class="table table-striped">
         <tr>
             <th>txid:vout</th>
             <th>address</th>
@@ -36,7 +36,7 @@
             <th>rune balances</th>
         </tr>
         {% for utxo, ord_output in utxos_with_ord_outputs %}
-        <tr>
+        <td>
             <td>{{ utxo.txid }}:{{ utxo.vout }}</td>
             <td>
                 {{ utxo.address }}
@@ -46,13 +46,13 @@
             </td>
             <td>{{ utxo.amount_satoshi }}</td>
             <td>{{ utxo.confirmations }}</td>
-            <th>
+            <td>
                 {% if not ord_output %}
                     (no ord output)
                 {% elif not ord_output.rune_balances %}
                     -
                 {% else %}
-                    <table>
+                    <table class="table table-borderless">
                         {% for rune_name, amount_raw in ord_output.rune_balances.items() %}
                             <tr>
                                 <th>{{ rune_name }}</th>
@@ -61,7 +61,8 @@
                         {% endfor %}
                     </table>
                 {% endif %}
-            </tr>
+            </td>
+        </tr>
         {% endfor %}
-    <table>
+    </table>
 {% endblock %}
