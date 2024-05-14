@@ -35,6 +35,7 @@ def create_rune_bridge_env_config(
         rune_bridge_contract_address = environ.var()
         evm_rpc_url = environ.var()
         evm_default_start_block = environ.var(converter=int, default=1)
+        evm_block_safety_margin = environ.var(converter=int)
         btc_num_required_signers = environ.var(converter=int)
         btc_rpc_wallet_url = environ.var()
         ord_api_url = environ.var()
@@ -69,9 +70,9 @@ def wire_rune_bridge_from_environ(
         config=RuneBridgeConfig(
             bridge_id=bridge_name,
             btc_network=global_config.btc_network,
-            evm_block_safety_margin=global_config.evm_block_safety_margin,
             btc_min_confirmations=global_config.btc_min_confirmations,
             btc_listsinceblock_buffer=global_config.btc_listsinceblock_buffer,
+            evm_block_safety_margin=runes_env.evm_block_safety_margin,
             rune_bridge_contract_address=runes_env.rune_bridge_contract_address,
             evm_rpc_url=runes_env.evm_rpc_url,
             btc_rpc_wallet_url=runes_env.btc_rpc_wallet_url,
