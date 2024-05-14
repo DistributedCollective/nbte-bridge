@@ -112,7 +112,7 @@ class MonitorViews:
     )
     def users(self):
         users = (
-            self.dbsession.query(RuneDeposit)
+            self.dbsession.query(User)
             .filter_by(
                 bridge_id=self.bridge_id,
             )
