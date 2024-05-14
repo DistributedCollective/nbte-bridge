@@ -186,11 +186,21 @@ def index(request):
     }
 
 
+@view_config(route_name="error_trigger", renderer="json")
+def error_trigger(request):
+    1 / 0  # noqa
+    return {
+        "error": "grigger",
+    }
+
+
 # TODO: do nested config better and separate tapbridge specific views
 
 
 def includeme(config: Configurator):
+    config.add_route("error_trigger", "/error-trigger/")
     config.add_route("stats", "/stats/")
+
     config.add_route("generate_tap_deposit_address", "/tap/deposit-addresses/")
     config.add_route("tap_to_rsk_transfers", "/tap/transfers/")
     config.add_route("rsk_to_tap_transfers", "/rsk/transfers/")
