@@ -37,6 +37,7 @@ class Config:
     leader_node_id = environ.var()
     port = environ.var(5000, converter=int)
     peers = environ.var(converter=lambda s: [x.split("@") for x in comma_separated(s)])
+    iteration_sleep_time = environ.var(converter=float, default="20.0")
     db_url = environ.var()
     enabled_bridges = environ.var(converter=comma_separated, default="all")
     access_control_contract_address = environ.var()

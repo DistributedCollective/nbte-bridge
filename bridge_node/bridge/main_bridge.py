@@ -52,7 +52,7 @@ class MainBridge(Bridge):
                 break
             except Exception:
                 logger.exception("Error in main loop")
-            time.sleep(10)
+            time.sleep(self.config.iteration_sleep_time)
 
     def run_iteration(self):
         logger.info("Running main loop iteration from node: %s", self.network.node_id)
