@@ -31,7 +31,7 @@ class MainBridge(Bridge):
     @property
     def bridges(self) -> list[Bridge]:
         bridges = []
-        if "tap_rsk" in self.enabled_bridge_names or "all" in self.enabled_bridge_names:
+        if "taprsk" in self.enabled_bridge_names or "all" in self.enabled_bridge_names:
             bridges.append(self.tap_rsk_bridge)
         if "runesrsk" in self.enabled_bridge_names or "all" in self.enabled_bridge_names:
             bridges.append(self.runesrsk_bridge)
