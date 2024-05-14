@@ -53,7 +53,7 @@
                     -
                 {% else %}
                     <table>
-                        {% for rune_name, amount in ord_output.rune_balances.items() %}
+                        {% for rune_name, amount_raw in ord_output.rune_balances.items() %}
                             <tr>
                                 <th>{{ rune_name }}</th>
                                 <td>{{ format_raw_rune_amount(rune_name, amount_raw) }}</td>
