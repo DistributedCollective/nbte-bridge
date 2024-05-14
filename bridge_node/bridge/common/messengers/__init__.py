@@ -9,7 +9,13 @@ logger = logging.getLogger(__name__)
 
 class Messenger(ABC):
     @abstractmethod
-    def send_message(self, *, title, message):
+    def send_message(
+        self,
+        *,
+        title: str,
+        message: str,
+        alert: bool = False,
+    ):
         pass
 
 
@@ -17,14 +23,30 @@ class CombinedMessenger(Messenger):
     def __init__(self, messengers):
         self.messengers = messengers
 
-    def send_message(self, *, title, message):
+    def send_message(
+        self,
+        *,
+        title: str,
+        message: str,
+        alert: bool = False,
+    ):
         for messenger in self.messengers:
-            messenger.send_message(title=title, message=message)
+            messenger.send_message(
+                title=title,
+                message=message,
+                alert=alert,
+            )
 
 
 class NullMessenger(Messenger):
-    def send_message(self, *, title, message):
-        logger.info(f"NullMessenger: {title} {message}")
+    def send_message(
+        self,
+        *,
+        title: str,
+        message: str,
+        alert: bool = False,
+    ):
+        logger.info("NullMessenger: %s %s %s", title, message, "ALERT!" if alert else "")
 
 
 class DiscordMessenger(Messenger):
@@ -36,14 +58,22 @@ class DiscordMessenger(Messenger):
         self.webhook_url = webhook_url
         self.username = username
 
-    def send_message(self, *, title, message):
+    def send_message(
+        self,
+        *,
+        title: str,
+        message: str,
+        alert: bool = False,
+    ):
         try:
-            self._send_message(title=title, message=message)
+            self._send_message(title=title, message=message, alert=alert)
         except Exception:
             logger.exception("DiscordMessenger: Error sending Discord message")
 
-    def _send_message(self, *, title, message):
+    def _send_message(self, *, title, message, alert=False):
         content = ""
+        if alert:
+            content += "# 🚨 Alert! 🚨\n"
         if title:
             content += f"## {title}\n"
         content += message
@@ -80,16 +110,24 @@ class SlackMessenger(Messenger):
         self.username = username
         self.channel = channel
 
-    def send_message(self, *, title, message):
+    def send_message(
+        self,
+        *,
+        title: str,
+        message: str,
+        alert: bool = False,
+    ):
         try:
-            self._send_message(title=title, message=message)
+            self._send_message(title=title, message=message, alert=alert)
         except Exception:
             logger.exception("SlackMessenger: Error sending Slack message")
 
-    def _send_message(self, *, title, message):
+    def _send_message(self, *, title, message, alert=False):
+        if alert:
+            title = f"🚨 Alert! 🚨 {title}"
         data = {
             "username": self.username,
-            "icon_emoji": ":robot_face:",
+            "icon_emoji": ":fire:" if alert else ":robot_face:",
             "channel": self.channel,
             "blocks": [
                 {

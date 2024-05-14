@@ -13,6 +13,7 @@ def messenger_test_main():
     parser.add_argument("--username", type=str, default="Tester")
     parser.add_argument("--title", type=str, default="NBTE Bridge webhook test title")
     parser.add_argument("--message", type=str, default="NBTE Bridge webhook test message")
+    parser.add_argument("--alert", action="store_true")
     args = parser.parse_args()
 
     logging.basicConfig(level=logging.INFO, force=True)
@@ -38,7 +39,11 @@ def messenger_test_main():
             )
         )
     combined_messenger = CombinedMessenger(messengers)
-    combined_messenger.send_message(title=args.title, message=args.message)
+    combined_messenger.send_message(
+        title=args.title,
+        message=args.message,
+        alert=args.alert,
+    )
 
 
 if __name__ == "__main__":

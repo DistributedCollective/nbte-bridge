@@ -39,7 +39,9 @@ class ApiViews:
         self.container = request.container
 
     def is_bridge_enabled(self, bridge_name: str):
-        return "all" in self.config.enabled_bridges or bridge_name in self.config.enabled_bridges
+        if "all" in self.config.enabled_bridges:
+            return True
+        return bridge_name in self.config.enabled_bridges
 
     @view_config(route_name="stats", request_method="GET")
     def stats(self):

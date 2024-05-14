@@ -805,6 +805,14 @@ class RuneBridgeService:
                 deposit = dbsession.get(RuneDeposit, deposit_id)
                 assert deposit.bridge_id == self.bridge_id
                 deposit.status = RuneDepositStatus.SENDING_TO_EVM_FAILED
+            self._messenger.send_message(
+                title=f"[{self.bridge_name}] Sending Rune-to-EVM transfer to EVM failed!",
+                message=(
+                    f"Deposit: `{btc_txid}:{btc_vout}` (rune `{rune_name}`)\n"
+                    f"Transfer: `{net_amount_decimal} {rune_name}`"
+                ),
+                alert=True,
+            )
             raise e
         else:
             with self.transaction_manager.transaction() as tx:
@@ -832,23 +840,44 @@ class RuneBridgeService:
             dbsession = tx.find_service(Session)
             deposit = dbsession.get(RuneDeposit, deposit_id)
             assert deposit.bridge_id == self.bridge_id
-            if deposit.status == RuneDepositStatus.SENT_TO_EVM:
-                try:
-                    receipt = self.web3.eth.get_transaction_receipt(deposit.evm_tx_hash)
-                except (TransactionNotFound, TransactionIndexingInProgress):
-                    receipt = None
+            existing_status = deposit.status
+            evm_tx_hash = deposit.evm_tx_hash
+            deposit_repr = repr(deposit)
 
-                if receipt:
-                    if receipt["status"]:
-                        deposit.status = RuneDepositStatus.CONFIRMED_IN_EVM
-                        self.logger.info("Rune-to-EVM transfer %s confirmed", deposit)
-                    else:
-                        deposit.status = RuneDepositStatus.EVM_TRANSACTION_FAILED
-                        self.logger.warning("Rune-to-EVM transfer %s failed", deposit)
+        updated_status = None
+        if existing_status == RuneDepositStatus.SENT_TO_EVM:
+            try:
+                receipt = self.web3.eth.get_transaction_receipt(evm_tx_hash)
+            except (TransactionNotFound, TransactionIndexingInProgress):
+                receipt = None
+
+            if receipt:
+                if receipt["status"]:
+                    updated_status = RuneDepositStatus.CONFIRMED_IN_EVM
+                    self.logger.info("Rune-to-EVM transfer %s confirmed", deposit_repr)
+                    self._messenger.send_message(
+                        title=f"[{self.bridge_name}] Rune-to-EVM transfer confirmed in EVM",
+                        message=f"Deposit: `{deposit_repr}`",
+                    )
                 else:
-                    self.logger.info("Rune-to-EVM transfer %s not yet confirmed", deposit)
+                    updated_status = RuneDepositStatus.EVM_TRANSACTION_FAILED
+                    self.logger.warning("Rune-to-EVM transfer %s failed", deposit_repr)
+                    self._messenger.send_message(
+                        title=f"[{self.bridge_name}] Confirming Rune-to-EVM transfer in EVM failed!",
+                        message=f"Deposit: `{deposit_repr}`",
+                        alert=True,
+                    )
             else:
-                self.logger.warning("Deposit %s not in SENT_TO_EVM state", deposit)
+                self.logger.info("Rune-to-EVM transfer %s not yet confirmed", deposit_repr)
+        else:
+            self.logger.error("Deposit %s not in SENT_TO_EVM state", deposit_repr)
+
+        if updated_status is not None:
+            with self.transaction_manager.transaction() as tx:
+                dbsession = tx.find_service(Session)
+                deposit = dbsession.get(RuneDeposit, deposit_id)
+                assert deposit.status == RuneDepositStatus.SENT_TO_EVM
+                deposit.status = updated_status
 
     def answer_sign_rune_to_evm_transfer_question(
         self,
@@ -1335,10 +1364,24 @@ class RuneBridgeService:
             deposit.finalized_psbt = self.ord_multisig.serialize_psbt(finalized_psbt)
             dbsession.flush()
 
-        txid = self.ord_multisig.broadcast_psbt(finalized_psbt)
+        try:
+            txid = self.ord_multisig.broadcast_psbt(finalized_psbt)
+        except Exception as e:
+            self.logger.exception("Error broadcasting RuneToken->BTC transfer")
+            with self.transaction_manager.transaction() as tx:
+                dbsession = tx.find_service(Session)
+                deposit = dbsession.get(RuneTokenDeposit, deposit_id)
+                deposit.status = RuneTokenDepositStatus.SENDING_TO_BTC_FAILED
+                self._messenger.send_message(
+                    title=f"[{self.bridge_name}] Broadcasting Rune PSBT to Bitcoin failed!",
+                    message=f"Deposit: `{deposit}`\nTransfer: `{transfer}",
+                    alert=True,
+                )
+            raise e
+
         self._messenger.send_message(
             title=f"[{self.bridge_name}] Rune PSBT broadcast to Bitcoin",
-            message=(f"BTC Tx: `{txid}`\n" f"Transfer: `{transfer}`\n"),
+            message=f"BTC Tx: `{txid}`\nTransfer: `{transfer}`\n",
         )
 
         with self.transaction_manager.transaction() as tx:
