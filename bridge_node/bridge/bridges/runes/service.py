@@ -974,8 +974,10 @@ class RuneBridgeService:
         self,
         message: messages.SignRuneTokenToBtcTransferQuestion,
     ) -> messages.SignRuneTokenToBtcTransferAnswer:
-        # transfers = message.transfers
-        transfers = [message.transfer]
+        # Prepare for API change -- message will have multiple transfers in the future
+        transfers = getattr(message, "transfers", None)
+        if transfers is None:
+            transfers = [message.transfer]
         num_transfers = len(transfers)
         num_unique_transfers = len(set((transfer.event_tx_hash, transfer.event_log_index) for transfer in transfers))
         if num_unique_transfers != num_transfers:
