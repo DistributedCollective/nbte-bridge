@@ -17,6 +17,7 @@ from ...bridges.runes.models import (
     Rune,
     RuneDeposit,
     RuneTokenDeposit,
+    User,
 )
 from ...bridges.runes.service import RuneBridgeService
 from ..exceptions import ApiException
@@ -110,7 +111,19 @@ class MonitorViews:
         renderer="templates/monitor/users.jinja2",
     )
     def users(self):
-        pass
+        users = (
+            self.dbsession.query(RuneDeposit)
+            .filter_by(
+                bridge_id=self.bridge_id,
+            )
+            .order_by(
+                User.id.desc(),
+            )
+            .all()
+        )
+        return {
+            "users": users,
+        }
 
     @view_config(
         route_name="monitor_multisig",

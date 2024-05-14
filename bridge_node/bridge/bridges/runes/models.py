@@ -198,7 +198,7 @@ class RuneDeposit(Base):
     rune = relationship(Rune, back_populates="deposits")
 
     user_id = Column(Integer, ForeignKey("user.id"), nullable=False)
-    user = relationship(User)
+    user = relationship(User, backref="rune_deposits")
 
     incoming_btc_tx_id = Column(Integer, ForeignKey("incoming_btc_tx.id"), nullable=False)
     incoming_btc_tx = relationship(IncomingBtcTx, back_populates="rune_deposits")

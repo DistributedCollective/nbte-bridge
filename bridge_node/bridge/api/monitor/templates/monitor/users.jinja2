@@ -1,5 +1,31 @@
 {% extends "monitor/base.jinja2" %}
 {% block content %}
     <h2>Users</h2>
-    <p>TODO</p>
+    <p>Number of users: <code>{{ users|length }}</code></p>
+    <table class="table table-striped">
+        <tr>
+            <th>id</th>
+            <th>created_at</th>
+            <th>evm_address</th>
+            <th>deposit_address</th>
+            <th>num rune deposits</th>
+        </tr>
+        {% for user in users %}
+            <tr>
+                <td>{{ user.id }}</td>
+                <td>{{ user.created_at }}</td>
+                <td>{{ user.evm_address }}</td>
+                <td>
+                    {% if user.deposit_address %}
+                        {{ user.deposit_address.btc_address }}
+                    {% else %}
+                        -
+                    {% endif %}
+                </td>
+                <td>
+                    {{ user.rune_deposits|length }}
+                </td>
+            </tr>
+        {% endfor %}
+    </table>
 {% endblock %}
