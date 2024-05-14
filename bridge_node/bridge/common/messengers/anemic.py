@@ -8,6 +8,8 @@ from . import CombinedMessenger, DiscordMessenger, Messenger, NullMessenger, Sla
 @service(scope="global", interface_override=Messenger)
 def messenger_factory(container: Container):
     config = container.get(interface=Config)
+    btc_network = config.btc_network
+    username = f"NBTEBridge [{btc_network}]"
     messengers = []
     if not config.slack_webhook_url and not config.discord_webhook_url:
         return NullMessenger()
@@ -16,14 +18,14 @@ def messenger_factory(container: Container):
             SlackMessenger(
                 webhook_url=config.slack_webhook_url,
                 channel=config.slack_webhook_channel,
-                username="Sovryn BOT",
+                username=username,
             )
         )
     if config.discord_webhook_url:
         messengers.append(
             DiscordMessenger(
                 webhook_url=config.discord_webhook_url,
-                username="Sovryn BOT",
+                username=username,
             )
         )
     return CombinedMessenger(messengers)
