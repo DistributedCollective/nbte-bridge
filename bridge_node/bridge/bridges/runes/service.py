@@ -1107,7 +1107,7 @@ class RuneBridgeService:
                 )
 
         expected_fee_rate_sat_per_vb = self._btc_fee_estimator.get_fee_sats_per_vb()
-        fee_rate_margin = 2
+        fee_rate_margin = 3
         fee_rate_min = expected_fee_rate_sat_per_vb / fee_rate_margin
         fee_rate_max = expected_fee_rate_sat_per_vb * fee_rate_margin
         if fee_rate_min > message.fee_rate_sats_per_vb or fee_rate_max < message.fee_rate_sats_per_vb:
@@ -1266,6 +1266,10 @@ class RuneBridgeService:
             raise RuntimeError(
                 f"Fee rate is humongous ({fee_rate_sats_per_vb}), refusing to proceed with transfer",
             )
+
+        margin = 1.1  # TODO: hardcoded margin
+        fee_rate_sats_per_vb = int(margin * fee_rate_sats_per_vb)
+        self.logger.info("Adjusted fee rate with margin %s: %s sats/vb", margin, fee_rate_sats_per_vb)
 
         num_required_signatures = self.get_rune_tokens_to_btc_num_required_signers()
         unsigned_psbt = self.ord_multisig.create_rune_psbt(
