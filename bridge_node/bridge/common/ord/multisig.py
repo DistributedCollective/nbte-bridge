@@ -46,6 +46,7 @@ from .transfers import (
     ZeroTransferAmountError,
 )
 from .utxos import (
+    OrdOutput,
     OrdOutputCache,
     UnindexedOutput,
 )
@@ -192,7 +193,7 @@ class OrdMultisig:
         *,
         wait_for_indexing: bool = True,
     ) -> int:
-        utxos = self._list_utxos()
+        utxos = self.list_utxos()
         ret = 0
         for utxo in utxos:
             for i in range(20):
@@ -319,7 +320,7 @@ class OrdMultisig:
             )
 
         # Coin selection
-        utxos = self._list_utxos()
+        utxos = self.list_utxos()
         used_runes = tuple(required_rune_amounts.keys())
         required_rune_amounts = dict(required_rune_amounts)  # no defaultdict anymore
         input_amount_sat = 0
@@ -555,9 +556,23 @@ class OrdMultisig:
             pubkeys=sorted_child_pubkeys,
         )
 
-    def _list_utxos(self) -> list[UTXO]:
+    def list_utxos(self) -> list[UTXO]:
         # Don't filter by address here as we want all UTXOs
         raw_utxos = self._bitcoin_rpc.listunspent(1, 9999999, [], False)
         utxos = [UTXO.from_rpc_response(utxo) for utxo in raw_utxos]
         utxos.sort(key=lambda utxo: utxo.confirmations, reverse=True)
         return utxos
+
+    def list_utxos_with_ord_outputs(self) -> list[tuple[UTXO, OrdOutput | None]]:
+        ret = []
+        utxos = self.list_utxos()
+        for utxo in utxos:
+            try:
+                ord_output = self._ord_output_cache.get_ord_output(
+                    txid=utxo.txid,
+                    vout=utxo.vout,
+                )
+            except UnindexedOutput:
+                ord_output = None
+            ret.append((utxo, ord_output))
+        return ret

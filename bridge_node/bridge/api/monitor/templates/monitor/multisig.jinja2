@@ -1,0 +1,67 @@
+{% extends "monitor/base.jinja2" %}
+{% block content %}
+    <h2>Multisig</h2>
+    <table class="table">
+        <tr>
+            <th>Change address</th>
+            <td><code>{{ change_address }}</code></td>
+        </tr>
+        <tr>
+            <th>Cardinal balance (BTC)</th>
+            <td><code>{{ cardinal_balance_btc }}</code></td>
+        </tr>
+        <tr>
+            <th>Runic balance (BTC)</th>
+            <td><code>{{ runic_balance_btc }}</code></td>
+        </tr>
+    </table>
+
+    <h3>Rune balances</h3>
+    <table>
+        {% for rune_name, amount_raw in rune_balances.items() %}
+            <tr>
+                <th>{{ rune_name }}</th>
+                <td>{{ format_raw_rune_amount(rune_name, amount_raw) }}</td>
+            </tr>
+        {% endfor %}
+    </table>
+
+    <h3>UTXOs</h3>
+    <table class="table">
+        <tr>
+            <th>txid:vout</th>
+            <th>address</th>
+            <th>amount sat</th>
+            <th>confirmations</th>
+            <th>rune balances</th>
+        </tr>
+        {% for utxo, ord_output in utxos_with_ord_outputs %}
+        <tr>
+            <td>{{ utxo.txid }}:{{ utxo.vout }}</td>
+            <td>
+                {{ utxo.address }}
+                {% if utxo.address == change_address %}
+                    <small>(change)</small>
+                {% endif %}
+            </td>
+            <td>{{ utxo.amount_satoshi }}</td>
+            <td>{{ utxo.confirmations }}</td>
+            <th>
+                {% if not ord_output %}
+                    (no ord output)
+                {% elif not ord_output.rune_balances %}
+                    -
+                {% else %}
+                    <table>
+                        {% for rune_name, amount in ord_output.rune_balances.items() %}
+                            <tr>
+                                <th>{{ rune_name }}</th>
+                                <td>{{ format_raw_rune_amount(rune_name, amount_raw) }}</td>
+                            </tr>
+                        {% endfor %}
+                    </table>
+                {% endif %}
+            </tr>
+        {% endfor %}
+    <table>
+{% endblock %}
