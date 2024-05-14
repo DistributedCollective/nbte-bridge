@@ -6,18 +6,22 @@
             <th>Change address</th>
             <td><code>{{ change_address }}</code></td>
         </tr>
-        <tr>
-            <th>Cardinal balance (BTC)</th>
-            <td><code>{{ cardinal_balance_btc }}</code></td>
-        </tr>
-        <tr>
-            <th>Runic balance (BTC)</th>
-            <td><code>{{ runic_balance_btc }}</code></td>
-        </tr>
     </table>
 
     <h3>Rune balances</h3>
     <table class="table">
+        <tr>
+            <th>BTC (cardinal)</th>
+            <td>{{ cardinal_balance_btc }}</td>
+        </tr>
+        <tr>
+            <th>BTC (runic)</th>
+            <td>{{ runic_balance_btc }}</td>
+        </tr>
+        <tr>
+            <th>BTC (unindexed)</th>
+            <td>{{ unindexed_balance_btc }}</td>
+        </tr>
         {% for rune_name, amount_raw in rune_balances.items() %}
             <tr>
                 <th>{{ rune_name }}</th>
