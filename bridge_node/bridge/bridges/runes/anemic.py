@@ -40,6 +40,7 @@ def create_rune_bridge_env_config(
         ord_api_url = environ.var()
         btc_base_derivation_path = environ.var()
         to_evm_fee_percentage_decimal = environ.var(default="0.4", converter=Decimal)
+        btc_max_fee_rate_sats_per_vbyte = environ.var(default="300", converter=int)
 
     @environ.config(prefix=f"BRIDGE_SECRET_{prefix}".upper())
     class RuneBridgeEnvSecrets:
@@ -79,6 +80,7 @@ def wire_rune_bridge_from_environ(
             btc_num_required_signers=runes_env.btc_num_required_signers,
             evm_default_start_block=runes_env.evm_default_start_block,
             runes_to_evm_fee_percentage_decimal=runes_env.to_evm_fee_percentage_decimal,
+            btc_max_fee_rate_sats_per_vbyte=runes_env.btc_max_fee_rate_sats_per_vbyte,
         ),
         secrets=RuneBridgeSecrets(
             evm_private_key=secrets_env.evm_private_key,

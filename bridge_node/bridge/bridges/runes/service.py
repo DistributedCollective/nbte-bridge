@@ -89,6 +89,7 @@ class RuneBridgeServiceConfig(Protocol):
     btc_min_postage_sat: int
     btc_listsinceblock_buffer: int
     btc_network: BitcoinNetwork
+    btc_max_fee_rate_sats_per_vbyte: int
 
 
 class RuneBridgeService:
@@ -1262,9 +1263,10 @@ class RuneBridgeService:
 
         fee_rate_sats_per_vb = self._btc_fee_estimator.get_fee_sats_per_vb()
         self.logger.info("Fee rate: %s sats/vb", fee_rate_sats_per_vb)
-        if fee_rate_sats_per_vb > 500:
+        if fee_rate_sats_per_vb > self.config.btc_max_fee_rate_sats_per_vbyte:
             raise RuntimeError(
-                f"Fee rate is humongous ({fee_rate_sats_per_vb}), refusing to proceed with transfer",
+                f"Fee rate is humongous ({fee_rate_sats_per_vb} > {self.config.btc_max_fee_rate_sats_per_vbyte}), "
+                f"refusing to proceed with transfer",
             )
 
         margin = 1.1  # TODO: hardcoded margin
