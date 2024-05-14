@@ -1262,6 +1262,11 @@ class RuneBridgeService:
 
         fee_rate_sats_per_vb = self._btc_fee_estimator.get_fee_sats_per_vb()
         self.logger.info("Fee rate: %s sats/vb", fee_rate_sats_per_vb)
+        if fee_rate_sats_per_vb > 500:
+            raise RuntimeError(
+                f"Fee rate is humongous ({fee_rate_sats_per_vb}), refusing to proceed with transfer",
+            )
+
         num_required_signatures = self.get_rune_tokens_to_btc_num_required_signers()
         unsigned_psbt = self.ord_multisig.create_rune_psbt(
             fee_rate_sat_per_vbyte=fee_rate_sats_per_vb,
