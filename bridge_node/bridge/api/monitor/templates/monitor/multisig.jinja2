@@ -36,7 +36,7 @@
             <th>rune balances</th>
         </tr>
         {% for utxo, ord_output in utxos_with_ord_outputs %}
-        <td>
+        <tr>
             <td>{{ utxo.txid }}:{{ utxo.vout }}</td>
             <td>
                 {{ utxo.address }}
