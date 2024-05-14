@@ -9,7 +9,12 @@ from bridge.config import Config
 def engine_factory(container: Container):
     config: Config = container.get(interface=Config)
     # TODO: isolation level serializable? but this would require retry logic
-    return create_engine(config.db_url)
+    return create_engine(
+        config.db_url,
+        # Increase the pool size and overflow a bit to deal with concurrency
+        pool_size=20,
+        max_overflow=40,
+    )
 
 
 @service(scope="transaction", interface_override=Session)
