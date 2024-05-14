@@ -146,7 +146,7 @@ class MonitorViews:
             rune_entries[rune] = rune_response["entry"]
 
         def format_raw_rune_amount(rune: str, amount_raw: int) -> Decimal:
-            return Decimal(amount_raw) / rune_entries[rune]["divisibility"]
+            return Decimal(amount_raw) / 10 ** rune_entries[rune]["divisibility"]
 
         return {
             "change_address": multisig.change_address,
