@@ -52,11 +52,11 @@
                 {% elif not ord_output.rune_balances %}
                     -
                 {% else %}
-                    <table class="table table-borderless table-striped" style="table-layout: fixed">
+                    <table class="table table-borderless">
                         {% for rune_name, amount_raw in ord_output.rune_balances.items() %}
                             <tr>
-                                <th>{{ rune_name }}</th>
-                                <td>{{ format_raw_rune_amount(rune_name, amount_raw) }}</td>
+                                <th style="width: 200px; background: transparent">{{ rune_name }}</th>
+                                <td style="background: transparent">{{ format_raw_rune_amount(rune_name, amount_raw) }}</td>
                             </tr>
                         {% endfor %}
                     </table>
