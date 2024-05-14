@@ -38,6 +38,10 @@ def wire_rune_bridge(
         base_url=_add_auth(config.ord_api_url, secrets.ord_api_auth),
     )
 
+    min_non_change_rune_utxo_confirmations = config.btc_min_confirmations
+    if config.btc_network == "mainnet":
+        # We particularly don't want to have these race conditions on mainnet
+        min_non_change_rune_utxo_confirmations += 1
     ord_multisig = OrdMultisig(
         master_xpriv=secrets.btc_master_xpriv,
         master_xpubs=secrets.btc_master_xpubs,
@@ -45,6 +49,7 @@ def wire_rune_bridge(
         base_derivation_path=config.btc_base_derivation_path,
         bitcoin_rpc=bitcoin_rpc,
         ord_client=ord_client,
+        min_non_change_rune_utxo_confirmations=min_non_change_rune_utxo_confirmations,
     )
 
     evm_account = Account.from_key(secrets.evm_private_key)

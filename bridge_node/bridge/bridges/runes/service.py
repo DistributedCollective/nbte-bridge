@@ -428,6 +428,7 @@ class RuneBridgeService:
                     deposit.net_amount_raw = amounts.net_amount_raw
                     deposit.rune_id = rune.id
                     if tx_confirmations >= required_confirmations and deposit.status == RuneDepositStatus.DETECTED:
+                        assert deposit.status == RuneDepositStatus.DETECTED
                         deposit.status = RuneDepositStatus.ACCEPTED
                     dbsession.flush()
 

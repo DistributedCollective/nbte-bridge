@@ -80,6 +80,7 @@ class OrdMultisig:
         bitcoin_rpc: BitcoinRPC,
         ord_client: OrdApiClient,
         btc_wallet_name: str | None = None,  # optional bitcoin wallet name for testing
+        min_non_change_rune_utxo_confirmations: int = 1,
     ):
         _xprv = CCoinExtKey(master_xpriv)
         self._get_master_xpriv = lambda: _xprv
@@ -108,6 +109,7 @@ class OrdMultisig:
         )
 
         self._btc_wallet_name = btc_wallet_name
+        self._min_non_change_rune_utxo_confirmations = min_non_change_rune_utxo_confirmations
 
     @property
     def name(self) -> str:
@@ -372,6 +374,17 @@ class OrdMultisig:
             #        ord_output,
             #    )
             #    continue
+
+            if utxo.address != self.change_address:
+                # We have a possible race condition in that a Rune UTXO from an user can be spent before it's processed,
+                # So we need to add some additional confirmations before using them.
+                if utxo.confirmations < self._min_non_change_rune_utxo_confirmations:
+                    logger.info(
+                        "Refusing to use non-change Rune UTXO %s with few confirmations (%s)",
+                        utxo,
+                        utxo.confirmations,
+                    )
+                    continue
 
             relevant_rune_balances_in_utxo = {rune: ord_output.get_rune_balance(rune) for rune in used_runes}
             if not any(relevant_rune_balances_in_utxo.values()):
