@@ -33,7 +33,10 @@ from bridge.common.btc.rpc import BitcoinRPC
 
 from ...common.btc.types import BitcoinNetwork
 from ...common.evm.scanner import EvmEventScanner
-from ...common.evm.utils import recover_message
+from ...common.evm.utils import (
+    from_wei,
+    recover_message,
+)
 from ...common.messengers import Messenger, NullMessenger
 from ...common.models.key_value_store import KeyValuePair
 from ...common.ord.client import OrdApiClient
@@ -731,6 +734,38 @@ class RuneBridgeService:
             rune_name = deposit.rune.spaced_name
             net_amount_decimal = deposit.rune.decimal_amount(net_rune_amount)
 
+        tx_gas_limit = 250_000  # actual gas usage is somewhere around 95k-115k, but let's be safe
+        tx_gas_price = self.web3.eth.gas_price
+        balance_wei = self.web3.eth.get_balance(
+            self.evm_account.address,
+            block_identifier="pending",
+        )
+        min_balance_wei = int(1.2 * tx_gas_limit * tx_gas_price)
+        if balance_wei < min_balance_wei:
+            raise RuntimeError(
+                f"Insufficient balance in EVM account ({from_wei(balance_wei)} < {from_wei(min_balance_wei)}) -- "
+                "cannot execute Runes-to-EVM transfer"
+            )
+
+        # set nonce explicitly to avoid overriding our own transactions
+        nonce = self.web3.eth.get_transaction_count(
+            self.evm_account.address,
+            block_identifier="pending",
+        )
+
+        num_pending_transactions = nonce - self.web3.eth.get_transaction_count(
+            self.evm_account.address,
+            block_identifier="latest",
+        )
+
+        # RSK has a hard limit of 4 transactions in mempool per address -- just hardcode this for all chains for now
+        # Raising an exception here is fine, transactions will just be resumed
+        if num_pending_transactions >= 4:
+            raise RuntimeError(
+                f"We have {num_pending_transactions} pending transactions, which is greater than 4. "
+                "Trying again later.",
+            )
+
         try:
             tx_hash = self.rune_bridge_contract.functions.acceptTransferFromBtc(
                 evm_address,
@@ -741,7 +776,8 @@ class RuneBridgeService:
                 signatures,
             ).transact(
                 {
-                    "gas": 500_000,
+                    "gas": tx_gas_limit,
+                    "nonce": nonce,
                 }
             )
             self.logger.info("Sent Rune-to-EVM transfer %s, waiting...", tx_hash.hex())
