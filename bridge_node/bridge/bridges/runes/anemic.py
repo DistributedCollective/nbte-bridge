@@ -9,6 +9,7 @@ from anemic.ioc import (
     service,
 )
 
+from ...common.messengers import Messenger
 from ...common.p2p.network import Network
 from ...common.services.transactions import TransactionManager
 from ...config import Config, comma_separated
@@ -88,6 +89,7 @@ def wire_rune_bridge_from_environ(
         ),
         network=container.get(interface=Network),
         transaction_manager=container.get(interface=TransactionManager),
+        messenger=container.get(interface=Messenger),
     )
 
 

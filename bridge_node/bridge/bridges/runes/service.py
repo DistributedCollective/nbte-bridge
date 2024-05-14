@@ -34,6 +34,7 @@ from bridge.common.btc.rpc import BitcoinRPC
 from ...common.btc.types import BitcoinNetwork
 from ...common.evm.scanner import EvmEventScanner
 from ...common.evm.utils import recover_message
+from ...common.messengers import Messenger, NullMessenger
 from ...common.models.key_value_store import KeyValuePair
 from ...common.ord.client import OrdApiClient
 from ...common.ord.multisig import (
@@ -99,6 +100,7 @@ class RuneBridgeService:
         evm_account: LocalAccount,
         web3: Web3,
         rune_bridge_contract: Contract,
+        messenger: Messenger | None = None,
     ):
         self.config = config
         self.bitcoin_rpc = bitcoin_rpc
@@ -117,6 +119,10 @@ class RuneBridgeService:
         self._get_block_time_by_hash = functools.lru_cache(256)(self._get_block_time_by_hash)
         self._get_block_number_by_hash = functools.lru_cache(256)(self._get_block_number_by_hash)
         self.logger = logging.getLogger(f"{__name__}:{self.bridge_name}")
+        if messenger is None:
+            self._messenger = NullMessenger()
+        else:
+            self._messenger = messenger
 
     def init(self):
         with self.transaction_manager.transaction() as tx:
@@ -311,6 +317,10 @@ class RuneBridgeService:
                         status=IncomingBtcTxStatus.DETECTED,
                     )
                     dbsession.add(btc_tx)
+                    self._messenger.send_message(
+                        title=f"[{self.bridge_name}] New incoming BTC transaction",
+                        message=f"BTC tx: `{txid}:{vout}`\nUser address: `{btc_address}`",
+                    )
 
                 if tx_confirmations >= required_confirmations and btc_tx.status == IncomingBtcTxStatus.DETECTED:
                     btc_tx.status = IncomingBtcTxStatus.ACCEPTED
@@ -397,6 +407,14 @@ class RuneBridgeService:
                             status=RuneDepositStatus.DETECTED,
                         )
                         dbsession.add(deposit)
+                        self._messenger.send_message(
+                            title=f"[{self.bridge_name}] New Rune deposit",
+                            message=(
+                                f"Deposit: `{amounts.amount_decimal} {spaced_rune_name}`\n"
+                                f"BTC Tx: `{txid}:{vout}`\n"
+                                f"User (evm): `{evm_address}`\nUser (btc): `{btc_address}`"
+                            ),
+                        )
 
                     deposit.incoming_btc_tx_id = btc_tx.id
                     deposit.block_number = tx["blockheight"]
@@ -710,6 +728,8 @@ class RuneBridgeService:
             net_rune_amount = deposit.net_amount_raw
             btc_txid = deposit.tx_id
             btc_vout = deposit.vout
+            rune_name = deposit.rune.spaced_name
+            net_amount_decimal = deposit.rune.decimal_amount(net_rune_amount)
 
         try:
             tx_hash = self.rune_bridge_contract.functions.acceptTransferFromBtc(
@@ -725,6 +745,14 @@ class RuneBridgeService:
                 }
             )
             self.logger.info("Sent Rune-to-EVM transfer %s, waiting...", tx_hash.hex())
+            self._messenger.send_message(
+                title=f"[{self.bridge_name}] Rune-to-EVM transfer sent to EVM",
+                message=(
+                    f"EVM Tx: `{tx_hash.hex()}`\n"
+                    f"Deposit: `{btc_txid}:{btc_vout}` (rune `{rune_name}`)\n"
+                    f"Transfer: `{net_amount_decimal} {rune_name}`"
+                ),
+            )
         except Exception as e:
             self.logger.exception("Error sending Rune-to-EVM transfer")
             with self.transaction_manager.transaction() as tx:
@@ -1119,6 +1147,16 @@ class RuneBridgeService:
                         dbsession.add(deposit)
                         dbsession.flush()
                         num_transfers += 1
+                        # TODO: decimal amount
+                        self._messenger.send_message(
+                            title=f"[{self.bridge_name}] New Rune Token deposit",
+                            message=(
+                                f"Deposit: `{deposit.transferred_token_amount}` wei of `{rune.spaced_name}`\n"
+                                f"Receiver: `{deposit.receiver_btc_address}`\n"
+                                f"EVM tx: `{deposit.evm_tx_hash}`\n"
+                                f"EVM log index: `{deposit.evm_log_index}`\n"
+                            ),
+                        )
                     else:
                         self.logger.warning("Unknown event: %s", event)
 
@@ -1239,6 +1277,10 @@ class RuneBridgeService:
             dbsession.flush()
 
         txid = self.ord_multisig.broadcast_psbt(finalized_psbt)
+        self._messenger.send_message(
+            title=f"[{self.bridge_name}] Rune PSBT broadcast to Bitcoin",
+            message=(f"BTC Tx: `{txid}`\n" f"Transfer: `{transfer}`\n"),
+        )
 
         with self.transaction_manager.transaction() as tx:
             dbsession = tx.find_service(Session)

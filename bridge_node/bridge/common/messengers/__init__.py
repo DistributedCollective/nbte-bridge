@@ -24,7 +24,7 @@ class CombinedMessenger(Messenger):
 
 class NullMessenger(Messenger):
     def send_message(self, *, title, message):
-        logger.warning(f"NullMessenger: {title} {message}")
+        logger.info(f"NullMessenger: {title} {message}")
 
 
 class DiscordMessenger(Messenger):
@@ -37,15 +37,25 @@ class DiscordMessenger(Messenger):
         self.username = username
 
     def send_message(self, *, title, message):
+        try:
+            self._send_message(title=title, message=message)
+        except Exception:
+            logger.exception("DiscordMessenger: Error sending Discord message")
+
+    def _send_message(self, *, title, message):
+        content = ""
+        if title:
+            content += f"## {title}\n"
+        content += message
         data = {
             "username": self.username,
-            "content": "Testing Discord Webhook",
-            "embeds": [
-                {
-                    "title": title,
-                    "description": message,
-                }
-            ],
+            "content": content,
+            # "embeds": [
+            #     {
+            #         "title": title,
+            #         "description": message,
+            #     }
+            # ],
         }
 
         response = requests.post(
@@ -53,7 +63,7 @@ class DiscordMessenger(Messenger):
             json=data,
         )
 
-        if response.status_code != 200:
+        if not response.ok:
             logger.warning(
                 f"Request to Discord returned an error {response.status_code}, the response is:\n{response.text}"
             )
@@ -71,10 +81,12 @@ class SlackMessenger(Messenger):
         self.channel = channel
 
     def send_message(self, *, title, message):
-        """Minted
-        notification_message: str
-        attachments: list
-        """
+        try:
+            self._send_message(title=title, message=message)
+        except Exception:
+            logger.exception("SlackMessenger: Error sending Slack message")
+
+    def _send_message(self, *, title, message):
         data = {
             "username": self.username,
             "icon_emoji": ":robot_face:",

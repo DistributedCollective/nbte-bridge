@@ -5,6 +5,7 @@ from eth_account import Account
 
 from ...common.btc.rpc import BitcoinRPC
 from ...common.evm.utils import create_web3
+from ...common.messengers import Messenger
 from ...common.ord.client import OrdApiClient
 from ...common.ord.multisig import OrdMultisig
 from ...common.p2p.network import Network
@@ -28,6 +29,7 @@ def wire_rune_bridge(
     secrets: RuneBridgeSecrets,
     network: Network,
     transaction_manager: TransactionManager,
+    messenger: Messenger | None = None,
 ) -> RuneBridgeWiring:
     bitcoin_rpc = BitcoinRPC(
         url=_add_auth(config.btc_rpc_wallet_url, secrets.btc_rpc_auth),
@@ -61,6 +63,7 @@ def wire_rune_bridge(
         web3=web3,
         rune_bridge_contract=rune_bridge_contract,
         evm_account=evm_account,
+        messenger=messenger,
     )
 
     bridge = RuneBridge(
