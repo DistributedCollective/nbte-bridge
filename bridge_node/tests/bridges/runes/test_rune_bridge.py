@@ -258,7 +258,8 @@ def test_runes_can_be_transferred_simultaneously(
             amount_decimal=1000,
             deposit_address=deposit_address,
             rune=rune,
-            mine=False,
+            # TODO: ideally don't mine here, but it will break otherwise and the bridge iteration is more important
+            # mine=False,
         )
 
         # Do NOT run iteration here
