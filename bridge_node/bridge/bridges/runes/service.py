@@ -857,14 +857,14 @@ class RuneBridgeService:
                     self.logger.info("Rune-to-EVM transfer %s confirmed", deposit_repr)
                     self._messenger.send_message(
                         title=f"[{self.bridge_name}] Rune-to-EVM transfer confirmed in EVM",
-                        message=f"Deposit: `{deposit_repr}`",
+                        message=f"EVM Tx:`{evm_tx_hash}`\nDeposit: `{deposit_repr}`",
                     )
                 else:
                     updated_status = RuneDepositStatus.EVM_TRANSACTION_FAILED
                     self.logger.warning("Rune-to-EVM transfer %s failed", deposit_repr)
                     self._messenger.send_message(
-                        title=f"[{self.bridge_name}] Confirming Rune-to-EVM transfer in EVM failed!",
-                        message=f"Deposit: `{deposit_repr}`",
+                        title=f"[{self.bridge_name}] Rune-to-EVM transfer in EVM failed!",
+                        message=f"EVM Tx:`{evm_tx_hash}`\nDeposit: `{deposit_repr}`",
                         alert=True,
                     )
             else:
