@@ -42,6 +42,7 @@ def create_rune_bridge_env_config(
         btc_base_derivation_path = environ.var()
         to_evm_fee_percentage_decimal = environ.var(default="0.4", converter=Decimal)
         btc_max_fee_rate_sats_per_vbyte = environ.var(default="300", converter=int)
+        btc_min_postage_sat = environ.var(default="10000", converter=int)
 
     @environ.config(prefix=f"BRIDGE_SECRET_{prefix}".upper())
     class RuneBridgeEnvSecrets:
