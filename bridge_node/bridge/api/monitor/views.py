@@ -175,7 +175,7 @@ class MonitorViews:
     @view_config(
         route_name="monitor_sanity_check",
         request_method="GET",
-        renderer="templates/monitor/sanitycheck.jinja2",
+        renderer="templates/monitor/sanity_check.jinja2",
     )
     def sanity_check(self):
         # TODO: some duplication in here
