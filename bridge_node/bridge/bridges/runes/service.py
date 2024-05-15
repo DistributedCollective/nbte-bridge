@@ -664,7 +664,12 @@ class RuneBridgeService:
             self.logger.warning("Rune %s for deposit %s is not registered", rune_name, deposit_repr)
             return False
         if postage < self.config.btc_min_postage_sat:
-            self.logger.warning("Deposit %s has insufficient postage %s", deposit_repr, postage)
+            self.logger.warning(
+                "Deposit %s has insufficient postage %s (required %s)",
+                deposit_repr,
+                postage,
+                self.config.btc_min_postage_sat,
+            )
             return False
         return True
 

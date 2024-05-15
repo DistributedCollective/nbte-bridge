@@ -83,6 +83,7 @@ def wire_rune_bridge_from_environ(
             evm_default_start_block=runes_env.evm_default_start_block,
             runes_to_evm_fee_percentage_decimal=runes_env.to_evm_fee_percentage_decimal,
             btc_max_fee_rate_sats_per_vbyte=runes_env.btc_max_fee_rate_sats_per_vbyte,
+            btc_min_postage_sat=runes_env.btc_min_postage_sat,
         ),
         secrets=RuneBridgeSecrets(
             evm_private_key=secrets_env.evm_private_key,
