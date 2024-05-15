@@ -221,7 +221,7 @@ class MonitorViews:
                 difference_pct = None
             entries.append(
                 {
-                    "rune": rune.spaced_name,
+                    "rune_name": rune.spaced_name,
                     "multisig_rune_balance": balance_decimal,
                     "token": token,
                     "difference": difference,
