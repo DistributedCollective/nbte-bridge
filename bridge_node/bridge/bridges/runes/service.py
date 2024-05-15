@@ -272,12 +272,12 @@ class RuneBridgeService:
             dbsession = _tx.find_service(Session)
             key_value_store = _tx.find_service(KeyValueStore)
 
-            self.logger.info("Indexing %s runes", len(rune_entries))
+            self.logger.debug("Indexing %s runes", len(rune_entries))
             for rune_entry in rune_entries:
                 pyord_rune = rune_from_str(rune_entry["spaced_rune"])
                 rune = dbsession.query(Rune).filter_by(bridge_id=self.bridge_id, n=pyord_rune.n).one_or_none()
                 if not rune:
-                    self.logger.info("Creating rune %s (%s)", pyord_rune, rune_entry)
+                    self.logger.info("Indexing rune %s (%s)", pyord_rune, rune_entry)
                     rune = Rune(
                         bridge_id=self.bridge_id,
                         n=pyord_rune.n,
@@ -290,7 +290,7 @@ class RuneBridgeService:
                     dbsession.add(rune)
                     dbsession.flush()
 
-            self.logger.info("Indexing %s transactions", len(transactions))
+            self.logger.debug("Indexing %s transactions", len(transactions))
             for tx in transactions:
                 tx_confirmations = tx["confirmations"]
                 txid = tx["txid"]
@@ -311,7 +311,7 @@ class RuneBridgeService:
                     .one_or_none()
                 )
                 if btc_tx:
-                    self.logger.info("Updating IncomingBtcTx %s:%s: %s", txid, vout, btc_tx)
+                    self.logger.debug("Updating IncomingBtcTx %s:%s: %s", txid, vout, btc_tx)
                 else:
                     self.logger.info("New IncomingBtcTx detected: %s:%s", txid, vout)
                     btc_tx = IncomingBtcTx(

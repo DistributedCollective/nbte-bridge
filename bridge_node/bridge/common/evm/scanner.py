@@ -62,7 +62,7 @@ class EvmEventScanner:
         # TODO: this can all be done in one web3 call, no need to query multiple times
         all_event_logs = []
         for event in self._events:
-            logger.info("Fetching events for event: %s", event.event_name)
+            logger.debug("Fetching events for event: %s", event.event_name)
             event_log_batch = get_events(
                 event=event,
                 from_block=from_block,

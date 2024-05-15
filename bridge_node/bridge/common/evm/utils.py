@@ -67,12 +67,13 @@ def get_events(
     if to_block < from_block:
         raise ValueError(f"to_block {to_block} is smaller than from_block {from_block}")
 
-    logger.info("fetching events from %s to %s with batch size %s", from_block, to_block, batch_size)
+    logger.debug("Fetching events from %s to %s with batch size %s", from_block, to_block, batch_size)
     ret = []
     batch_from_block = from_block
     while batch_from_block <= to_block:
         batch_to_block = min(batch_from_block + batch_size, to_block)
-        logger.info("fetching batch from %s to %s (up to %s)", batch_from_block, batch_to_block, to_block)
+        # Let's keep this as info instead of debug, because it's nice to see the progress
+        logger.info("Fetching batch from %s to %s (up to %s)", batch_from_block, batch_to_block, to_block)
 
         events = get_event_batch_with_retries(
             event=event,
@@ -81,10 +82,10 @@ def get_events(
             argument_filters=argument_filters,
         )
         if len(events) > 0:
-            logger.info("found %s events in batch", len(events))
+            logger.info("Found %s events in batch", len(events))
         ret.extend(events)
         batch_from_block = batch_to_block + 1
-    logger.info("found %s events in total", len(ret))
+    logger.debug("Found %s events in total", len(ret))
     return ret
 
 
