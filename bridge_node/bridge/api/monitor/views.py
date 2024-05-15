@@ -214,6 +214,7 @@ class MonitorViews:
                     "address": token_contract.address,
                     "name": token_contract.functions.name().call(),
                     "symbol": token_contract.functions.symbol().call(),
+                    "supply": supply,
                 }
             else:
                 token = None

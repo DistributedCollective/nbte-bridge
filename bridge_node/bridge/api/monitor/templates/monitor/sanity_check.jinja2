@@ -6,8 +6,8 @@
         <thead>
             <tr>
                 <th>Rune</th>
-                <th>Multisig Balance</th>
                 <th>Token Address</th>
+                <th>Multisig Balance</th>
                 <th>Token Supply</th>
                 <th>Difference</th>
             </tr>
@@ -16,19 +16,23 @@
             {% for entry in entries %}
                 <tr>
                     <td>{{ entry["rune_name"] }}</td>
+                    <td>
+                        {% if entry["token"] %}
+                            <code>{{ entry["token"]["address"] }}</code>
+                        {% endif %}
+                    </td>
                     <td>{{ entry["multisig_rune_balance"] }}</td>
-                    {% if entry["token"] %}
-                        <td><code>{{ entry["token"]["address"] }}</code></td>
-                        <td>{{ entry["token"]["supply"] }}</td>
-                        <td>
+                    <td>
+                        {% if entry["token"] %}
+                            {{ entry["token"]["supply"] }}
+                        {% endif %}
+                    </td>
+                    <td>
+                        {% if entry["difference"] %}
                             {{ entry["difference"] }}
                             <small>({{  entry["difference_pct"]|round(4) }} %)</small>
-                        </td>
-                    {% else %}
-                        <td></td>
-                        <td></td>
-                        <td></td>
-                    {% endif %}
+                        {% endif %}
+                    </td>
                 </tr>
             {% endfor %}
         </tbody>
