@@ -31,6 +31,7 @@
             <th>status</th>
             <th>rune</th>
             <th>amount</th>
+            <th>postage (sat)</th>
             <th>evm_block_number</th>
             <th>evm_tx_hash</th>
             <th>receiver_btc_address</th>
@@ -42,6 +43,7 @@
             <td>{{ deposit.status_repr }}</td>
             <th>{{ deposit.rune.spaced_name }}</th>
             <td>{{ deposit.transferred_token_amount / (10**18) }}</td>
+            <td>{{ deposit.postage }}</td>
             <td>{{ deposit.evm_block_number }}</td>
             <td>{{ deposit.evm_tx_hash }}</td>
             <td>{{ deposit.receiver_btc_address }}</td>
