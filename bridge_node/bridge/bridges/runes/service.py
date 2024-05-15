@@ -1444,7 +1444,7 @@ class RuneBridgeService:
             net_amount_raw=net_amount_raw,
         )
 
-    def _get_rune_token(self, rune_number: int) -> Contract:
+    def get_rune_token(self, rune_number: int) -> Contract:
         address = self.rune_bridge_contract.functions.getTokenByRune(rune_number).call()
         return self.web3.eth.contract(
             address=address,

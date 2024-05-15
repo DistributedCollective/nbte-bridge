@@ -1,0 +1,33 @@
+{% extends "monitor/base.jinja2" %}
+{% block content %}
+    <h2>Sanity check</h2>
+
+    <table class="table">
+        <thead>
+            <tr>
+                <th>Rune</th>
+                <th>Multisig Balance</th>
+                <th>Token Address</th>
+                <th>Token Supply</th>
+                <th>Difference</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for entry in entries %}
+                <tr>
+                    <td>{{ entry["rune_name"] }}</td>
+                    <td>{{ entry["multisig_rune_balance"] }}</td>
+                    {% if entry["token"] %}
+                        <td>{{ entry["token"]["address"] }}</td>
+                        <td>{{ entry["token"]["supply"] }}</td>
+                        <td>{{ entry["difference"] }}</td>
+                    {% else %}
+                        <td></td>
+                        <td></td>
+                        <td></td>
+                    {% endif %}
+                </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+{% endblock %}
