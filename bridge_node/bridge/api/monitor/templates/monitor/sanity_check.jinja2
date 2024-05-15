@@ -18,9 +18,12 @@
                     <td>{{ entry["rune_name"] }}</td>
                     <td>{{ entry["multisig_rune_balance"] }}</td>
                     {% if entry["token"] %}
-                        <td>{{ entry["token"]["address"] }}</td>
+                        <td><code>{{ entry["token"]["address"] }}</code></td>
                         <td>{{ entry["token"]["supply"] }}</td>
-                        <td>{{ entry["difference"] }}</td>
+                        <td>
+                            {{ entry["difference"] }}
+                            <small>({{  entry["difference_pct"] }} %)</small>
+                        </td>
                     {% else %}
                         <td></td>
                         <td></td>

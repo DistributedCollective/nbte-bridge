@@ -206,9 +206,10 @@ class MonitorViews:
             balance_decimal = Decimal(balance_raw) / 10**rune.divisibility
             token_contract = service.get_rune_token(rune.n)
             if token_contract.address != "0x0000000000000000000000000000000000000000":
-                decimals = (token_contract.functions.decimals().call(),)
-                supply = (Decimal(token_contract.functions.totalSupply().call()) / 10**decimals,)
-                difference = supply - balance_decimal
+                decimals = token_contract.functions.decimals().call()
+                supply = Decimal(token_contract.functions.totalSupply().call()) / 10**decimals
+                difference = balance_decimal - supply
+                difference_pct = difference / balance_decimal * 100
                 token = {
                     "address": token_contract.address,
                     "name": token_contract.functions.name().call(),
@@ -217,12 +218,14 @@ class MonitorViews:
             else:
                 token = None
                 difference = None
+                difference_pct = None
             entries.append(
                 {
                     "rune": rune.spaced_name,
                     "multisig_rune_balance": balance_decimal,
                     "token": token,
                     "difference": difference,
+                    "difference_pct": difference_pct,
                 }
             )
 
