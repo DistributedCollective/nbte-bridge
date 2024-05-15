@@ -204,8 +204,8 @@ class MonitorViews:
                 .one()
             )
             balance_decimal = Decimal(balance_raw) / 10**rune.divisibility
-            token_contract = service.get_rune_token(rune.n)
-            if token_contract.address != "0x0000000000000000000000000000000000000000":
+            token_contract = service.get_rune_token_or_none(rune.n)
+            if token_contract:
                 decimals = token_contract.functions.decimals().call()
                 supply = Decimal(token_contract.functions.totalSupply().call()) / 10**decimals
                 difference = balance_decimal - supply

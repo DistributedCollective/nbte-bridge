@@ -1451,6 +1451,12 @@ class RuneBridgeService:
             abi=load_rune_bridge_abi("RuneToken"),
         )
 
+    def get_rune_token_or_none(self, rune_number: int) -> Contract | None:
+        is_registered = self.rune_bridge_contract.functions.isRuneRegistered(rune_number).call()
+        if not is_registered:
+            return None
+        return self.get_rune_token(rune_number)
+
     def _get_min_fee_rate_sat_per_vbyte(self) -> int:
         # Try to avoid the situation where a tx gets stuck forever, even if we technically can CPFP
         if self.config.btc_network == "mainnet":
