@@ -192,7 +192,7 @@ class MonitorViews:
                 rune_balances[rune_name] += amount
 
         entries = []
-        for rune_name, balance_raw in rune_balances.keys():
+        for rune_name, balance_raw in rune_balances.items():
             rune = (
                 self.dbsession.query(
                     Rune,
