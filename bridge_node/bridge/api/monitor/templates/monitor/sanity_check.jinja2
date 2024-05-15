@@ -10,6 +10,7 @@
                 <th>Multisig Balance</th>
                 <th>Token Supply</th>
                 <th>Difference</th>
+                <th>Δ&nbsp;%</th>
             </tr>
         </thead>
         <tbody>
@@ -30,7 +31,11 @@
                     <td>
                         {% if entry["difference"] %}
                             {{ entry["difference"] }}
-                            <small>({{  entry["difference_pct"]|round(4) }} %)</small>
+                        {% endif %}
+                    </td>
+                    <td>
+                        {% if entry["difference_pct"] %}
+                            {{ entry["difference_pct"]|round(4) }}&nbsp;%
                         {% endif %}
                     </td>
                 </tr>
