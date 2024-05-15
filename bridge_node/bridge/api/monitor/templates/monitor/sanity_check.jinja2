@@ -22,7 +22,7 @@
                         <td>{{ entry["token"]["supply"] }}</td>
                         <td>
                             {{ entry["difference"] }}
-                            <small>({{  entry["difference_pct"] }} %)</small>
+                            <small>({{  entry["difference_pct"]|round(4) }} %)</small>
                         </td>
                     {% else %}
                         <td></td>
