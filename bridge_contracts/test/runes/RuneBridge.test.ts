@@ -6,11 +6,13 @@ import { ethers, upgrades } from "hardhat";
 import { Signer } from 'ethers';
 import { setBalance } from "@nomicfoundation/hardhat-network-helpers";
 import {
-    reasonNotAdmin,
-    reasonNotGuard,
-    reasonNotPauser,
-    setRuneTokenBalance,
+  expectedEmitWithArgs,
+  reasonNotAdmin,
+  reasonNotGuard,
+  reasonNotPauser, setEvmToBtcTransferPolicy,
+  setRuneTokenBalance, transferToBTC,
 } from "./utils";
+import {EvmToBtcTransferPolicy, ExpectedEmitArgsProps} from "./types";
 
 const ADDRESS_ZERO = "0x0000000000000000000000000000000000000000";
 const ADDRESS_RANDOM = "0x0000000000000000000000000000000000000123";
@@ -77,6 +79,9 @@ describe("RuneBridge", function () {
 
         const userRuneBridge = runeBridge.connect(user) as typeof runeBridge;
         const userRuneToken = runeToken.connect(user) as typeof runeToken;
+
+        const foo = runeBridge.connect(federator1) as typeof runeBridge;
+        foo.acceptTransferFromBtc
 
         return {
             runeBridge,
@@ -212,6 +217,97 @@ describe("RuneBridge", function () {
         });
 
         // TODO: it handles fees
+        // TODO: it handles runes/rune tokens with different divisibilities (decimals)
+
+
+        it('handles fees', async () => {
+            const { runeBridge, runeToken } = await loadFixture(runeBridgeFixture);
+            const base26EncodedRune = 162415998996;
+            await setRuneTokenBalance(runeToken, owner, 1000);
+            await runeToken.approve(await runeBridge.getAddress(), 1000);
+            const defaultPolicy: EvmToBtcTransferPolicy = {
+                runeBridgeContract: runeBridge,
+                tokenAddress: await runeToken.getAddress(),
+                maxTokenAmount: ethers.parseEther('1000'),
+                minTokenAmount: 1,
+                flatFeeBaseCurrency: 0,
+                flatFeeTokens: 0,
+                dynamicFeeTokens: 0,
+            }
+
+            const defaultExpectedParams: ExpectedEmitArgsProps = {
+                transferAmount: 100,
+                runeBridgeContract: runeBridge,
+                tokenAddress: await runeToken.getAddress(),
+                btcAddress: btcAddress,
+                emit: {contract: runeBridge, eventName: "RuneTransferToBtc"},
+                args: {
+                    counter: 1,
+                    from: await owner.getAddress(),
+                    token: await runeToken.getAddress(),
+                    rune: base26EncodedRune,
+                    transferredTokenAmount: 100,
+                    netRuneAmount: 100,
+                    receiverBtcAddress: btcAddress,
+                    baseCurrencyFee: 0,
+                    tokenFee: 0,
+                }
+            }
+            const data = [
+              {
+                  // test flat token fee
+                  policy: {...defaultPolicy,flatFeeTokens: 20},
+                  expectedParams: {...defaultExpectedParams, args: {...defaultExpectedParams.args, netRuneAmount: 80, tokenFee: 20}}
+              },
+                {
+                  // test flat token fee
+                  policy: {...defaultPolicy, flatFeeTokens: 30},
+                  expectedParams: {
+                      ...defaultExpectedParams,
+                      args: {
+                          ...defaultExpectedParams.args,
+                          counter: 2,
+                          netRuneAmount: 70,
+                          tokenFee: 30,
+                      }
+                  },
+                },
+                {
+                  // test dynamic fee
+                  policy: {...defaultPolicy, dynamicFeeTokens: 30},
+                  expectedParams: {
+                      ...defaultExpectedParams,
+                      args: {
+                          ...defaultExpectedParams.args,
+                          counter: 3,
+                          netRuneAmount: 100,
+                          tokenFee: 0,
+                      }
+                  },
+                },
+                {
+                  // test flatFeeBaseCurrency
+                  policy: {...defaultPolicy, flatFeeBaseCurrency: ethers.parseEther('0.0001')},
+                  expectedParams: {
+                      ...defaultExpectedParams,
+                      args: {
+                          ...defaultExpectedParams.args,
+                          counter: 4,
+                          baseCurrencyFee: ethers.parseEther('0.0001'),
+                      }
+                  },
+                },
+            ]
+            for (const {policy, expectedParams} of data) {
+                await setEvmToBtcTransferPolicy(policy)
+                await expectedEmitWithArgs(expectedParams);
+            }
+        });
+
+        it('handles runes/rune tokens with different divisibilities (decimals)', async () => {
+            const { runeBridge, userRuneToken, runeToken } = await loadFixture(runeBridgeFixture);
+
+        });
     });
 
     describe("requestRuneRegistration", () => {
@@ -271,12 +367,15 @@ describe("RuneBridge", function () {
         // TODO: only callable by federator
         // TODO: test it actually accepts the transfer
         // TODO: test it checks that it's not processed
-    })
+        // TODO: test it checks signatures
+    });
 
     describe("acceptRuneRegistrationRequest", () => {
         // TODO: only callable by federator
+        // TODO: test only callable if registration requests enabled
         // TODO: test it actually accepts the request
-    })
+        // TODO: test it checks signatures
+    });
 
     describe("withdrawBaseCurrency", () => {
         it('is only callable by an admin', async () => {
