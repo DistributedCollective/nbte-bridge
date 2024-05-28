@@ -221,8 +221,8 @@ describe("RuneBridge", function () {
 
 
         it('handles fees', async () => {
-            const { runeBridge, runeToken } = await loadFixture(runeBridgeFixture);
-            const base26EncodedRune = 162415998996;
+            const { runeBridge, runeToken, rune } = await loadFixture(runeBridgeFixture);
+            const base26EncodedRune = rune;
             await setRuneTokenBalance(runeToken, owner, 1000);
             await runeToken.approve(await runeBridge.getAddress(), 1000);
             const defaultPolicy: EvmToBtcTransferPolicy = {
@@ -253,7 +253,7 @@ describe("RuneBridge", function () {
                     tokenFee: 0,
                 }
             }
-            const data = [
+            const testData = [
               {
                   // test flat token fee
                   policy: {...defaultPolicy,flatFeeTokens: 20},
@@ -274,14 +274,14 @@ describe("RuneBridge", function () {
                 },
                 {
                   // test dynamic fee
-                  policy: {...defaultPolicy, dynamicFeeTokens: 30},
+                  policy: {...defaultPolicy, dynamicFeeTokens: 300},
                   expectedParams: {
                       ...defaultExpectedParams,
                       args: {
                           ...defaultExpectedParams.args,
                           counter: 3,
-                          netRuneAmount: 100,
-                          tokenFee: 0,
+                          netRuneAmount: 97,
+                          tokenFee: 3,
                       }
                   },
                 },
@@ -298,15 +298,60 @@ describe("RuneBridge", function () {
                   },
                 },
             ]
-            for (const {policy, expectedParams} of data) {
+            for (const {policy, expectedParams} of testData) {
                 await setEvmToBtcTransferPolicy(policy)
                 await expectedEmitWithArgs(expectedParams);
             }
         });
 
         it('handles runes/rune tokens with different divisibilities (decimals)', async () => {
-            const { runeBridge, userRuneToken, runeToken } = await loadFixture(runeBridgeFixture);
+            // Common Decimal Settings:
+            // 18 Decimals: Standard for most tokens, providing high precision.
+            // 8 Decimals: Common for tokens modeled after Bitcoin.
+            // 0 Decimals: Used for non-fungible tokens (NFTs) or tokens that represent indivisible assets.
 
+            const { runeBridge } = await loadFixture(runeBridgeFixture);
+            const RuneToken = await ethers.getContractFactory("RuneToken");
+            let rune = 162415998997;
+            let runeDivisibility = 8;
+            let counter = 1;
+            for (let i = 0; i <= 15; i++) {
+                await runeBridge.registerRune(
+                    "TEST•KAKAO",
+                    "RK",
+                    rune,
+                    runeDivisibility,
+                );
+                const runeTokenAddress = await runeBridge.getTokenByRune(rune);
+                const runeToken = RuneToken.attach(runeTokenAddress);
+
+                const amount = runeDivisibility >= 18 ? 1000 : ethers.parseUnits("1000", runeDivisibility);
+                await setRuneTokenBalance(runeToken, owner, amount);
+                await runeToken.approve(await runeBridge.getAddress(), amount);
+                const transferredTokenAmount = runeDivisibility >= 18 ? 100 : ethers.parseUnits('100', runeDivisibility) ;
+                const netRuneAmount = runeDivisibility >= 18 ? 100 : ethers.parseUnits(ethers.formatEther(transferredTokenAmount), runeDivisibility);
+                const tokenFee = 0;
+                const baseCurrencyFee = 0;
+
+                await expect(runeBridge.transferToBtc(
+                    await runeToken.getAddress(),
+                    transferredTokenAmount,
+                    btcAddress,
+                )).to.emit(runeBridge, "RuneTransferToBtc").withArgs(
+                    counter,
+                    await owner.getAddress(),
+                    await runeToken.getAddress(),
+                    rune,
+                    transferredTokenAmount,
+                    netRuneAmount, // net amount
+                    btcAddress,
+                    baseCurrencyFee,
+                    tokenFee,
+                );
+                rune += 1;
+                runeDivisibility += 1;
+                counter += 1;
+            }
         });
     });
 
@@ -368,6 +413,8 @@ describe("RuneBridge", function () {
         // TODO: test it actually accepts the transfer
         // TODO: test it checks that it's not processed
         // TODO: test it checks signatures
+        it('only callable by a federator', async () => {
+        })
     });
 
     describe("acceptRuneRegistrationRequest", () => {
