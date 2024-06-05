@@ -3,14 +3,14 @@ import {
 } from "@nomicfoundation/hardhat-toolbox/network-helpers";
 import { expect } from 'chai';
 import { ethers, upgrades } from "hardhat";
-import { Signer } from 'ethers';
-import { setBalance } from "@nomicfoundation/hardhat-network-helpers";
+import { Contract, Signer} from 'ethers';
+import {setBalance} from "@nomicfoundation/hardhat-network-helpers";
 import {
-  expectedEmitWithArgs,
-  reasonNotAdmin,
-  reasonNotGuard,
-  reasonNotPauser, setEvmToBtcTransferPolicy,
-  setRuneTokenBalance, transferToBTC,
+    expectedEmitWithArgs,
+    reasonNotAdmin, reasonNotEnoughSignatures, reasonNotFederator,
+    reasonNotGuard,
+    reasonNotPauser, reasonNotRole, reasonTransferAlreadyProcessed, setEvmToBtcTransferPolicy,
+    setRuneTokenBalance, transferToBTC,
 } from "./utils";
 import {EvmToBtcTransferPolicy, ExpectedEmitArgsProps} from "./types";
 
@@ -33,35 +33,35 @@ describe("RuneBridge", function () {
     async function runeBridgeFixture() {
         const NBTEBridgeAccessControl = await ethers.getContractFactory("NBTEBridgeAccessControl");
         const accessControl = await NBTEBridgeAccessControl.deploy();
-        for(const federator of federators) {
+        for (const federator of federators) {
             await accessControl.addFederator(await federator.getAddress());
         }
 
         const BTCAddressValidator = await ethers.getContractFactory("BTCAddressValidator");
         // add mainnet-compatible config here at first
         const btcAddressValidator = await BTCAddressValidator.deploy(
-            await accessControl.getAddress(),
-            "bc1",  // bech32 prefix, segwit version not included
-            ["1", "3"],  // non-bech32 prefixes
+          await accessControl.getAddress(),
+          "bc1",  // bech32 prefix, segwit version not included
+          ["1", "3"],  // non-bech32 prefixes
         );
 
         const RuneBridge = await ethers.getContractFactory("RuneBridge");
         const runeBridge = await upgrades.deployProxy(
-            RuneBridge,
-            [
-                await accessControl.getAddress(),
-                await btcAddressValidator.getAddress(),
-            ],
+          RuneBridge,
+          [
+              await accessControl.getAddress(),
+              await btcAddressValidator.getAddress(),
+          ],
         );
 
         // disable fees for easier testing
         await runeBridge.setEvmToBtcTransferPolicy(
-            ADDRESS_ZERO,
-            ethers.parseEther("1000000000"),
-            0,
-            0,
-            0,
-            0,
+          ADDRESS_ZERO,
+          ethers.parseEther("1000000000"),
+          0,
+          0,
+          0,
+          0,
         );
         await runeBridge.setRuneRegistrationFee(0);
 
@@ -69,10 +69,10 @@ describe("RuneBridge", function () {
 
         const rune = 162415998996;
         await runeBridge.registerRune(
-            "TEST•RUNE",
-            "R",
-            rune,
-            18,
+          "TEST•RUNE",
+          "R",
+          rune,
+          18,
         );
         const runeTokenAddress = await runeBridge.getTokenByRune(rune);
         const runeToken = RuneToken.attach(runeTokenAddress);
@@ -80,12 +80,12 @@ describe("RuneBridge", function () {
         const userRuneBridge = runeBridge.connect(user) as typeof runeBridge;
         const userRuneToken = runeToken.connect(user) as typeof runeToken;
 
-        const foo = runeBridge.connect(federator1) as typeof runeBridge;
-        foo.acceptTransferFromBtc
+        const federatorRuneBridge = runeBridge.connect(federator1) as typeof runeBridge;
 
         return {
             runeBridge,
             userRuneBridge,
+            federatorRuneBridge,
             btcAddressValidator,
             accessControl,
             rune,
@@ -95,12 +95,12 @@ describe("RuneBridge", function () {
     }
 
     it("deploys", async function () {
-        const { runeBridge } = await loadFixture(runeBridgeFixture);
+        const {runeBridge} = await loadFixture(runeBridgeFixture);
         expect(await runeBridge.numRunesRegistered()).to.equal(1);
     });
 
     it('setRuneTokenBalance helper', async function () {
-        const { runeToken } = await loadFixture(runeBridgeFixture);
+        const {runeToken} = await loadFixture(runeBridgeFixture);
 
         let totalSupply = await runeToken.totalSupply();
         let bal = await runeToken.balanceOf(await owner.getAddress());
@@ -139,80 +139,80 @@ describe("RuneBridge", function () {
         const btcAddress = "bc1qar0srrr7xfkvy5l643lydnw9re59gtzzwf5mdq";
 
         it("doesn't accept unregistered runes", async function () {
-            const { runeBridge} = await loadFixture(runeBridgeFixture);
+            const {runeBridge} = await loadFixture(runeBridgeFixture);
 
             const RuneToken = await ethers.getContractFactory("RuneToken");
             const fakeRuneToken = await RuneToken.deploy("Rune", "RUNE", 1234, 18);
             await fakeRuneToken.mintTo(await owner.getAddress(), 1000);
 
             await expect(runeBridge.transferToBtc(
-                await fakeRuneToken.getAddress(),
-                100,
-                btcAddress,
+              await fakeRuneToken.getAddress(),
+              100,
+              btcAddress,
             )).to.be.revertedWith("token not registered");
         });
 
 
         it("accepts registered runes", async function () {
-            const { runeBridge, runeToken , rune } = await loadFixture(runeBridgeFixture);
+            const {runeBridge, runeToken, rune} = await loadFixture(runeBridgeFixture);
 
             await setRuneTokenBalance(runeToken, owner, 1000);
             await runeToken.approve(await runeBridge.getAddress(), 1000);
 
             let totalSupply = await runeToken.totalSupply();
             await expect(runeBridge.transferToBtc(
-                await runeToken.getAddress(),
-                100,
-                btcAddress,
+              await runeToken.getAddress(),
+              100,
+              btcAddress,
             )).to.emit(runeBridge, "RuneTransferToBtc").withArgs(
-                1,
-                await owner.getAddress(),
-                await runeToken.getAddress(),
-                rune,
-                100,
-                100, // net amount
-                btcAddress,
-                0,
-                0,
+              1,
+              await owner.getAddress(),
+              await runeToken.getAddress(),
+              rune,
+              100,
+              100, // net amount
+              btcAddress,
+              0,
+              0,
             );
             // it burns the runes
             expect(await runeToken.totalSupply()).to.equal(totalSupply - 100n);
 
             await expect(runeBridge.transferToBtc(
-                await runeToken.getAddress(),
-                100,
-                btcAddress,
+              await runeToken.getAddress(),
+              100,
+              btcAddress,
             )).to.changeTokenBalances(
-                runeToken,
-                [owner, runeBridge],
-                [-100, 0]
+              runeToken,
+              [owner, runeBridge],
+              [-100, 0]
             );
         });
 
         it('reverts when paused', async () => {
-            const { runeBridge, runeToken } = await loadFixture(runeBridgeFixture);
+            const {runeBridge, runeToken} = await loadFixture(runeBridgeFixture);
 
             await setRuneTokenBalance(runeToken, owner, 1000);
             await runeToken.approve(await runeBridge.getAddress(), 1000);
 
             await runeBridge.pause();
             await expect(runeBridge.transferToBtc(
-                await runeToken.getAddress(),
-                100,
-                btcAddress,
+              await runeToken.getAddress(),
+              100,
+              btcAddress,
             )).to.be.revertedWith("Pausable: paused");
         });
 
         it('is callable by a normal user', async () => {
-            const { runeBridge, userRuneToken, userRuneBridge } = await loadFixture(runeBridgeFixture);
+            const {runeBridge, userRuneToken, userRuneBridge} = await loadFixture(runeBridgeFixture);
 
             await setRuneTokenBalance(userRuneToken, user, 1000);
             await userRuneToken.approve(await runeBridge.getAddress(), 1000);
 
             await expect(userRuneBridge.transferToBtc(
-                await userRuneToken.getAddress(),
-                100,
-                btcAddress,
+              await userRuneToken.getAddress(),
+              100,
+              btcAddress,
             )).to.emit(runeBridge, "RuneTransferToBtc");
         });
 
@@ -221,7 +221,7 @@ describe("RuneBridge", function () {
 
 
         it('handles fees', async () => {
-            const { runeBridge, runeToken, rune } = await loadFixture(runeBridgeFixture);
+            const {runeBridge, runeToken, rune} = await loadFixture(runeBridgeFixture);
             const base26EncodedRune = rune;
             await setRuneTokenBalance(runeToken, owner, 1000);
             await runeToken.approve(await runeBridge.getAddress(), 1000);
@@ -254,48 +254,51 @@ describe("RuneBridge", function () {
                 }
             }
             const testData = [
-              {
-                  // test flat token fee
-                  policy: {...defaultPolicy,flatFeeTokens: 20},
-                  expectedParams: {...defaultExpectedParams, args: {...defaultExpectedParams.args, netRuneAmount: 80, tokenFee: 20}}
-              },
                 {
-                  // test flat token fee
-                  policy: {...defaultPolicy, flatFeeTokens: 30},
-                  expectedParams: {
-                      ...defaultExpectedParams,
-                      args: {
-                          ...defaultExpectedParams.args,
-                          counter: 2,
-                          netRuneAmount: 70,
-                          tokenFee: 30,
-                      }
-                  },
+                    // test flat token fee
+                    policy: {...defaultPolicy, flatFeeTokens: 20},
+                    expectedParams: {
+                        ...defaultExpectedParams,
+                        args: {...defaultExpectedParams.args, netRuneAmount: 80, tokenFee: 20}
+                    }
                 },
                 {
-                  // test dynamic fee
-                  policy: {...defaultPolicy, dynamicFeeTokens: 300},
-                  expectedParams: {
-                      ...defaultExpectedParams,
-                      args: {
-                          ...defaultExpectedParams.args,
-                          counter: 3,
-                          netRuneAmount: 97,
-                          tokenFee: 3,
-                      }
-                  },
+                    // test flat token fee
+                    policy: {...defaultPolicy, flatFeeTokens: 30},
+                    expectedParams: {
+                        ...defaultExpectedParams,
+                        args: {
+                            ...defaultExpectedParams.args,
+                            counter: 2,
+                            netRuneAmount: 70,
+                            tokenFee: 30,
+                        }
+                    },
                 },
                 {
-                  // test flatFeeBaseCurrency
-                  policy: {...defaultPolicy, flatFeeBaseCurrency: ethers.parseEther('0.0001')},
-                  expectedParams: {
-                      ...defaultExpectedParams,
-                      args: {
-                          ...defaultExpectedParams.args,
-                          counter: 4,
-                          baseCurrencyFee: ethers.parseEther('0.0001'),
-                      }
-                  },
+                    // test dynamic fee
+                    policy: {...defaultPolicy, dynamicFeeTokens: 300},
+                    expectedParams: {
+                        ...defaultExpectedParams,
+                        args: {
+                            ...defaultExpectedParams.args,
+                            counter: 3,
+                            netRuneAmount: 97,
+                            tokenFee: 3,
+                        }
+                    },
+                },
+                {
+                    // test flatFeeBaseCurrency
+                    policy: {...defaultPolicy, flatFeeBaseCurrency: ethers.parseEther('0.0001')},
+                    expectedParams: {
+                        ...defaultExpectedParams,
+                        args: {
+                            ...defaultExpectedParams.args,
+                            counter: 4,
+                            baseCurrencyFee: ethers.parseEther('0.0001'),
+                        }
+                    },
                 },
             ]
             for (const {policy, expectedParams} of testData) {
@@ -310,17 +313,17 @@ describe("RuneBridge", function () {
             // 8 Decimals: Common for tokens modeled after Bitcoin.
             // 0 Decimals: Used for non-fungible tokens (NFTs) or tokens that represent indivisible assets.
 
-            const { runeBridge } = await loadFixture(runeBridgeFixture);
+            const {runeBridge} = await loadFixture(runeBridgeFixture);
             const RuneToken = await ethers.getContractFactory("RuneToken");
             let rune = 162415998997;
             let runeDivisibility = 8;
             let counter = 1;
             for (let i = 0; i <= 15; i++) {
                 await runeBridge.registerRune(
-                    "TEST•KAKAO",
-                    "RK",
-                    rune,
-                    runeDivisibility,
+                  "TEST•KAKAO",
+                  "RK",
+                  rune,
+                  runeDivisibility,
                 );
                 const runeTokenAddress = await runeBridge.getTokenByRune(rune);
                 const runeToken = RuneToken.attach(runeTokenAddress);
@@ -328,25 +331,25 @@ describe("RuneBridge", function () {
                 const amount = runeDivisibility >= 18 ? 1000 : ethers.parseUnits("1000", runeDivisibility);
                 await setRuneTokenBalance(runeToken, owner, amount);
                 await runeToken.approve(await runeBridge.getAddress(), amount);
-                const transferredTokenAmount = runeDivisibility >= 18 ? 100 : ethers.parseUnits('100', runeDivisibility) ;
+                const transferredTokenAmount = runeDivisibility >= 18 ? 100 : ethers.parseUnits('100', runeDivisibility);
                 const netRuneAmount = runeDivisibility >= 18 ? 100 : ethers.parseUnits(ethers.formatEther(transferredTokenAmount), runeDivisibility);
                 const tokenFee = 0;
                 const baseCurrencyFee = 0;
 
                 await expect(runeBridge.transferToBtc(
-                    await runeToken.getAddress(),
-                    transferredTokenAmount,
-                    btcAddress,
+                  await runeToken.getAddress(),
+                  transferredTokenAmount,
+                  btcAddress,
                 )).to.emit(runeBridge, "RuneTransferToBtc").withArgs(
-                    counter,
-                    await owner.getAddress(),
-                    await runeToken.getAddress(),
-                    rune,
-                    transferredTokenAmount,
-                    netRuneAmount, // net amount
-                    btcAddress,
-                    baseCurrencyFee,
-                    tokenFee,
+                  counter,
+                  await owner.getAddress(),
+                  await runeToken.getAddress(),
+                  rune,
+                  transferredTokenAmount,
+                  netRuneAmount, // net amount
+                  btcAddress,
+                  baseCurrencyFee,
+                  tokenFee,
                 );
                 rune += 1;
                 runeDivisibility += 1;
@@ -357,29 +360,29 @@ describe("RuneBridge", function () {
 
     describe("requestRuneRegistration", () => {
         it("works", async function () {
-            const { runeBridge, userRuneBridge } = await loadFixture(runeBridgeFixture);
+            const {runeBridge, userRuneBridge} = await loadFixture(runeBridgeFixture);
 
             await runeBridge.setRuneRegistrationRequestsEnabled(true);
             await expect(userRuneBridge.requestRuneRegistration(
-                1234,
+              1234,
             )).to.emit(runeBridge, "RuneRegistrationRequested").withArgs(
-                1234,
-                await user.getAddress(),
-                0,
+              1234,
+              await user.getAddress(),
+              0,
             );
         });
 
         it("reverts for already registered runes", async function () {
-            const { runeBridge, userRuneBridge, rune } = await loadFixture(runeBridgeFixture);
+            const {runeBridge, userRuneBridge, rune} = await loadFixture(runeBridgeFixture);
 
             await runeBridge.setRuneRegistrationRequestsEnabled(true);
             await expect(userRuneBridge.requestRuneRegistration(
-                rune,
+              rune,
             )).to.be.revertedWith("rune already registered");
         });
 
         it('reverts if registration is already requested', async () => {
-            const { runeBridge, userRuneBridge } = await loadFixture(runeBridgeFixture);
+            const {runeBridge, userRuneBridge} = await loadFixture(runeBridgeFixture);
 
             await runeBridge.setRuneRegistrationRequestsEnabled(true);
             await userRuneBridge.requestRuneRegistration(1234);
@@ -387,33 +390,114 @@ describe("RuneBridge", function () {
         });
 
         it('reverts if registration is disabled', async () => {
-            const { runeBridge, userRuneBridge } = await loadFixture(runeBridgeFixture);
+            const {runeBridge, userRuneBridge} = await loadFixture(runeBridgeFixture);
 
             await runeBridge.setRuneRegistrationRequestsEnabled(false);
             await expect(userRuneBridge.requestRuneRegistration(1234)).to.be.revertedWith("rune registration requests disabled");
         });
 
         it('reverts by default because registration requests are disabled', async () => {
-            const { userRuneBridge } = await loadFixture(runeBridgeFixture);
+            const {userRuneBridge} = await loadFixture(runeBridgeFixture);
 
             await expect(userRuneBridge.requestRuneRegistration(1234)).to.be.revertedWith("rune registration requests disabled");
         });
 
         it('reverts for invalid rune numbers', async () => {
-            const { runeBridge, userRuneBridge } = await loadFixture(runeBridgeFixture);
+            const {runeBridge, userRuneBridge} = await loadFixture(runeBridgeFixture);
 
             await runeBridge.setRuneRegistrationRequestsEnabled(true);
             await expect(userRuneBridge.requestRuneRegistration(0)).to.be.revertedWith("rune cannot be zero");
-            await expect(userRuneBridge.requestRuneRegistration(2n**128n)).to.be.revertedWith("rune too large");
+            await expect(userRuneBridge.requestRuneRegistration(2n ** 128n)).to.be.revertedWith("rune too large");
         });
     });
 
     describe("acceptTransferFromBtc", () => {
+        let btcTxId: string,
+          btcTxVout: number,
+          runeAmount: number,
+          data: any[],
+          hash,
+          hashBytes: Uint8Array,
+          federatorSignatures: string[],
+          runeBridge: Contract,
+          rune: number,
+          federatorRuneBridge: Contract
+        ;
+        beforeEach(async () => {
+            ({ runeBridge, rune, federatorRuneBridge } = await loadFixture(runeBridgeFixture));
+            runeAmount = 100
+            btcTxId = "0x" + "0".repeat(64);
+            btcTxVout = 0;
+            data = [
+                await user.getAddress(),
+                rune,
+                runeAmount,
+                btcTxId,
+                btcTxVout,
+            ]
+            hash = await federatorRuneBridge.getAcceptTransferFromBtcMessageHash(
+              ...data
+            );
+            hashBytes = ethers.getBytes(hash);
+            federatorSignatures = await Promise.all([
+                federator1.signMessage(hashBytes),
+                federator2.signMessage(hashBytes),
+                federator3.signMessage(hashBytes),
+            ])
+        })
         // TODO: only callable by federator
         // TODO: test it actually accepts the transfer
         // TODO: test it checks that it's not processed
         // TODO: test it checks signatures
         it('only callable by a federator', async () => {
+            await expect(runeBridge.acceptTransferFromBtc(
+                await user.getAddress(),
+                rune,
+                100,
+                btcTxId,
+                btcTxVout,
+                []
+            )).to.be.revertedWith(reasonNotFederator(await owner.getAddress()));
+        })
+        it('test it actually accepts the transfer', async () => {
+            await expect(federatorRuneBridge.acceptTransferFromBtc(
+                ...data,
+                federatorSignatures
+            )).to.emit(federatorRuneBridge, "RuneTransferFromBtc");
+        })
+        it('test it checks that it is not processed', async () => {
+            await federatorRuneBridge.acceptTransferFromBtc(
+                ...data,
+                federatorSignatures
+            )
+            await expect(federatorRuneBridge.acceptTransferFromBtc(
+                ...data,
+                federatorSignatures
+            )).to.be.revertedWith(
+              reasonTransferAlreadyProcessed()
+            )
+        })
+        it('test it checks signatures', async () => {
+            // No signatures
+            await expect(federatorRuneBridge.acceptTransferFromBtc(
+                ...data,
+                []
+            )).to.be.revertedWith(reasonNotEnoughSignatures())
+
+            // At least 2 signatures.
+            await expect(federatorRuneBridge.acceptTransferFromBtc(
+                ...data,
+                [await federator2.signMessage(hashBytes)]
+            )).to.be.revertedWith(reasonNotEnoughSignatures())
+
+            // Must be federators' signatures
+            await expect(federatorRuneBridge.acceptTransferFromBtc(
+                ...data,
+                [
+                    await federator2.signMessage(hashBytes),
+                    await owner.signMessage(hashBytes)
+                ]
+            )).to.be.revertedWith(reasonNotFederator(await owner.getAddress()))
         })
     });
 
