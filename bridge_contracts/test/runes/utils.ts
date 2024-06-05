@@ -62,7 +62,16 @@ export function reasonNotPauser(address: string): string {
 export function reasonNotGuard(address: string): string {
   return reasonNotRole(address, "0x25bca7788d8c23352e368ccd4774eb5b5fc3d40422de2c14e98631ab71f33415");
 }
+export function reasonNotFederator(address: string): string {
+  return reasonNotRole(address, "0xd60d8c24d353e0fb03320bff8dd86901186b3566397d831f2dff247991b53f18");
+}
 
+export function reasonTransferAlreadyProcessed(): string {
+  return "transfer already processed"
+}
+export function reasonNotEnoughSignatures(): string {
+  return 'Not enough signatures'
+}
 /**
  * Sets the EVM to BTC transfer policy for the Rune Bridge contract.
  *
