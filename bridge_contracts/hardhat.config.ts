@@ -8,6 +8,7 @@ import './config/runes/hardhat.config.runes';
 const TESTNET_DEPLOYER_PRIVATE_KEY = process.env.TESTNET_DEPLOYER_PRIVATE_KEY || '';
 const RSK_MAINNET_DEPLOYER_PRIVATE_KEY = process.env.RSK_MAINNET_DEPLOYER_PRIVATE_KEY || '';
 const BOB_MAINNET_DEPLOYER_PRIVATE_KEY = process.env.BOB_MAINNET_DEPLOYER_PRIVATE_KEY || '';
+const DISABLE_OPTIMIZER = process.env.DISABLE_OPTIMIZER === "1";
 
 const config: HardhatUserConfig = {
     solidity: {
@@ -16,7 +17,7 @@ const config: HardhatUserConfig = {
                 version: "0.8.19",
                 settings: {
                     optimizer: {
-                        enabled: true,
+                        enabled: !DISABLE_OPTIMIZER,
                         runs: 100,
                     }
                 }
@@ -24,6 +25,9 @@ const config: HardhatUserConfig = {
         ],
     },
     networks: {
+        "hardhat": {
+          allowUnlimitedContractSize: DISABLE_OPTIMIZER,
+        },
         "docker": {
             url: "http://localhost:18545",
         },
