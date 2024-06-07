@@ -6,11 +6,16 @@ import { ethers, upgrades } from "hardhat";
 import { Contract, Signer} from 'ethers';
 import {setBalance} from "@nomicfoundation/hardhat-network-helpers";
 import {
-    expectedEmitWithArgs,
-    reasonNotAdmin, reasonNotEnoughSignatures, reasonNotFederator,
+    expectedEmitWithArgs, reasonNotAdmin,
+    reasonNotEnoughSignatures,
+    reasonNotFederator,
     reasonNotGuard,
-    reasonNotPauser, reasonNotRole, reasonTransferAlreadyProcessed, setEvmToBtcTransferPolicy,
-    setRuneTokenBalance, transferToBTC,
+    reasonNotPauser,
+    reasonRegistrationNotRequested, reasonRuneAlreadyRegistered,
+    reasonTransferAlreadyProcessed,
+    setEvmToBtcTransferPolicy,
+    setRuneTokenBalance,
+
 } from "./utils";
 import {EvmToBtcTransferPolicy, ExpectedEmitArgsProps} from "./types";
 
@@ -503,9 +508,103 @@ describe("RuneBridge", function () {
 
     describe("acceptRuneRegistrationRequest", () => {
         // TODO: only callable by federator
-        // TODO: test only callable if registration requests enabled
+        // TODO: test it only callable if registration requested
+        // TODO: test rune is not already registered
         // TODO: test it actually accepts the request
         // TODO: test it checks signatures
+        let federatorRuneBridge: Contract,
+            runeBridgeAsAdmin: Contract,
+            runeBridgeAsFederator: Contract;
+        let name: string,
+            symbol: string,
+            rune: number,
+            runeDivisibility: number,
+            data :(string | number)[],
+            federatorSignatures: string[];
+
+        beforeEach(async () => {
+            ({ federatorRuneBridge } = await loadFixture(runeBridgeFixture));
+            name = "TEST•VICHY";
+            symbol = "RV";
+            rune = 162415998100;
+            runeDivisibility = 18;
+            data = [name,symbol, rune, runeDivisibility]
+
+            runeBridgeAsAdmin = federatorRuneBridge.connect(owner) as typeof federatorRuneBridge;
+            await runeBridgeAsAdmin.setRuneRegistrationRequestsEnabled(true);
+            runeBridgeAsFederator = runeBridgeAsAdmin.connect(federator1) as typeof federatorRuneBridge;
+            await federatorRuneBridge.requestRuneRegistration(rune);
+            const hash = await runeBridgeAsFederator.getAcceptRuneRegistrationRequestMessageHash(
+              ...data
+            );
+            const hashBytes = ethers.getBytes(hash);
+            federatorSignatures = await Promise.all([
+                federator1.signMessage(hashBytes),
+                federator2.signMessage(hashBytes),
+                federator3.signMessage(hashBytes),
+            ])
+        })
+        it('only callable by a federator', async () => {
+            const {runeBridge, runeToken, rune} = await loadFixture(runeBridgeFixture);
+            await expect(runeBridge.acceptRuneRegistrationRequest(
+                await runeToken.name(),
+                await runeToken.symbol(),
+                rune,
+                await runeToken.decimals(),
+                []
+            )).to.be.revertedWith(
+                reasonNotFederator(await owner.getAddress())
+            );
+        })
+        it('test it only callable if registration requested', async () => {
+            await expect(federatorRuneBridge.acceptRuneRegistrationRequest(
+                "TEST•VICHY2",
+                "RV2",
+                162415998101,
+                18,
+                []
+            )).to.be.revertedWith(reasonRegistrationNotRequested)
+        })
+        it('test it actually accepts the request', async () => {
+
+            await expect(runeBridgeAsFederator.acceptRuneRegistrationRequest(
+                ...data,
+                federatorSignatures
+            )).to.emit(runeBridgeAsFederator, "RuneRegistered");
+        })
+        it('test rune is not already registered', async () => {
+
+            await expect(runeBridgeAsFederator.acceptRuneRegistrationRequest(
+                ...data,
+                federatorSignatures
+            )).to.be.emit(runeBridgeAsFederator, "RuneRegistered");
+
+            await expect(runeBridgeAsFederator.acceptRuneRegistrationRequest(
+                ...data,
+                federatorSignatures
+            )).to.be.revertedWith(reasonRuneAlreadyRegistered)
+        })
+        it('test it checks signatures', async () => {
+            const hash = await runeBridgeAsFederator.getAcceptRuneRegistrationRequestMessageHash(
+              ...data
+            );
+            const hashBytes = ethers.getBytes(hash);
+
+            await expect(runeBridgeAsFederator.acceptRuneRegistrationRequest(
+                ...data,
+                [federator1.signMessage(hashBytes)]
+            )).to.be.revertedWith(reasonNotEnoughSignatures())
+
+            await expect(runeBridgeAsFederator.acceptRuneRegistrationRequest(
+                ...data,
+                []
+            )).to.be.revertedWith(reasonNotEnoughSignatures())
+
+            await expect(runeBridgeAsFederator.acceptRuneRegistrationRequest(
+                ...data,
+                [federator1.signMessage(hashBytes), owner.signMessage(hashBytes)]
+            )).to.be.revertedWith(reasonNotFederator(await owner.getAddress()))
+        })
     });
 
     describe("withdrawBaseCurrency", () => {

@@ -6,6 +6,9 @@ import {EvmToBtcTransferPolicy, ExpectedEmitArgsProps} from "./types";
 
 const RUNE_TOKEN_BALANCE_MAPPING_SLOT = 0;
 const RUNE_TOKEN_TOTAL_SUPPLY_SLOT = 2;
+export const reasonRuneRegistrationRequestsDisabled = 'rune registration requests disabled';
+export const reasonRegistrationNotRequested = 'registration not requested';
+export const reasonRuneAlreadyRegistered = 'rune already registered';
 
 export async function setRuneTokenBalance(
   runeToken: Contract | string,
@@ -72,6 +75,7 @@ export function reasonTransferAlreadyProcessed(): string {
 export function reasonNotEnoughSignatures(): string {
   return 'Not enough signatures'
 }
+
 /**
  * Sets the EVM to BTC transfer policy for the Rune Bridge contract.
  *
@@ -191,6 +195,15 @@ export const expectedEmitWithArgs = async ({runeBridgeContract, tokenAddress, bt
   );
 }
 
+export const getSignatures = async (federators: Signer[], runeBridge: Contract, tokenData: any[]) => {
+    const hash = await runeBridge.getAcceptRuneRegistrationRequestMessageHash(
+      ...tokenData
+    );
+    const hashBytes = ethers.getBytes(hash);
+    return await Promise.all(federators.map(federator=> {
+      return federator.signMessage(hashBytes)
+    }));
+}
 export const transferToBTC = (runeBridge: Contract, tokenAddress: string, amount: BigNumberish, btcAddress: string) => {
   return runeBridge.transferToBtc(tokenAddress, amount, btcAddress);
 }
