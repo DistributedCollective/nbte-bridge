@@ -276,6 +276,48 @@ task(`${PREFIX}set-evm-to-btc-transfer-policy`)
     }));
 
 
+task(`${PREFIX}show-evm-to-btc-transfer-policy`)
+    .addParam("bridgeAddress", "RuneBridge contract address")
+    .addParam("token", "Token address")
+    .setAction(async ({
+        bridgeAddress,
+        token,
+    }, hre) => {
+        const ethers = hre.ethers;
+
+        const bridge = await ethers.getContractAt("RuneBridge", bridgeAddress);
+        console.log("Bridge at %s", bridge.address);
+
+        let decimals, tokenDisplay;
+        if (token !== "0x0000000000000000000000000000000000000000") {
+            const tokenContract = await ethers.getContractAt("RuneToken", token);
+            decimals = await tokenContract.decimals();
+            tokenDisplay = `${await tokenContract.name()} (${await tokenContract.symbol()})`;
+        } else {
+            tokenDisplay = "BASE CURRENCY";
+            decimals = 18;
+        }
+        console.log(
+            "Token %s at %s with %s decimals",
+            tokenDisplay,
+            token,
+            decimals
+        )
+
+        const oldPolicy = await bridge.getEvmToBtcTransferPolicy(token);
+        const dynamicFeeDivisor = await bridge.DYNAMIC_FEE_DIVISOR();
+
+        let policyDisplay = {
+            maxTokenAmount: ethers.formatUnits(oldPolicy.maxTokenAmount, decimals),
+            minTokenAmount: ethers.formatUnits(oldPolicy.minTokenAmount, decimals),
+            flatFeeBaseCurrency: ethers.formatUnits(oldPolicy.flatFeeBaseCurrency, decimals),
+            flatFeeTokens: ethers.formatUnits(oldPolicy.flatFeeTokens, decimals),
+            dynamicFeeTokens: `${Number(oldPolicy.dynamicFeeTokens) * 100 / Number(dynamicFeeDivisor)} %`,
+        };
+        console.table(policyDisplay);
+    });
+
+
 task(`${PREFIX}list-tokens`)
     .addParam("bridgeAddress", "RuneBridge contract address")
     .setAction(jsonAction(async ({
