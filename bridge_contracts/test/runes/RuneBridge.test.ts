@@ -733,6 +733,33 @@ describe("RuneBridge", function () {
         });
 
         // TODO: test it sets the policy
+        it('test it sets the policy', async () => {
+            const { runeBridge } = await loadFixture(runeBridgeFixture);
+            const policy: EvmToBtcTransferPolicy = {
+                runeBridgeContract: runeBridge,
+                tokenAddress: ADDRESS_ZERO,
+                maxTokenAmount: ethers.parseEther('1000000000'),
+                minTokenAmount: 0,
+                flatFeeBaseCurrency: 0,
+                flatFeeTokens: 0,
+                dynamicFeeTokens: 0,
+            }
+            await expect(runeBridge.setEvmToBtcTransferPolicy(
+                policy.tokenAddress,
+                policy.maxTokenAmount,
+                policy.minTokenAmount,
+                policy.flatFeeBaseCurrency,
+                policy.flatFeeTokens,
+                policy.dynamicFeeTokens,
+            )).to.emit(runeBridge, "EvmToBtcTransferPolicyChanged").withArgs(
+                policy.tokenAddress,
+                policy.maxTokenAmount,
+                policy.minTokenAmount,
+                policy.flatFeeBaseCurrency,
+                policy.flatFeeTokens,
+                policy.dynamicFeeTokens,
+            );
+        });
     });
 
     describe("setRuneRegistrationRequestsEnabled", () => {
