@@ -222,9 +222,8 @@ describe("RuneBridge", function () {
             )).to.emit(runeBridge, "RuneTransferToBtc");
         });
 
-        it('handles fees', async () => {
+        describe('handles fees', async () => {
             const {runeBridge, runeToken, rune} = await loadFixture(runeBridgeFixture);
-            const base26EncodedRune = rune;
             await setRuneTokenBalance(runeToken, owner, 1000);
             await runeToken.approve(await runeBridge.getAddress(), 1000);
             const defaultPolicy: EvmToBtcTransferPolicy = {
@@ -247,7 +246,7 @@ describe("RuneBridge", function () {
                     counter: 1,
                     from: await owner.getAddress(),
                     token: await runeToken.getAddress(),
-                    rune: base26EncodedRune,
+                    rune,
                     transferredTokenAmount: 100,
                     netRuneAmount: 100,
                     receiverBtcAddress: btcAddress,
@@ -280,6 +279,7 @@ describe("RuneBridge", function () {
                 {
                     // test dynamic fee
                     policy: {...defaultPolicy, dynamicFeeTokens: 300},
+                    /// 300 / 10_000
                     expectedParams: {
                         ...defaultExpectedParams,
                         args: {
@@ -302,25 +302,34 @@ describe("RuneBridge", function () {
                         }
                     },
                 },
+                // TODO: flat fee + dynamic fee (tokens)
+                // TODO: transfer a really small amount so that rounding for dynamic fees is required
+                //       f.ex. transfer 10 (not parseEther('10')!), dynamic fee = 1%
+                //       (in this case it should round up, fee should be 1 token base unit)
             ]
             for (const {policy, expectedParams} of testData) {
                 await setEvmToBtcTransferPolicy(policy)
                 await transferToBtcAndExpectEvent(expectedParams);
+                // TODO: test user balance change for tokens (should decrease by the full sent amount)
+                // TODO: test contract balance change for tokens (fees) (should increase by fee amount)
+                // TODO: test contract balance for base currency (should increase by flatFeeBaseCurrency)
+                // TODO: OPTIONAL: test user balance change for base currency (should decrease by flatFeeBaseCurrency + tx cost, tricky to test, don't spend too much on it :P)
             }
         });
+
+        // TODO: trying to transfer less than fees (f.ex. minTokenAmount = 1, flatFeeTokens = 10, try to transfer 10)
 
         it('handles runes/rune tokens with different divisibilities (decimals)', async () => {
             // Common Decimal Settings:
             // 18 Decimals: Standard for most tokens, providing high precision.
             // 8 Decimals: Common for tokens modeled after Bitcoin.
-            // 0 Decimals: Used for non-fungible tokens (NFTs) or tokens that represent indivisible assets.
+            // 0 Decimals: Used for tokens that represent indivisible assets.
 
             const {runeBridge} = await loadFixture(runeBridgeFixture);
             const RuneToken = await ethers.getContractFactory("RuneToken");
             let rune = 162415998997;
-            let runeDivisibility = 8;
             let counter = 1;
-            for (let i = 0; i <= 15; i++) {
+            for (let runeDivisibility = 8; runeDivisibility <= 23; runeDivisibility++) {
                 await runeBridge.registerRune(
                   "TEST•KAKAO",
                   "RK",
@@ -354,10 +363,30 @@ describe("RuneBridge", function () {
                   tokenFee,
                 );
                 rune += 1;
-                runeDivisibility += 1;
                 counter += 1;
             }
         });
+
+        // Rune decimals:  8
+        // Token decimals: 18
+        // Token amount:   1000e18
+        // Rune amount:    1000e8
+
+        /*
+         * TODO: tests for these cases
+         * Rune Decimals | Token Decimals | Transferred token amount (base units)  | Received rune amount (base units) | Received fees (token base units)
+         * 18            | 18             | 100e18                                 | 100e18                            | 0
+         * 23            | 23             | 100e23                                 | 100e23                            | 0
+         *  8            | 18             | 100e18                                 | 100e8                             | 0
+         *  8            | 18             | 1e18                                   | 1e8                               | 0
+         *  8            | 18             | 1e10                                   | 1e0 = 1                           | 0
+         *  8            | 18             | 1e9                                    | 0.1 = ERROR!                      | 0
+         *  8            | 18             | 1e10 + 1e9 = 11000000000               | 1.1 = 1 (rest kept as fees)       | 1e9
+         * Start by just testing data in the contract event
+         * 100e8 = parseUnits(100, 8)
+         */
+
+        // TODO: test fees for tokens with different decimals, including small amounts
     });
 
     describe("requestRuneRegistration", () => {
@@ -446,11 +475,13 @@ describe("RuneBridge", function () {
                 federator2.signMessage(hashBytes),
                 federator3.signMessage(hashBytes),
             ])
-        })
+        });
+
         // TODO: only callable by federator
         // TODO: test it actually accepts the transfer
         // TODO: test it checks that it's not processed
         // TODO: test it checks signatures
+
         it('only callable by a federator', async () => {
             await expect(runeBridge.acceptTransferFromBtc(
                 await user.getAddress(),
@@ -460,13 +491,16 @@ describe("RuneBridge", function () {
                 btcTxVout,
                 []
             )).to.be.revertedWith(reasonNotFederator(await owner.getAddress()));
-        })
+        });
+
         it('test it actually accepts the transfer', async () => {
             await expect(federatorRuneBridge.acceptTransferFromBtc(
                 ...data,
                 federatorSignatures
             )).to.emit(federatorRuneBridge, "RuneTransferFromBtc");
-        })
+            // TODO: test event args
+        });
+
         it('test it checks that it is not processed', async () => {
             await federatorRuneBridge.acceptTransferFromBtc(
                 ...data,
@@ -478,7 +512,8 @@ describe("RuneBridge", function () {
             )).to.be.revertedWith(
               reasonTransferAlreadyProcessed()
             )
-        })
+        });
+
         it('test it checks signatures', async () => {
             // No signatures
             await expect(federatorRuneBridge.acceptTransferFromBtc(
@@ -500,7 +535,7 @@ describe("RuneBridge", function () {
                     await owner.signMessage(hashBytes)
                 ]
             )).to.be.revertedWith(reasonNotFederator(await owner.getAddress()))
-        })
+        });
     });
 
     describe("acceptRuneRegistrationRequest", () => {
@@ -568,6 +603,14 @@ describe("RuneBridge", function () {
                 ...data,
                 federatorSignatures
             )).to.emit(runeBridgeAsFederator, "RuneRegistered");
+
+            // TODO: test that the rune is registered and the token is deployed
+            //       example:
+            //             let token = RuneToken.attach(await runeBridge.getTokenByRune(123));
+            //             expect(await token.name()).to.equal("Foo");
+            //             expect(await token.symbol()).to.equal("Bar");
+            //             expect(await token.rune()).to.equal(123);
+            //             expect(await token.decimals()).to.equal(18); // at least 18
         })
         it('test rune is not already registered', async () => {
 
@@ -756,6 +799,8 @@ describe("RuneBridge", function () {
                 policy.flatFeeTokens,
                 policy.dynamicFeeTokens,
             );
+
+            // TODO: test the policy by calling getEvmToBtcTransferPolicy
         });
     });
 
