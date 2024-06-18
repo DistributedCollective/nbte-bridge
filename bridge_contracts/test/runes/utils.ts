@@ -2,7 +2,7 @@ import {getStorageAt, setStorageAt} from "@nomicfoundation/hardhat-network-helpe
 import {ethers} from 'hardhat';
 import {BigNumberish, Contract, Signer} from 'ethers';
 import {expect} from "chai";
-import {EvmToBtcTransferPolicy, ExpectedEmitArgsProps} from "./types";
+import {EvmToBtcTransferPolicy, TransferToBtcAndExpectEventProps} from "./types";
 
 const RUNE_TOKEN_BALANCE_MAPPING_SLOT = 0;
 const RUNE_TOKEN_TOTAL_SUPPLY_SLOT = 2;
@@ -103,14 +103,14 @@ export function reasonNotEnoughSignatures(): string {
  * await setEvmToBtcTransferPolicy(policyParams);
  */
 export const setEvmToBtcTransferPolicy = async ({
-                                                  runeBridgeContract,
-                                                  tokenAddress,
-                                                  dynamicFeeTokens,
-                                                  flatFeeTokens,
-                                                  minTokenAmount,
-                                                  maxTokenAmount,
-                                                  flatFeeBaseCurrency
-                                                }: EvmToBtcTransferPolicy): Promise<Contract> => {
+  runeBridgeContract,
+  tokenAddress,
+  dynamicFeeTokens,
+  flatFeeTokens,
+  minTokenAmount,
+  maxTokenAmount,
+  flatFeeBaseCurrency,
+}: EvmToBtcTransferPolicy): Promise<Contract> => {
   return await runeBridgeContract.setEvmToBtcTransferPolicy(
     tokenAddress,
     maxTokenAmount,
@@ -125,7 +125,7 @@ export const setEvmToBtcTransferPolicy = async ({
 /**
  * Asserts that a function emits an event with specific arguments.
  *
- * @param {ExpectedEmitArgsProps} params - The parameters for the function.
+ * @param {TransferToBtcAndExpectEventProps} params - The parameters for the function.
  * @param {Contract} params.runeBridgeContract - The Rune Bridge contract instance.
  * @param {string} params.tokenAddress - The token address.
  * @param {string} params.btcAddress - The BTC address of the receiver.
@@ -172,14 +172,22 @@ export const setEvmToBtcTransferPolicy = async ({
  *
  * await expectedEmitWithArgs(params);
  */
-export const expectedEmitWithArgs = async ({runeBridgeContract, tokenAddress, btcAddress, transferAmount, emit, args}: ExpectedEmitArgsProps): Promise<any> => {
+export const transferToBtcAndExpectEvent = async ({
+    runeBridgeContract,
+    tokenAddress,
+    btcAddress,
+    transferAmount,
+    emit,
+    args,
+}: TransferToBtcAndExpectEventProps): Promise<any> => {
   return expect(
     runeBridgeContract.transferToBtc(
-    tokenAddress,
-    transferAmount,
-    btcAddress,
-    {value: args.baseCurrencyFee}
-  )).to.emit(
+        tokenAddress,
+        transferAmount,
+        btcAddress,
+        {value: args.baseCurrencyFee},
+      )
+  ).to.emit(
     emit.contract,
     emit.eventName
   ).withArgs(
@@ -203,7 +211,4 @@ export const getSignatures = async (federators: Signer[], runeBridge: Contract, 
     return await Promise.all(federators.map(federator=> {
       return federator.signMessage(hashBytes)
     }));
-}
-export const transferToBTC = (runeBridge: Contract, tokenAddress: string, amount: BigNumberish, btcAddress: string) => {
-  return runeBridge.transferToBtc(tokenAddress, amount, btcAddress);
 }

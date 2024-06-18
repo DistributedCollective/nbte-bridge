@@ -14,7 +14,7 @@ export type TransferPolicy = {
 }
 export type EvmToBtcTransferPolicy = TransferPolicy & ContractProps;
 
-export type ExpectedEmitArgsProps = {
+export type TransferToBtcAndExpectEventProps = {
   tokenAddress: string;
   btcAddress: string;
   transferAmount: BigNumberish;

@@ -6,18 +6,19 @@ import { ethers, upgrades } from "hardhat";
 import { Contract, Signer} from 'ethers';
 import {setBalance} from "@nomicfoundation/hardhat-network-helpers";
 import {
-    expectedEmitWithArgs, reasonNotAdmin,
+    transferToBtcAndExpectEvent,
+    reasonNotAdmin,
     reasonNotEnoughSignatures,
     reasonNotFederator,
     reasonNotGuard,
     reasonNotPauser,
-    reasonRegistrationNotRequested, reasonRuneAlreadyRegistered,
+    reasonRegistrationNotRequested,
+    reasonRuneAlreadyRegistered,
     reasonTransferAlreadyProcessed,
     setEvmToBtcTransferPolicy,
     setRuneTokenBalance,
-
 } from "./utils";
-import {EvmToBtcTransferPolicy, ExpectedEmitArgsProps} from "./types";
+import {EvmToBtcTransferPolicy, TransferToBtcAndExpectEventProps} from "./types";
 
 const ADDRESS_ZERO = "0x0000000000000000000000000000000000000000";
 const ADDRESS_RANDOM = "0x0000000000000000000000000000000000000123";
@@ -221,10 +222,6 @@ describe("RuneBridge", function () {
             )).to.emit(runeBridge, "RuneTransferToBtc");
         });
 
-        // TODO: it handles fees
-        // TODO: it handles runes/rune tokens with different divisibilities (decimals)
-
-
         it('handles fees', async () => {
             const {runeBridge, runeToken, rune} = await loadFixture(runeBridgeFixture);
             const base26EncodedRune = rune;
@@ -240,7 +237,7 @@ describe("RuneBridge", function () {
                 dynamicFeeTokens: 0,
             }
 
-            const defaultExpectedParams: ExpectedEmitArgsProps = {
+            const defaultExpectedParams: TransferToBtcAndExpectEventProps = {
                 transferAmount: 100,
                 runeBridgeContract: runeBridge,
                 tokenAddress: await runeToken.getAddress(),
@@ -308,7 +305,7 @@ describe("RuneBridge", function () {
             ]
             for (const {policy, expectedParams} of testData) {
                 await setEvmToBtcTransferPolicy(policy)
-                await expectedEmitWithArgs(expectedParams);
+                await transferToBtcAndExpectEvent(expectedParams);
             }
         });
 
