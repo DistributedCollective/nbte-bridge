@@ -3,7 +3,7 @@ import {
 } from "@nomicfoundation/hardhat-toolbox/network-helpers";
 import { expect } from 'chai';
 import { ethers, upgrades } from "hardhat";
-import { Contract, Signer} from 'ethers';
+import {Contract, Signer} from 'ethers';
 import {setBalance} from "@nomicfoundation/hardhat-network-helpers";
 import {
     transferToBtcAndExpectEvent,
@@ -222,99 +222,135 @@ describe("RuneBridge", function () {
             )).to.emit(runeBridge, "RuneTransferToBtc");
         });
 
-        describe('handles fees', async () => {
-            const {runeBridge, runeToken, rune} = await loadFixture(runeBridgeFixture);
-            await setRuneTokenBalance(runeToken, owner, 1000);
-            await runeToken.approve(await runeBridge.getAddress(), 1000);
-            const defaultPolicy: EvmToBtcTransferPolicy = {
-                runeBridgeContract: runeBridge,
-                tokenAddress: await runeToken.getAddress(),
-                maxTokenAmount: ethers.parseEther('1000'),
-                minTokenAmount: 1,
-                flatFeeBaseCurrency: 0,
-                flatFeeTokens: 0,
-                dynamicFeeTokens: 0,
-            }
+        describe('handlesFees', () => {
+            let testData: {policy: EvmToBtcTransferPolicy, expectedParams: TransferToBtcAndExpectEventProps}[];
+            let runeBridge: Contract;
+            let runeToken: Contract;
+            let rune: number;
+            const testCases = [
+                'test flat token fee',
+                'test flat token fee',
+                'test dynamic token fee',
+                'test flatFeeBaseCurrency',
+            ];
 
-            const defaultExpectedParams: TransferToBtcAndExpectEventProps = {
-                transferAmount: 100,
-                runeBridgeContract: runeBridge,
-                tokenAddress: await runeToken.getAddress(),
-                btcAddress: btcAddress,
-                emit: {contract: runeBridge, eventName: "RuneTransferToBtc"},
-                args: {
-                    counter: 1,
-                    from: await owner.getAddress(),
-                    token: await runeToken.getAddress(),
-                    rune,
-                    transferredTokenAmount: 100,
-                    netRuneAmount: 100,
-                    receiverBtcAddress: btcAddress,
-                    baseCurrencyFee: 0,
-                    tokenFee: 0,
+            before(async () => {
+                ({runeBridge, runeToken, rune} = await loadFixture(runeBridgeFixture));
+                await setRuneTokenBalance(runeToken, owner, 2000);
+                await runeToken.approve(await runeBridge.getAddress(), 2000);
+                const defaultPolicy: EvmToBtcTransferPolicy = {
+                    runeBridgeContract: runeBridge,
+                    tokenAddress: await runeToken.getAddress(),
+                    maxTokenAmount: ethers.parseEther('1000'),
+                    minTokenAmount: 1,
+                    flatFeeBaseCurrency: 0,
+                    flatFeeTokens: 0,
+                    dynamicFeeTokens: 0,
                 }
-            }
-            const testData = [
-                {
-                    // test flat token fee
-                    policy: {...defaultPolicy, flatFeeTokens: 20},
-                    expectedParams: {
-                        ...defaultExpectedParams,
-                        args: {...defaultExpectedParams.args, netRuneAmount: 80, tokenFee: 20}
+
+                const defaultExpectedParams: TransferToBtcAndExpectEventProps = {
+                    transferAmount: 100,
+                    runeBridgeContract: runeBridge,
+                    tokenAddress: await runeToken.getAddress(),
+                    btcAddress: btcAddress,
+                    emit: {contract: runeBridge, eventName: "RuneTransferToBtc"},
+                    args: {
+                        counter: 1,
+                        from: await owner.getAddress(),
+                        token: await runeToken.getAddress(),
+                        rune,
+                        transferredTokenAmount: 100,
+                        netRuneAmount: 100,
+                        receiverBtcAddress: btcAddress,
+                        baseCurrencyFee: 0,
+                        tokenFee: 0,
                     }
-                },
-                {
-                    // test flat token fee
-                    policy: {...defaultPolicy, flatFeeTokens: 30},
-                    expectedParams: {
-                        ...defaultExpectedParams,
-                        args: {
-                            ...defaultExpectedParams.args,
-                            counter: 2,
-                            netRuneAmount: 70,
-                            tokenFee: 30,
+                }
+                testData = [
+                    {
+                        // test flat token fee
+                        policy: {...defaultPolicy, flatFeeTokens: 20},
+                        expectedParams: {
+                            ...defaultExpectedParams,
+                            args: {...defaultExpectedParams.args, netRuneAmount: 80, tokenFee: 20}
                         }
                     },
-                },
-                {
-                    // test dynamic fee
-                    policy: {...defaultPolicy, dynamicFeeTokens: 300},
-                    /// 300 / 10_000
-                    expectedParams: {
-                        ...defaultExpectedParams,
-                        args: {
-                            ...defaultExpectedParams.args,
-                            counter: 3,
-                            netRuneAmount: 97,
-                            tokenFee: 3,
-                        }
+                    {
+                        // test flat token fee
+                        policy: {...defaultPolicy, flatFeeTokens: 30},
+                        expectedParams: {
+                            ...defaultExpectedParams,
+                            transferAmount: 120,
+                            args: {
+                                ...defaultExpectedParams.args,
+                                counter: 2,
+                                transferredTokenAmount: 120,
+                                netRuneAmount: 90,
+                                tokenFee: 30,
+                            }
+                        },
                     },
-                },
-                {
-                    // test flatFeeBaseCurrency
-                    policy: {...defaultPolicy, flatFeeBaseCurrency: ethers.parseEther('0.0001')},
-                    expectedParams: {
-                        ...defaultExpectedParams,
-                        args: {
-                            ...defaultExpectedParams.args,
-                            counter: 4,
-                            baseCurrencyFee: ethers.parseEther('0.0001'),
-                        }
+                    {
+                        // test dynamic fee
+                        policy: {...defaultPolicy, dynamicFeeTokens: 300},
+                        /// 300 / 10_000
+                        expectedParams: {
+                            ...defaultExpectedParams,
+                            args: {
+                                ...defaultExpectedParams.args,
+                                counter: 3,
+                                netRuneAmount: 97,
+                                tokenFee: 3,
+                            }
+                        },
                     },
-                },
-                // TODO: flat fee + dynamic fee (tokens)
-                // TODO: transfer a really small amount so that rounding for dynamic fees is required
-                //       f.ex. transfer 10 (not parseEther('10')!), dynamic fee = 1%
-                //       (in this case it should round up, fee should be 1 token base unit)
-            ]
-            for (const {policy, expectedParams} of testData) {
-                await setEvmToBtcTransferPolicy(policy)
-                await transferToBtcAndExpectEvent(expectedParams);
-                // TODO: test user balance change for tokens (should decrease by the full sent amount)
-                // TODO: test contract balance change for tokens (fees) (should increase by fee amount)
-                // TODO: test contract balance for base currency (should increase by flatFeeBaseCurrency)
-                // TODO: OPTIONAL: test user balance change for base currency (should decrease by flatFeeBaseCurrency + tx cost, tricky to test, don't spend too much on it :P)
-            }
+                    {
+                        // 'test flatFeeBaseCurrency'
+                        policy: {...defaultPolicy, flatFeeBaseCurrency: ethers.parseEther('1')},
+                        expectedParams: {
+                            ...defaultExpectedParams,
+                            args: {
+                                ...defaultExpectedParams.args,
+                                counter: 4,
+                                baseCurrencyFee: ethers.parseEther('1'),
+                            }
+                        },
+                    },
+                    // TODO: flat fee + dynamic fee (tokens)
+                    // TODO: transfer a really small amount so that rounding for dynamic fees is required
+                    //       f.ex. transfer 10 (not parseEther('10')!), dynamic fee = 1%
+                    //       (in this case it should round up, fee should be 1 token base unit)
+                ]
+            })
+
+            testCases.forEach((testCase, index) => {
+                it(testCase, async () => {
+                    const {policy, expectedParams} = testData[index];
+                    const ownerRuneTokenBalanceBefore = await runeToken.balanceOf(await owner.getAddress());
+                    const runeBridgeRuneTokenBalanceBefore = await runeToken.balanceOf(await runeBridge.getAddress());
+                    const runeBridgeBaseCurrencyBalanceBefore = await ethers.provider.getBalance(await runeBridge.getAddress());
+
+                    await setEvmToBtcTransferPolicy(policy);
+                    await transferToBtcAndExpectEvent(expectedParams);
+
+                    // User balance change for tokens (should decrease by the full sent amount)
+                    const ownerRuneTokenBalanceAfter = await runeToken.balanceOf(await owner.getAddress());
+                    const expectedOwnerRuneBalance = ownerRuneTokenBalanceBefore - ownerRuneTokenBalanceAfter;
+                    expect(expectedOwnerRuneBalance).to.equal(expectedParams.transferAmount);
+
+                    // Contract balance change for tokens (fees) (should increase by fee amount)
+                    const runeBridgeRuneTokenBalanceAfter = await runeToken.balanceOf(await runeBridge.getAddress());
+                    const expectedRuneBridgeRuneBalance = runeBridgeRuneTokenBalanceBefore + BigInt(expectedParams.args.tokenFee);
+                    expect(expectedRuneBridgeRuneBalance).to.equal(runeBridgeRuneTokenBalanceAfter);
+
+                    // Contract balance for base currency (should increase by flatFeeBaseCurrency)
+                    const runeBridgeBaseCurrencyBalanceAfter = await ethers.provider.getBalance(await runeBridge.getAddress());
+                    const expectedRunBridgeBaseCurrencyBalance = runeBridgeBaseCurrencyBalanceBefore + BigInt(expectedParams.args.baseCurrencyFee);
+                    expect(expectedRunBridgeBaseCurrencyBalance).to.equal(runeBridgeBaseCurrencyBalanceAfter);
+
+                    // TODO: OPTIONAL: test user balance change for base currency (should decrease by flatFeeBaseCurrency + tx cost, tricky to test, don't spend too much on it :P)
+                });
+            });
         });
 
         // TODO: trying to transfer less than fees (f.ex. minTokenAmount = 1, flatFeeTokens = 10, try to transfer 10)
