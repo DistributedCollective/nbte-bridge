@@ -16,7 +16,7 @@ import {
     reasonRuneAlreadyRegistered,
     reasonTransferAlreadyProcessed,
     setEvmToBtcTransferPolicy,
-    setRuneTokenBalance,
+    setRuneTokenBalance, reasonIncorrectBaseCurrencyFee,
 } from "./utils";
 import {EvmToBtcTransferPolicy, TransferToBtcAndExpectEventProps} from "./types";
 
@@ -227,18 +227,22 @@ describe("RuneBridge", function () {
             let runeBridge: Contract;
             let runeToken: Contract;
             let rune: number;
+            let defaultPolicy: EvmToBtcTransferPolicy;
+            let defaultExpectedParams: TransferToBtcAndExpectEventProps;
             const testCases = [
                 'test flat token fee',
                 'test flat token fee',
                 'test dynamic token fee',
                 'test flatFeeBaseCurrency',
+                'test flat fee + dynamic fee (tokens)',
+                'test transfer a really small amount',
             ];
 
             before(async () => {
                 ({runeBridge, runeToken, rune} = await loadFixture(runeBridgeFixture));
                 await setRuneTokenBalance(runeToken, owner, 2000);
                 await runeToken.approve(await runeBridge.getAddress(), 2000);
-                const defaultPolicy: EvmToBtcTransferPolicy = {
+                defaultPolicy = {
                     runeBridgeContract: runeBridge,
                     tokenAddress: await runeToken.getAddress(),
                     maxTokenAmount: ethers.parseEther('1000'),
@@ -248,7 +252,7 @@ describe("RuneBridge", function () {
                     dynamicFeeTokens: 0,
                 }
 
-                const defaultExpectedParams: TransferToBtcAndExpectEventProps = {
+                defaultExpectedParams = {
                     transferAmount: 100,
                     runeBridgeContract: runeBridge,
                     tokenAddress: await runeToken.getAddress(),
@@ -316,12 +320,56 @@ describe("RuneBridge", function () {
                             }
                         },
                     },
-                    // TODO: flat fee + dynamic fee (tokens)
-                    // TODO: transfer a really small amount so that rounding for dynamic fees is required
-                    //       f.ex. transfer 10 (not parseEther('10')!), dynamic fee = 1%
-                    //       (in this case it should round up, fee should be 1 token base unit)
+                    // flat fee + dynamic fee (tokens)
+                    {
+                        policy: {...defaultPolicy, flatFeeTokens: 15, dynamicFeeTokens: 400},
+                        expectedParams: {
+                            ...defaultExpectedParams,
+                            transferAmount: 120,
+                            args: {
+                                ...defaultExpectedParams.args,
+                                counter: 5,
+                                transferredTokenAmount: 120,
+                                netRuneAmount: 101,
+                                tokenFee: 19,
+                            }
+                        }
+                    },
+                    // transfer a really small amount so that rounding for dynamic fees is required
+                    // f.ex. transfer 10 (not parseEther('10')!), dynamic fee = 1%
+                    // (in this case it should round up, fee should be 1 token base unit)
+                    {
+                        policy: {...defaultPolicy, dynamicFeeTokens: 100},
+                        expectedParams: {
+                            ...defaultExpectedParams,
+                            transferAmount: 10,
+                            args: {
+                                ...defaultExpectedParams.args,
+                                counter: 6,
+                                transferredTokenAmount: 10,
+                                netRuneAmount: 9,
+                                tokenFee: 1,
+                            }
+                        }
+                    },
                 ]
             })
+
+            it('trying to transfer less than fees', async () => {
+                const policy = {
+                    ...defaultPolicy,
+                    flatFeeTokens: 10,
+                }
+                const transferAmount = 10;
+                const baseCurrencyFee = 10;
+                await setEvmToBtcTransferPolicy(policy)
+                await expect(runeBridge.transferToBtc(
+                  await runeToken.getAddress(),
+                  transferAmount,
+                  btcAddress,
+                  {value: baseCurrencyFee}
+                )).to.be.revertedWith(reasonIncorrectBaseCurrencyFee);
+            });
 
             testCases.forEach((testCase, index) => {
                 it(testCase, async () => {
@@ -353,7 +401,6 @@ describe("RuneBridge", function () {
             });
         });
 
-        // TODO: trying to transfer less than fees (f.ex. minTokenAmount = 1, flatFeeTokens = 10, try to transfer 10)
 
         it('handles runes/rune tokens with different divisibilities (decimals)', async () => {
             // Common Decimal Settings:

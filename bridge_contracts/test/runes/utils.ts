@@ -9,6 +9,7 @@ const RUNE_TOKEN_TOTAL_SUPPLY_SLOT = 2;
 export const reasonRuneRegistrationRequestsDisabled = 'rune registration requests disabled';
 export const reasonRegistrationNotRequested = 'registration not requested';
 export const reasonRuneAlreadyRegistered = 'rune already registered';
+export const reasonIncorrectBaseCurrencyFee = 'incorrect base currency fee (either overpaying or underpaying';
 
 export async function setRuneTokenBalance(
   runeToken: Contract | string,
