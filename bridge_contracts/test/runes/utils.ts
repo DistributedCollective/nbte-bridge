@@ -6,10 +6,6 @@ import {EvmToBtcTransferPolicy, TransferToBtcAndExpectEventProps} from "./types"
 
 const RUNE_TOKEN_BALANCE_MAPPING_SLOT = 0;
 const RUNE_TOKEN_TOTAL_SUPPLY_SLOT = 2;
-export const reasonRuneRegistrationRequestsDisabled = 'rune registration requests disabled';
-export const reasonRegistrationNotRequested = 'registration not requested';
-export const reasonRuneAlreadyRegistered = 'rune already registered';
-export const reasonIncorrectBaseCurrencyFee = 'incorrect base currency fee (either overpaying or underpaying';
 
 export async function setRuneTokenBalance(
   runeToken: Contract | string,
@@ -66,6 +62,7 @@ export function reasonNotPauser(address: string): string {
 export function reasonNotGuard(address: string): string {
   return reasonNotRole(address, "0x25bca7788d8c23352e368ccd4774eb5b5fc3d40422de2c14e98631ab71f33415");
 }
+
 export function reasonNotFederator(address: string): string {
   return reasonNotRole(address, "0xd60d8c24d353e0fb03320bff8dd86901186b3566397d831f2dff247991b53f18");
 }
@@ -73,6 +70,7 @@ export function reasonNotFederator(address: string): string {
 export function reasonTransferAlreadyProcessed(): string {
   return "transfer already processed"
 }
+
 export function reasonNotEnoughSignatures(): string {
   return 'Not enough signatures'
 }
@@ -103,15 +101,16 @@ export function reasonNotEnoughSignatures(): string {
  *
  * await setEvmToBtcTransferPolicy(policyParams);
  */
-export const setEvmToBtcTransferPolicy = async ({
-  runeBridgeContract,
-  tokenAddress,
-  dynamicFeeTokens,
-  flatFeeTokens,
-  minTokenAmount,
-  maxTokenAmount,
-  flatFeeBaseCurrency,
-}: EvmToBtcTransferPolicy): Promise<Contract> => {
+export const setEvmToBtcTransferPolicy = async (
+  {
+    runeBridgeContract,
+    tokenAddress,
+    dynamicFeeTokens,
+    flatFeeTokens,
+    minTokenAmount,
+    maxTokenAmount,
+    flatFeeBaseCurrency,
+  }: EvmToBtcTransferPolicy): Promise<Contract> => {
   return await runeBridgeContract.setEvmToBtcTransferPolicy(
     tokenAddress,
     maxTokenAmount,
@@ -173,21 +172,22 @@ export const setEvmToBtcTransferPolicy = async ({
  *
  * await expectedEmitWithArgs(params);
  */
-export const transferToBtcAndExpectEvent = async ({
+export const transferToBtcAndExpectEvent = async (
+  {
     runeBridgeContract,
     tokenAddress,
     btcAddress,
     transferAmount,
     emit,
     args,
-}: TransferToBtcAndExpectEventProps): Promise<any> => {
+  }: TransferToBtcAndExpectEventProps): Promise<any> => {
   return expect(
     runeBridgeContract.transferToBtc(
-        tokenAddress,
-        transferAmount,
-        btcAddress,
-        {value: args.baseCurrencyFee},
-      )
+      tokenAddress,
+      transferAmount,
+      btcAddress,
+      {value: args.baseCurrencyFee},
+    )
   ).to.emit(
     emit.contract,
     emit.eventName
@@ -205,11 +205,45 @@ export const transferToBtcAndExpectEvent = async ({
 }
 
 export const getSignatures = async (federators: Signer[], runeBridge: Contract, tokenData: any[]) => {
-    const hash = await runeBridge.getAcceptRuneRegistrationRequestMessageHash(
-      ...tokenData
-    );
-    const hashBytes = ethers.getBytes(hash);
-    return await Promise.all(federators.map(federator=> {
-      return federator.signMessage(hashBytes)
-    }));
+  const hash = await runeBridge.getAcceptRuneRegistrationRequestMessageHash(
+    ...tokenData
+  );
+  const hashBytes = ethers.getBytes(hash);
+  return await Promise.all(federators.map(federator => {
+    return federator.signMessage(hashBytes)
+  }));
+}
+
+/**
+ * Calculates the received rune amount based on the transferred token amount and their respective decimals.
+ * @returns {number} The received rune amount.
+ * @example
+ * runeDecimals = 6
+ * tokenDecimals = 18
+ * transferredTokenAmount = 1e10 (which is 10,000,000,000 in base units)
+ *
+ * - Calculate Decimal Difference:
+ * decimalDifference = 18 - 6 = 12
+ *
+ * - Divide Transferred Token Amount by 10^12:
+ * netRuneAmount = 1e10 / 10^12 = 1e10 / 1e12 = 1e-2 = 0.01
+ */
+export const getNetRuneAmount = (runeDecimals: number, tokenDecimals: number, transferredTokenAmount: bigint): bigint => {
+  if (tokenDecimals < runeDecimals) {
+    throw new Error("Token decimals should be greater than or equal to rune decimals.");
+  }
+  const decimalDifference = tokenDecimals - runeDecimals;
+  const divisor = BigInt(Math.pow(10, decimalDifference));
+  return transferredTokenAmount / divisor;
+}
+export const bigIntToScientificNotation = (bigIntValue: bigint) => {
+  if (bigIntValue === 0n) {
+    return "0";
+  }
+
+  const strValue = bigIntValue.toString();
+  const exponent = strValue.length - 1;
+  const mantissa = strValue[0] + (strValue.length > 1 ? '.' + strValue.slice(1).replace(/0+$/, '') : '');
+
+  return `${mantissa}e${exponent}`;
 }
