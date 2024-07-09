@@ -431,13 +431,6 @@ describe("RuneBridge", function () {
        * Start by just testing data in the contract event
        * 100e8 = parseUnits(100, 8)
        */
-      const createTestData = (runeDecimals: number, amountToTransferDecimals: number, amountToTransfer: number, expectedFees: number, isError: boolean = false) => ({
-        runeDecimals,
-        amountToTransferDecimals,
-        amountToTransfer: BigInt(amountToTransfer),
-        expectedFees: BigInt(expectedFees),
-        isError
-      });
       const testCases = [
         {runeDecimals: 18, amountToTransferDecimals: 18, amountToTransfer: 100, expectedFees: 0, isError: false},
         {runeDecimals: 23, amountToTransferDecimals: 23, amountToTransfer: 100, expectedFees: 0, isError: false},
@@ -450,9 +443,7 @@ describe("RuneBridge", function () {
         {runeDecimals: 9, amountToTransferDecimals: 10, amountToTransfer: 1, expectedFees: 0, isError: false},
         {runeDecimals: 6, amountToTransferDecimals: 10, amountToTransfer: 1, expectedFees: 0, isError: true},
         {runeDecimals: 8, amountToTransferDecimals: 9, amountToTransfer: 11, expectedFees: 1e9, isError: false}
-      ].map(({runeDecimals, amountToTransferDecimals, amountToTransfer, expectedFees, isError}) =>
-        createTestData(runeDecimals, amountToTransferDecimals, amountToTransfer, expectedFees, isError)
-      );
+      ]
       testCases.forEach((
         {
           runeDecimals,
@@ -465,7 +456,7 @@ describe("RuneBridge", function () {
           `handle transfer case with runeDecimals: ${runeDecimals}`,
           `amountToTransferDecimals: ${amountToTransferDecimals}`,
           `amountToTransfer: ${amountToTransfer.toString()}`,
-          `expectedFees: ${bigIntToScientificNotation(expectedFees)}`
+          `expectedFees: ${bigIntToScientificNotation(BigInt(expectedFees))}`
         ].join(', ');
         it(title, async () => {
           const RuneToken = await ethers.getContractFactory("RuneToken");
