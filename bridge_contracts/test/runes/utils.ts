@@ -2,7 +2,13 @@ import {getStorageAt, setStorageAt} from "@nomicfoundation/hardhat-network-helpe
 import {ethers} from 'hardhat';
 import {BigNumberish, Contract, Signer} from 'ethers';
 import {expect} from "chai";
-import {EvmToBtcTransferPolicy, TransferToBtcAndExpectEventProps} from "./types";
+import {
+  EvmToBtcTransferPolicy,
+  HandlesRuneTestCaseProps,
+  HandlesRuneWithFeeTestCaseProps,
+  TransferToBtcAndExpectEventProps
+} from "./types";
+import {handlesRuneWithDiffDecimalsAndDynamicFeeTokens, handlesRuneWithDiffDecimalsAndflatFeeTokens} from "./constants";
 
 const RUNE_TOKEN_BALANCE_MAPPING_SLOT = 0;
 const RUNE_TOKEN_TOTAL_SUPPLY_SLOT = 2;
@@ -111,6 +117,9 @@ export const setEvmToBtcTransferPolicy = async (
     maxTokenAmount,
     flatFeeBaseCurrency,
   }: EvmToBtcTransferPolicy): Promise<Contract> => {
+  if (!runeBridgeContract || !tokenAddress) {
+    throw new Error("Rune Bridge contract instance is required.");
+  }
   return await runeBridgeContract.setEvmToBtcTransferPolicy(
     tokenAddress,
     maxTokenAmount,
@@ -181,6 +190,9 @@ export const transferToBtcAndExpectEvent = async (
     emit,
     args,
   }: TransferToBtcAndExpectEventProps): Promise<any> => {
+  if (!runeBridgeContract || !tokenAddress) {
+    throw new Error("Rune Bridge contract instance is required.");
+  }
   return expect(
     runeBridgeContract.transferToBtc(
       tokenAddress,
@@ -215,12 +227,14 @@ export const getSignatures = async (federators: Signer[], runeBridge: Contract, 
 }
 
 /**
- * Calculates the received rune amount based on the transferred token amount and their respective decimals.
- * @returns {number} The received rune amount.
+ * Convert amount in Rune Tokens to amount in Runes (as the token and rune might have different decimals)
+ *
+ * @returns The converted amount in the destination token's precision (as a bigint).
+ *
  * @example
  * runeDecimals = 6
  * tokenDecimals = 18
- * transferredTokenAmount = 1e10 (which is 10,000,000,000 in base units)
+ * tokenAmount = 1e10 (which is 10,000,000,000 in base units)
  *
  * - Calculate Decimal Difference:
  * decimalDifference = 18 - 6 = 12
@@ -228,22 +242,154 @@ export const getSignatures = async (federators: Signer[], runeBridge: Contract, 
  * - Divide Transferred Token Amount by 10^12:
  * netRuneAmount = 1e10 / 10^12 = 1e10 / 1e12 = 1e-2 = 0.01
  */
-export const getNetRuneAmount = (runeDecimals: number, tokenDecimals: number, transferredTokenAmount: bigint): bigint => {
+export const getRuneAmount = (runeDecimals: number, tokenDecimals: number, tokenAmount: bigint): bigint => {
   if (tokenDecimals < runeDecimals) {
     throw new Error("Token decimals should be greater than or equal to rune decimals.");
   }
-  const decimalDifference = tokenDecimals - runeDecimals;
-  const divisor = BigInt(Math.pow(10, decimalDifference));
-  return transferredTokenAmount / divisor;
+  const decimalDifference = Number(tokenDecimals) - Number(runeDecimals);
+  const divisor =  decimalDifference > 0 ? BigInt(Math.pow(10, decimalDifference)) : BigInt(1);
+  return tokenAmount / divisor;
 }
-export const bigIntToScientificNotation = (bigIntValue: bigint) => {
-  if (bigIntValue === 0n) {
-    return "0";
+
+/**
+ * Convert amount in Runes to amount in Rune Tokens.
+ * @param runeDecimals
+ * @param tokenDecimals
+ * @param tokenAmount
+ */
+export const getTokenAmount = (runeDecimals: number, tokenDecimals: number, tokenAmount: bigint): bigint => {
+  if (tokenDecimals < runeDecimals) {
+    throw new Error("Token decimals should be greater than or equal to rune decimals.");
   }
+  const decimalDifference = Number(tokenDecimals) - Number(runeDecimals);
+  const divisor = BigInt(Math.pow(10, decimalDifference));
+  return tokenAmount * divisor;
+}
 
-  const strValue = bigIntValue.toString();
-  const exponent = strValue.length - 1;
-  const mantissa = strValue[0] + (strValue.length > 1 ? '.' + strValue.slice(1).replace(/0+$/, '') : '');
+/**
+ * Use this function to convert a big integer value to scientific notation. ( easier to read )
+ * @param bigIntValue
+ * @returns {string}
+ * @example
+ * bigIntToScientificNotation(BigInt(100)) // 1e2
+ */
+export const bigIntToScientificNotation = (bigIntValue: bigint) => {
+  const format = {
+    notation: 'scientific',
+    maximumFractionDigits: 20 // The default is 3, but 20 is the maximum supported by JS according to MDN.
+  };
+  // @ts-ignore
+  return bigIntValue.toLocaleString('en-US', format);
+}
 
-  return `${mantissa}e${exponent}`;
+/**
+ * Factory function to create test cases with fees for the `handlesRune` function.
+ */
+export const createHandlesFeesWithFeesTestCases = (): HandlesRuneWithFeeTestCaseProps[] => {
+  const defaultPolicy: EvmToBtcTransferPolicy = {
+    maxTokenAmount: ethers.parseUnits('1000', 18),
+    minTokenAmount: 1,
+    flatFeeBaseCurrency: 0,
+    flatFeeTokens: 0,
+    dynamicFeeTokens: 0,
+  };
+
+  // title, policyOverride, runeDecimals, amountToTransferDecimals, amountToTransfer, expectedTokenFee, baseCurrencyFee, isError
+  const testCasesParams: [string, Partial<EvmToBtcTransferPolicy>, number, number, number, number?, number?, boolean?][] = [
+    // Fees will be set in rune tokens base units or decimals
+    [handlesRuneWithDiffDecimalsAndflatFeeTokens, {flatFeeTokens: 30}, 18, 18, 100],
+    [handlesRuneWithDiffDecimalsAndflatFeeTokens, {flatFeeTokens: 10}, 23, 23, 100],
+    [handlesRuneWithDiffDecimalsAndflatFeeTokens, {flatFeeTokens: 20}, 8, 18, 100],
+    [handlesRuneWithDiffDecimalsAndDynamicFeeTokens, {dynamicFeeTokens: 300}, 8, 18, 100],
+    [handlesRuneWithDiffDecimalsAndDynamicFeeTokens, {dynamicFeeTokens: 100}, 8, 10, 5],
+    [handlesRuneWithDiffDecimalsAndDynamicFeeTokens, {dynamicFeeTokens: 100}, 8, 12, 1],
+    // ['',{}, 8, 9, 1, 0, undefined, true], // Pass undefined explicitly for baseCurrencyFee if not provided
+    // ['',{}, 8, 7, 1, 0, undefined, true],
+    // ['',{}, 9, 10, 1],
+    // ['',{}, 6, 10, 1, 0, undefined, true],
+    // ['',{}, 6, 13, 11],
+    // ['',{}, 8, 9, 18],
+    // ['',{}, 11, 6, 11],
+  ];
+
+  return testCasesParams.map((
+    [
+      title,
+      policyOverrides,
+      runeDecimals,
+      amountToTransferDecimals,
+      amountToTransfer,
+      expectedTokenFee = 0,
+      baseCurrencyFee = 0,
+      isError = false
+    ]) => {
+    const policy: EvmToBtcTransferPolicy = {
+      ...defaultPolicy,
+      ...policyOverrides,
+      maxTokenAmount: runeDecimals > 18 ? ethers.parseUnits('1000', runeDecimals) : defaultPolicy.maxTokenAmount,
+      minTokenAmount: runeDecimals > 18 ? ethers.parseUnits('1', runeDecimals) : defaultPolicy.minTokenAmount,
+    };
+    return {
+      title,
+      policy,
+      runeDecimals,
+      amountToTransferDecimals,
+      amountToTransfer: BigInt(amountToTransfer),
+      expectedTokenFee: BigInt(expectedTokenFee),
+      baseCurrencyFee: BigInt(baseCurrencyFee),
+      isError
+    };
+  });
+};
+
+/**
+ * Factory function to create test cases without fees for the `handlesRune` function.
+ */
+export const createHandlesFeesTestCases = (): HandlesRuneTestCaseProps[] => {
+  const differentDecimalsCases: [number, number, number, number?, number?, boolean?][] = [
+    // runeDecimals, amountToTransferDecimals, amountToTransfer, expectedTokenFee, baseCurrencyFee, isError
+    [18, 18, 100],
+    [23, 23, 100],
+    [8, 18, 100],
+    [8, 18, 1],
+    [8, 10, 1],
+    [8, 12, 1],
+    [8, 9, 1, 0, undefined, true], // Pass undefined explicitly for baseCurrencyFee if not provided
+    [8, 7, 1, 0, undefined, true],
+    [9, 10, 1],
+    [6, 10, 1, 0, undefined, true],
+    [8, 9, 11, 1e9]
+  ];
+  return differentDecimalsCases.map((
+    [
+      runeDecimals,
+      amountToTransferDecimals,
+      amountToTransfer,
+      expectedTokenFee = 0,
+      baseCurrencyFee = 0,
+      isError = false
+    ]) => ({
+    runeDecimals,
+    amountToTransferDecimals,
+    amountToTransfer: BigInt(amountToTransfer),
+    expectedTokenFee: BigInt(expectedTokenFee),
+    baseCurrencyFee: BigInt(baseCurrencyFee),
+    isError
+  }));
+};
+
+/**
+ * Function to split the transferred amount and tokenFee from the fractional part of the amount
+ * @param amount
+ * @param runeDecimals
+ * @param tokenDecimals
+ */
+export function extractFractionalAmount(amount: bigint, runeDecimals: number, tokenDecimals: number): {
+  fractionalAmountAsTokenFee: bigint
+} {
+  const baseDiff = Number(tokenDecimals) - Number(runeDecimals);
+  const divisor = baseDiff > 0 ? BigInt(Math.pow(10, baseDiff)) : BigInt(1);
+  const transferredAmount = (amount / divisor) * divisor;
+  const fractionalAmountAsTokenFee = amount - transferredAmount;
+  return {fractionalAmountAsTokenFee};
 }

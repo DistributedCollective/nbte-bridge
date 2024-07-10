@@ -5,7 +5,11 @@ import {Contract, Signer} from 'ethers';
 import {setBalance} from "@nomicfoundation/hardhat-network-helpers";
 import {
   bigIntToScientificNotation,
-  getNetRuneAmount,
+  createHandlesFeesTestCases,
+  createHandlesFeesWithFeesTestCases,
+  extractFractionalAmount,
+  getRuneAmount,
+  getTokenAmount,
   reasonNotAdmin,
   reasonNotEnoughSignatures,
   reasonNotFederator,
@@ -17,6 +21,7 @@ import {
   transferToBtcAndExpectEvent,
 } from "./utils";
 import {
+  defaultRune,
   reasonIncorrectBaseCurrencyFee,
   reasonNetRuneAmountIsZero,
   reasonRegistrationNotRequested,
@@ -227,12 +232,13 @@ describe("RuneBridge", function () {
     });
 
     describe('handlesFees', () => {
-      let testData: { policy: EvmToBtcTransferPolicy, expectedParams: TransferToBtcAndExpectEventProps }[];
+      // TODO: Need to fix this test, it's not working if we run it only. It's working if we run the TransferToBtc test.
       let runeBridge: Contract;
       let runeToken: Contract;
       let rune: number;
       let defaultPolicy: EvmToBtcTransferPolicy;
       let defaultExpectedParams: TransferToBtcAndExpectEventProps;
+      let testData: { policy: EvmToBtcTransferPolicy, expectedParams: TransferToBtcAndExpectEventProps }[];
       const testCases = [
         'test flat token fee',
         'test flat token fee',
@@ -244,8 +250,9 @@ describe("RuneBridge", function () {
 
       before(async () => {
         ({runeBridge, runeToken, rune} = await loadFixture(runeBridgeFixture));
-        await setRuneTokenBalance(runeToken, owner, 2000);
-        await runeToken.approve(await runeBridge.getAddress(), 2000);
+        const initFund = ethers.parseUnits("1000", 18);
+        await setRuneTokenBalance(runeToken, owner, initFund);
+        await runeToken.approve(await runeBridge.getAddress(), initFund);
         defaultPolicy = {
           runeBridgeContract: runeBridge,
           tokenAddress: await runeToken.getAddress(),
@@ -255,7 +262,6 @@ describe("RuneBridge", function () {
           flatFeeTokens: 0,
           dynamicFeeTokens: 0,
         }
-
         defaultExpectedParams = {
           transferAmount: 100,
           runeBridgeContract: runeBridge,
@@ -342,8 +348,9 @@ describe("RuneBridge", function () {
           // transfer a really small amount so that rounding for dynamic fees is required
           // f.ex. transfer 10 (not parseEther('10')!), dynamic fee = 1%
           // (in this case it should round up, fee should be 1 token base unit)
+          // TODO: verify with Rainer about the 1% fee and rounding up.
           {
-            policy: {...defaultPolicy, dynamicFeeTokens: 100},
+            policy: {...defaultPolicy, dynamicFeeTokens: 1000},
             expectedParams: {
               ...defaultExpectedParams,
               transferAmount: 10,
@@ -357,7 +364,7 @@ describe("RuneBridge", function () {
             }
           },
         ]
-      })
+      });
 
       it('trying to transfer less than fees', async () => {
         const policy = {
@@ -405,68 +412,53 @@ describe("RuneBridge", function () {
       });
     });
 
+    /*
+     * tests for these cases
+     * Rune Decimals | Token Decimals | Transferred token amount (base units)  | Received rune amount (base units) | Received fees (token base units)
+     * 18            | 18             | 100e18                                 | 100e18                            | 0
+     * 23            | 23             | 100e23                                 | 100e23                            | 0
+     *  8            | 18             | 100e18                                 | 100e8                             | 0
+     *  8            | 18             | 1e18                                   | 1e8                               | 0
+     *  8            | 18             | 1e10                                   | 1e0 = 1                           | 0
+     *  8            | 18             | 1e12                                   | 1e2 = 100                         | 0
+     *  8            | 18             | 1e9                                    | 0.1 = ERROR!                      | 0
+     *  8            | 18             | 1e7                                    | 0.01 = ERROR!                     | 0
+     *  9            | 18             | 1e10                                   | 1e1 = 10                          | 0
+     *  6            | 18             | 1e10                                   | 1e-2 = 0.01 = ERROR!              | 0
+     *  8            | 18             | 1e10 + 1e9 = 11000000000               | 1.1 = 1 (rest kept as fees)       | 1e9
+     * 100e8 = parseUnits(100, 8)
+     */
     describe('handlesRunesWithDifferentDivisibilities', () => {
       let runeBridge: Contract;
       let runeToken: Contract;
       let counter: number = 1;
-      let runeDivisibility: number = 8;
-      let rune: number = 162415998999;
+      let rune: number = defaultRune;
       beforeEach(async () => {
         ({runeBridge} = await loadFixture(runeBridgeFixture));
       })
-      /*
-       * tests for these cases
-       * Rune Decimals | Token Decimals | Transferred token amount (base units)  | Received rune amount (base units) | Received fees (token base units)
-       * 18            | 18             | 100e18                                 | 100e18                            | 0
-       * 23            | 23             | 100e23                                 | 100e23                            | 0
-       *  8            | 18             | 100e18                                 | 100e8                             | 0
-       *  8            | 18             | 1e18                                   | 1e8                               | 0
-       *  8            | 18             | 1e10                                   | 1e0 = 1                           | 0
-       *  8            | 18             | 1e12                                   | 1e2 = 100                         | 0
-       *  8            | 18             | 1e9                                    | 0.1 = ERROR!                      | 0
-       *  8            | 18             | 1e7                                    | 0.01 = ERROR!                     | 0
-       *  9            | 18             | 1e10                                   | 1e1 = 10                          | 0
-       *  6            | 18             | 1e10                                   | 1e-2 = 0.01 = ERROR!              | 0
-       *  8            | 18             | 1e10 + 1e9 = 11000000000               | 1.1 = 1 (rest kept as fees)       | 1e9
-       * Start by just testing data in the contract event
-       * 100e8 = parseUnits(100, 8)
-       */
-      const testCases = [
-        {runeDecimals: 18, amountToTransferDecimals: 18, amountToTransfer: 100, expectedFees: 0, isError: false},
-        {runeDecimals: 23, amountToTransferDecimals: 23, amountToTransfer: 100, expectedFees: 0, isError: false},
-        {runeDecimals: 8, amountToTransferDecimals: 18, amountToTransfer: 100, expectedFees: 0, isError: false},
-        {runeDecimals: 8, amountToTransferDecimals: 18, amountToTransfer: 1, expectedFees: 0, isError: false},
-        {runeDecimals: 8, amountToTransferDecimals: 10, amountToTransfer: 1, expectedFees: 0, isError: false},
-        {runeDecimals: 8, amountToTransferDecimals: 12, amountToTransfer: 1, expectedFees: 0, isError: false},
-        {runeDecimals: 8, amountToTransferDecimals: 9, amountToTransfer: 1, expectedFees: 0, isError: true},
-        {runeDecimals: 8, amountToTransferDecimals: 7, amountToTransfer: 1, expectedFees: 0, isError: true},
-        {runeDecimals: 9, amountToTransferDecimals: 10, amountToTransfer: 1, expectedFees: 0, isError: false},
-        {runeDecimals: 6, amountToTransferDecimals: 10, amountToTransfer: 1, expectedFees: 0, isError: true},
-        {runeDecimals: 8, amountToTransferDecimals: 9, amountToTransfer: 11, expectedFees: 1e9, isError: false}
-      ]
+      const testCases = createHandlesFeesTestCases();
       testCases.forEach((
         {
           runeDecimals,
           amountToTransferDecimals,
           amountToTransfer,
-          expectedFees,
+          expectedTokenFee,
+          baseCurrencyFee,
           isError
         }) => {
         const title = [
           `handle transfer case with runeDecimals: ${runeDecimals}`,
           `amountToTransferDecimals: ${amountToTransferDecimals}`,
           `amountToTransfer: ${amountToTransfer.toString()}`,
-          `expectedFees: ${bigIntToScientificNotation(BigInt(expectedFees))}`
+          `expectedFees: ${bigIntToScientificNotation(BigInt(expectedTokenFee))}`
         ].join(', ');
         it(title, async () => {
           const RuneToken = await ethers.getContractFactory("RuneToken");
-          runeDivisibility = runeDecimals;
-
           await runeBridge.registerRune(
             "TEST•LOHI",
             "LH",
             rune,
-            runeDivisibility,
+            runeDecimals,
           );
           const runeTokenAddress = await runeBridge.getTokenByRune(rune);
           runeToken = RuneToken.attach(runeTokenAddress);
@@ -476,9 +468,7 @@ describe("RuneBridge", function () {
           await runeToken.approve(await runeBridge.getAddress(), amount);
           const transferredTokenAmount = ethers.parseUnits(String(amountToTransfer), amountToTransferDecimals);
           const tokenDecimals = await runeToken.decimals();
-          const netRuneAmount = getNetRuneAmount(Number(runeDivisibility), Number(tokenDecimals), transferredTokenAmount);
-          const tokenFee = expectedFees;
-          const baseCurrencyFee = 0;
+          const netRuneAmount = getRuneAmount(Number(runeDecimals), Number(tokenDecimals), transferredTokenAmount);
 
           if (isError) {
             return expect(runeBridge.transferToBtc(
@@ -501,16 +491,95 @@ describe("RuneBridge", function () {
             netRuneAmount, // net amount
             btcAddress,
             baseCurrencyFee,
-            tokenFee,
+            expectedTokenFee,
           );
         });
-        rune += 1;
       });
-    })
-
+    });
 
     // TODO: test fees for tokens with different decimals, including small amounts
+    describe('handlesRunesWithDifferentDivisibilitiesAndFees', () => {
+      let runeBridge: Contract;
+      let runeToken: Contract;
+      let counter: number = 1;
+      let rune: number = defaultRune;
+      beforeEach(async () => {
+        ({runeBridge} = await loadFixture(runeBridgeFixture));
+      })
+      const testCasesWithFees = createHandlesFeesWithFeesTestCases();
+      testCasesWithFees.forEach(
+        ({
+           title,
+           policy,
+           runeDecimals,
+           amountToTransferDecimals,
+           amountToTransfer,
+           baseCurrencyFee,
+           isError
+         }) => {
+          it(title, async () => {
+            const RuneToken = await ethers.getContractFactory("RuneToken");
+            await runeBridge.registerRune(
+              "TEST•LOHI",
+              "LH",
+              rune,
+              runeDecimals,
+            );
+            const runeTokenAddress = await runeBridge.getTokenByRune(rune);
+            runeToken = RuneToken.attach(runeTokenAddress);
+
+            const amount = ethers.parseUnits("1000", runeDecimals < 18 ? 18 : runeDecimals);
+            await setRuneTokenBalance(runeToken, owner, amount);
+            await runeToken.approve(await runeBridge.getAddress(), amount);
+            const tokenDecimals = await runeToken.decimals();
+
+            const transferredTokenAmount = ethers.parseUnits(String(amountToTransfer), amountToTransferDecimals);
+            const {fractionalAmountAsTokenFee} = extractFractionalAmount(transferredTokenAmount, runeDecimals, tokenDecimals);
+            const flatTokenFee = getTokenAmount(Number(runeDecimals), Number(tokenDecimals), BigInt(policy.flatFeeTokens));
+            const dynamicFeeTokenDivisor = getTokenAmount(Number(runeDecimals), Number(tokenDecimals), BigInt(10_000));
+            const dynamicFeeToken = getTokenAmount(Number(runeDecimals), Number(tokenDecimals), BigInt(policy.dynamicFeeTokens));
+            const tokenFees = flatTokenFee + ((transferredTokenAmount * dynamicFeeToken) / dynamicFeeTokenDivisor) + fractionalAmountAsTokenFee;
+
+            const newPolicy: EvmToBtcTransferPolicy = {
+              ...policy,
+              runeBridgeContract: runeBridge,
+              tokenAddress: await runeToken.getAddress(),
+              flatFeeTokens: runeDecimals < 18 ? flatTokenFee : policy.flatFeeTokens,
+            };
+            await setEvmToBtcTransferPolicy(newPolicy);
+
+            const netRuneAmountBeforeAdjustment = transferredTokenAmount - tokenFees;
+            const netRuneAmount = getRuneAmount(Number(runeDecimals), Number(tokenDecimals), netRuneAmountBeforeAdjustment);
+            const expectedTokenFee = transferredTokenAmount - getTokenAmount(runeDecimals, tokenDecimals, netRuneAmount);
+
+            if (isError) {
+              return expect(runeBridge.transferToBtc(
+                await runeToken.getAddress(),
+                transferredTokenAmount,
+                btcAddress,
+              )).to.be.revertedWith(reasonNetRuneAmountIsZero);
+            }
+            await expect(runeBridge.transferToBtc(
+              await runeToken.getAddress(),
+              transferredTokenAmount,
+              btcAddress,
+            )).to.emit(runeBridge, "RuneTransferToBtc").withArgs(
+              counter,
+              await owner.getAddress(),
+              await runeToken.getAddress(),
+              rune,
+              transferredTokenAmount,
+              netRuneAmount, // net amount
+              btcAddress,
+              baseCurrencyFee,
+              expectedTokenFee,
+            );
+          });
+
+        });
+    });
   });
+
 
   describe("requestRuneRegistration", () => {
     it("works", async function () {
@@ -885,7 +954,6 @@ describe("RuneBridge", function () {
       );
     });
 
-    // TODO: test it sets the policy
     it('test it sets the policy', async () => {
       const {runeBridge} = await loadFixture(runeBridgeFixture);
       const policy: EvmToBtcTransferPolicy = {
@@ -996,8 +1064,6 @@ describe("RuneBridge", function () {
       );
     });
   });
-
-  // TODO: fees can be withdrawn
 
   // View methods, can be tested later with more detail
 

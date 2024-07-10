@@ -1,11 +1,11 @@
 import {BigNumberish, Contract} from "ethers";
 
 export type ContractProps = {
-  runeBridgeContract: Contract;
+  runeBridgeContract?: Contract;
   runeToken?: Contract;
 }
 export type TransferPolicy = {
-  tokenAddress: string;
+  tokenAddress?: string;
   maxTokenAmount: BigNumberish;
   minTokenAmount: BigNumberish;
   flatFeeBaseCurrency: BigNumberish;
@@ -31,3 +31,17 @@ export type TransferToBtcAndExpectEventProps = {
     tokenFee: BigNumberish,
   }
 } & ContractProps;
+
+export type HandlesRuneTestCaseProps = {
+  runeDecimals: number;
+  amountToTransferDecimals: number;
+  amountToTransfer: bigint;
+  expectedTokenFee: bigint;
+  baseCurrencyFee: bigint;
+  isError: boolean;
+};
+
+export type HandlesRuneWithFeeTestCaseProps = HandlesRuneTestCaseProps & {
+  title: string;
+  policy: EvmToBtcTransferPolicy;
+}
