@@ -9,7 +9,12 @@ import {
   HandlesRuneWithFeeTestCaseProps,
   TransferToBtcAndExpectEventProps
 } from "./types";
-import {handlesRuneWithDiffDecimalsAndDynamicFeeTokens, handlesRuneWithDiffDecimalsAndflatFeeTokens} from "./constants";
+import {
+  handlesRuneWithDiffDecimalsAndDynamicFeeTokens,
+  handlesRuneWithDiffDecimalsAndflatFeeTokens,
+  handlesRuneWithDiffDecimalsAndFlatFeeTokensAndDynamicFeeTokens,
+  xFail
+} from "./constants";
 
 const RUNE_TOKEN_BALANCE_MAPPING_SLOT = 0;
 const RUNE_TOKEN_TOTAL_SUPPLY_SLOT = 2;
@@ -309,10 +314,18 @@ export const createHandlesFeesWithFeesTestCases = (): HandlesRuneWithFeeTestCase
     [handlesRuneWithDiffDecimalsAndDynamicFeeTokens, {dynamicFeeTokens: 300}, 8, 18, 100],
     [handlesRuneWithDiffDecimalsAndDynamicFeeTokens, {dynamicFeeTokens: 100}, 8, 10, 5],
     [handlesRuneWithDiffDecimalsAndDynamicFeeTokens, {dynamicFeeTokens: 100}, 8, 12, 1],
-    // ['',{}, 8, 9, 1, 0, undefined, true], // Pass undefined explicitly for baseCurrencyFee if not provided
-    // ['',{}, 8, 7, 1, 0, undefined, true],
-    // ['',{}, 9, 10, 1],
-    // ['',{}, 6, 10, 1, 0, undefined, true],
+    [handlesRuneWithDiffDecimalsAndFlatFeeTokensAndDynamicFeeTokens, {
+      flatFeeTokens: 1,
+      dynamicFeeTokens: 100
+    }, 8, 10, 5],
+    [handlesRuneWithDiffDecimalsAndFlatFeeTokensAndDynamicFeeTokens, {
+      flatFeeTokens: 1,
+      dynamicFeeTokens: 150
+    }, 8, 12, 1],
+    [`${handlesRuneWithDiffDecimalsAndDynamicFeeTokens} (${xFail})`, {dynamicFeeTokens: 100}, 8, 7, 1, 0, undefined, true],
+    [`(${xFail})`, {}, 8, 9, 1, 0, undefined, true],
+    [`(${xFail})`, {}, 6, 10, 1, 0, undefined, true],
+    // ['', {}, 9, 10, 1],
     // ['',{}, 6, 13, 11],
     // ['',{}, 8, 9, 18],
     // ['',{}, 11, 6, 11],
