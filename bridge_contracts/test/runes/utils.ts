@@ -4,6 +4,7 @@ import {BigNumberish, Contract, Signer} from 'ethers';
 import {expect} from "chai";
 import {
   EvmToBtcTransferPolicy,
+  extractFractionalAmountProps,
   HandlesRuneTestCaseProps,
   HandlesRuneWithFeeTestCaseProps,
   TransferToBtcAndExpectEventProps
@@ -225,6 +226,13 @@ export const getSignatures = async (federators: Signer[], runeBridge: Contract, 
     return federator.signMessage(hashBytes)
   }));
 }
+const calculateDivisor = (runeDecimals: number, tokenDecimals: number): bigint => {
+  if (tokenDecimals < runeDecimals) {
+    throw new Error("Token decimals should be greater than or equal to rune decimals.");
+  }
+  const decimalDifference = Number(tokenDecimals) - Number(runeDecimals);
+  return BigInt(Math.pow(10, decimalDifference));
+}
 
 /**
  * Convert amount in Rune Tokens to amount in Runes (as the token and rune might have different decimals)
@@ -246,8 +254,7 @@ export const getRuneAmount = (runeDecimals: number, tokenDecimals: number, token
   if (tokenDecimals < runeDecimals) {
     throw new Error("Token decimals should be greater than or equal to rune decimals.");
   }
-  const decimalDifference = Number(tokenDecimals) - Number(runeDecimals);
-  const divisor =  decimalDifference > 0 ? BigInt(Math.pow(10, decimalDifference)) : BigInt(1);
+  const divisor = calculateDivisor(runeDecimals, tokenDecimals);
   return tokenAmount / divisor;
 }
 
@@ -261,8 +268,7 @@ export const getTokenAmount = (runeDecimals: number, tokenDecimals: number, toke
   if (tokenDecimals < runeDecimals) {
     throw new Error("Token decimals should be greater than or equal to rune decimals.");
   }
-  const decimalDifference = Number(tokenDecimals) - Number(runeDecimals);
-  const divisor = BigInt(Math.pow(10, decimalDifference));
+  const divisor = calculateDivisor(runeDecimals, tokenDecimals);
   return tokenAmount * divisor;
 }
 
@@ -384,9 +390,7 @@ export const createHandlesFeesTestCases = (): HandlesRuneTestCaseProps[] => {
  * @param runeDecimals
  * @param tokenDecimals
  */
-export function extractFractionalAmount(amount: bigint, runeDecimals: number, tokenDecimals: number): {
-  fractionalAmountAsTokenFee: bigint
-} {
+export const extractFractionalAmount = (amount: bigint, runeDecimals: number, tokenDecimals: number): extractFractionalAmountProps => {
   const baseDiff = Number(tokenDecimals) - Number(runeDecimals);
   const divisor = baseDiff > 0 ? BigInt(Math.pow(10, baseDiff)) : BigInt(1);
   const transferredAmount = (amount / divisor) * divisor;

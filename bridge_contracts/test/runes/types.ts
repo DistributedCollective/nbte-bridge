@@ -44,4 +44,8 @@ export type HandlesRuneTestCaseProps = {
 export type HandlesRuneWithFeeTestCaseProps = HandlesRuneTestCaseProps & {
   title: string;
   policy: EvmToBtcTransferPolicy;
-}
+};
+
+export type extractFractionalAmountProps = {
+  fractionalAmountAsTokenFee: bigint
+};
