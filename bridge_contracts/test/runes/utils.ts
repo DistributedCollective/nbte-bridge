@@ -13,6 +13,7 @@ import {
   handlesRuneWithDiffDecimalsAndDynamicFeeTokens,
   handlesRuneWithDiffDecimalsAndflatFeeTokens,
   handlesRuneWithDiffDecimalsAndFlatFeeTokensAndDynamicFeeTokens,
+  handlesRuneWithDiffDecimalsWithSmallAmountAndDynamicFeeTokens,
   xFail
 } from "./constants";
 
@@ -292,7 +293,7 @@ export const bigIntToScientificNotation = (bigIntValue: bigint) => {
   // @ts-ignore
   return bigIntValue.toLocaleString('en-US', format);
 }
-
+export const xFailCase = (title: string) => `${title} (${xFail})`;
 /**
  * Factory function to create test cases with fees for the `handlesRune` function.
  */
@@ -322,11 +323,14 @@ export const createHandlesFeesWithFeesTestCases = (): HandlesRuneWithFeeTestCase
       flatFeeTokens: 1,
       dynamicFeeTokens: 150
     }, 8, 12, 1],
-    [`${handlesRuneWithDiffDecimalsAndDynamicFeeTokens} (${xFail})`, {dynamicFeeTokens: 100}, 8, 7, 1, 0, undefined, true],
-    [`(${xFail})`, {}, 8, 9, 1, 0, undefined, true],
-    [`(${xFail})`, {}, 6, 10, 1, 0, undefined, true],
+    [xFailCase(handlesRuneWithDiffDecimalsAndDynamicFeeTokens), {dynamicFeeTokens: 100}, 8, 7, 1],
+    [xFailCase(handlesRuneWithDiffDecimalsAndDynamicFeeTokens), {dynamicFeeTokens: 100}, 8, 9, 1],
+    [xFailCase(handlesRuneWithDiffDecimalsAndFlatFeeTokensAndDynamicFeeTokens), {
+      flatFeeTokens: 1,
+      dynamicFeeTokens: 100
+    }, 6, 10, 1],
+    [handlesRuneWithDiffDecimalsWithSmallAmountAndDynamicFeeTokens,{dynamicFeeTokens: 100}, 6, 13, 1],
     // ['', {}, 9, 10, 1],
-    // ['',{}, 6, 13, 11],
     // ['',{}, 8, 9, 18],
     // ['',{}, 11, 6, 11],
   ];

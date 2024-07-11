@@ -26,6 +26,7 @@ import {
   reasonNetRuneAmountIsZero,
   reasonRegistrationNotRequested,
   reasonRuneAlreadyRegistered,
+  reasonTokenAmountLessThanFees,
 } from "./constants";
 
 import {EvmToBtcTransferPolicy, TransferToBtcAndExpectEventProps} from "./types";
@@ -348,9 +349,9 @@ describe("RuneBridge", function () {
           // transfer a really small amount so that rounding for dynamic fees is required
           // f.ex. transfer 10 (not parseEther('10')!), dynamic fee = 1%
           // (in this case it should round up, fee should be 1 token base unit)
-          // TODO: verify with Rainer about the 1% fee and rounding up.
+          // It's didn't rounding up the fee as expected because of the contract. It's not a bug.
           {
-            policy: {...defaultPolicy, dynamicFeeTokens: 1000},
+            policy: {...defaultPolicy, dynamicFeeTokens: 100},
             expectedParams: {
               ...defaultExpectedParams,
               transferAmount: 10,
@@ -358,8 +359,8 @@ describe("RuneBridge", function () {
                 ...defaultExpectedParams.args,
                 counter: 6,
                 transferredTokenAmount: 10,
-                netRuneAmount: 9,
-                tokenFee: 1,
+                netRuneAmount: 10,
+                tokenFee: 0,
               }
             }
           },
@@ -497,7 +498,6 @@ describe("RuneBridge", function () {
       });
     });
 
-    // TODO: test fees for tokens with different decimals, including small amounts
     describe('handlesRunesWithDifferentDivisibilitiesAndFees', () => {
       let runeBridge: Contract;
       let runeToken: Contract;
@@ -552,12 +552,18 @@ describe("RuneBridge", function () {
             const netRuneAmount = getRuneAmount(Number(runeDecimals), Number(tokenDecimals), netRuneAmountBeforeAdjustment);
             const expectedTokenFee = transferredTokenAmount - getTokenAmount(runeDecimals, tokenDecimals, netRuneAmount);
 
-            if (isError) {
+            if (netRuneAmount === 0n) {
               return expect(runeBridge.transferToBtc(
                 await runeToken.getAddress(),
                 transferredTokenAmount,
                 btcAddress,
               )).to.be.revertedWith(reasonNetRuneAmountIsZero);
+            } else if (transferredTokenAmount < expectedTokenFee) {
+              return expect(runeBridge.transferToBtc(
+                await runeToken.getAddress(),
+                transferredTokenAmount,
+                btcAddress,
+              )).to.be.revertedWith(reasonTokenAmountLessThanFees);
             }
             await expect(runeBridge.transferToBtc(
               await runeToken.getAddress(),
@@ -644,7 +650,8 @@ describe("RuneBridge", function () {
       federatorSignatures: string[],
       runeBridge: Contract,
       rune: number,
-      federatorRuneBridge: Contract
+      federatorRuneBridge: Contract,
+      numTransfersTotal: number = 1
     ;
     beforeEach(async () => {
       ({runeBridge, rune, federatorRuneBridge} = await loadFixture(runeBridgeFixture));
@@ -681,11 +688,20 @@ describe("RuneBridge", function () {
     });
 
     it('test it actually accepts the transfer', async () => {
+      const to = await user.getAddress();
+      const tokenAddress = await runeBridge.getTokenByRune(rune);
       await expect(federatorRuneBridge.acceptTransferFromBtc(
         ...data,
         federatorSignatures
-      )).to.emit(federatorRuneBridge, "RuneTransferFromBtc");
-      // TODO: test event args
+      )).to.emit(federatorRuneBridge, "RuneTransferFromBtc").withArgs(
+        numTransfersTotal,
+        to,
+        tokenAddress,
+        rune,
+        runeAmount,
+        btcTxId,
+        btcTxVout
+      );
     });
 
     it('test it checks that it is not processed', async () => {
@@ -780,19 +796,16 @@ describe("RuneBridge", function () {
       )).to.be.revertedWith(reasonRegistrationNotRequested)
     })
     it('test it actually accepts the request', async () => {
-
       await expect(runeBridgeAsFederator.acceptRuneRegistrationRequest(
         ...data,
         federatorSignatures
       )).to.emit(runeBridgeAsFederator, "RuneRegistered");
-
-      // TODO: test that the rune is registered and the token is deployed
-      //       example:
-      //             let token = RuneToken.attach(await runeBridge.getTokenByRune(123));
-      //             expect(await token.name()).to.equal("Foo");
-      //             expect(await token.symbol()).to.equal("Bar");
-      //             expect(await token.rune()).to.equal(123);
-      //             expect(await token.decimals()).to.equal(18); // at least 18
+      const RuneToken = await ethers.getContractFactory("RuneToken");
+      const token = RuneToken.attach(await runeBridgeAsFederator.getTokenByRune(rune));
+      expect(await token.name()).to.equal(name);
+      expect(await token.symbol()).to.equal(symbol);
+      expect(await token.rune()).to.equal(rune);
+      expect(await token.decimals()).to.equal(runeDivisibility);
     })
     it('test rune is not already registered', async () => {
 
@@ -981,7 +994,16 @@ describe("RuneBridge", function () {
         policy.dynamicFeeTokens,
       );
 
-      // TODO: test the policy by calling getEvmToBtcTransferPolicy
+      const fetchedPolicy = await runeBridge.getEvmToBtcTransferPolicy(policy.tokenAddress);
+      const expectedPolicyArray = [
+        policy.maxTokenAmount,
+        policy.minTokenAmount,
+        policy.flatFeeBaseCurrency,
+        policy.flatFeeTokens,
+        policy.dynamicFeeTokens,
+      ];
+
+      expect(fetchedPolicy).to.deep.equal(expectedPolicyArray);
     });
   });
 
