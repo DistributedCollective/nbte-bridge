@@ -647,11 +647,12 @@ describe("RuneBridge", function () {
       runeBridge: Contract,
       rune: number,
       federatorRuneBridge: Contract,
-      numTransfersTotal: number = 1
+      numTransfersTotal: number = 1,
+      runeToken: Contract
     ;
     beforeEach(async () => {
-      ({runeBridge, rune, federatorRuneBridge} = await loadFixture(runeBridgeFixture));
-      runeAmount = 100
+      ({runeBridge, rune, federatorRuneBridge, runeToken} = await loadFixture(runeBridgeFixture));
+      runeAmount = 100;
       btcTxId = "0x" + "0".repeat(64);
       btcTxVout = 0;
       data = [
@@ -672,7 +673,7 @@ describe("RuneBridge", function () {
       ])
     });
 
-    it('only callable by a federator', async () => {
+    it('is only callable by a federator', async () => {
       await expect(runeBridge.acceptTransferFromBtc(
         await user.getAddress(),
         rune,
@@ -683,13 +684,18 @@ describe("RuneBridge", function () {
       )).to.be.revertedWith(reasonNotFederator(await owner.getAddress()));
     });
 
-    it('test it actually accepts the transfer', async () => {
+    it('accepts the transfer', async () => {
       const to = await user.getAddress();
       const tokenAddress = await runeBridge.getTokenByRune(rune);
-      await expect(federatorRuneBridge.acceptTransferFromBtc(
+      const tokenAmount = await runeToken.getTokenAmount(runeAmount);
+      const supplyBefore = await runeToken.totalSupply();
+
+      const tx = federatorRuneBridge.acceptTransferFromBtc(
         ...data,
         federatorSignatures
-      )).to.emit(federatorRuneBridge, "RuneTransferFromBtc").withArgs(
+      );
+
+      await expect(tx).to.emit(federatorRuneBridge, "RuneTransferFromBtc").withArgs(
         numTransfersTotal,
         to,
         tokenAddress,
@@ -698,9 +704,16 @@ describe("RuneBridge", function () {
         btcTxId,
         btcTxVout
       );
+      await expect(tx).to.changeTokenBalances(
+        runeToken,
+        [to, runeBridge],
+        [tokenAmount, 0]
+      );
+      const supplyAfter = await runeToken.totalSupply();
+      expect(supplyAfter).to.equal(supplyBefore + tokenAmount);
     });
 
-    it('test it checks that it is not processed', async () => {
+    it('checks that the transfer is not already processed', async () => {
       await federatorRuneBridge.acceptTransferFromBtc(
         ...data,
         federatorSignatures
@@ -713,7 +726,7 @@ describe("RuneBridge", function () {
       )
     });
 
-    it('test it checks signatures', async () => {
+    it('checks signatures', async () => {
       // No signatures
       await expect(federatorRuneBridge.acceptTransferFromBtc(
         ...data,
