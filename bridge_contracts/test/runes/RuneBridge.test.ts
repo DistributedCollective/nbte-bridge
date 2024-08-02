@@ -232,7 +232,7 @@ describe("RuneBridge", function () {
       )).to.emit(runeBridge, "RuneTransferToBtc");
     });
 
-    describe('handlesFees', () => {
+    describe('handles fees', () => {
       // TODO: Need to fix this test, it's not working if we run it only. It's working if we run the TransferToBtc test.
       let runeBridge: Contract;
       let runeToken: Contract;
@@ -241,8 +241,8 @@ describe("RuneBridge", function () {
       let defaultExpectedParams: TransferToBtcAndExpectEventProps;
       let testData: { policy: EvmToBtcTransferPolicy, expectedParams: TransferToBtcAndExpectEventProps }[];
       const testCases = [
-        'test flat token fee',
-        'test flat token fee',
+        'test flat token fee 1',
+        'test flat token fee 2',
         'test dynamic token fee',
         'test flatFeeBaseCurrency',
         'test flat fee + dynamic fee (tokens)',
@@ -429,7 +429,7 @@ describe("RuneBridge", function () {
      *  8            | 18             | 1e10 + 1e9 = 11000000000               | 1.1 = 1 (rest kept as fees)       | 1e9
      * 100e8 = parseUnits(100, 8)
      */
-    describe('handlesRunesWithDifferentDivisibilities', () => {
+    describe('handles runes with different divisibilities', () => {
       let runeBridge: Contract;
       let runeToken: Contract;
       let counter: number = 1;
@@ -498,7 +498,7 @@ describe("RuneBridge", function () {
       });
     });
 
-    describe('handlesRunesWithDifferentDivisibilitiesAndFees', () => {
+    describe('handles runes with different divisibilities and fees', () => {
       let runeBridge: Contract;
       let runeToken: Contract;
       let counter: number = 1;
