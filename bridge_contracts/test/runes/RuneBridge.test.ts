@@ -249,7 +249,7 @@ describe("RuneBridge", function () {
         'test transfer a really small amount',
       ];
 
-      before(async () => {
+      beforeEach(async () => {
         ({runeBridge, runeToken, rune} = await loadFixture(runeBridgeFixture));
         const initFund = ethers.parseUnits("1000", 18);
         await setRuneTokenBalance(runeToken, owner, initFund);
@@ -281,6 +281,7 @@ describe("RuneBridge", function () {
             tokenFee: 0,
           }
         }
+        // TODO: it's a bit silly to create this test data every time in beforeEach
         testData = [
           {
             // test flat token fee
@@ -298,7 +299,6 @@ describe("RuneBridge", function () {
               transferAmount: 120,
               args: {
                 ...defaultExpectedParams.args,
-                counter: 2,
                 transferredTokenAmount: 120,
                 netRuneAmount: 90,
                 tokenFee: 30,
@@ -313,7 +313,6 @@ describe("RuneBridge", function () {
               ...defaultExpectedParams,
               args: {
                 ...defaultExpectedParams.args,
-                counter: 3,
                 netRuneAmount: 97,
                 tokenFee: 3,
               }
@@ -326,7 +325,6 @@ describe("RuneBridge", function () {
               ...defaultExpectedParams,
               args: {
                 ...defaultExpectedParams.args,
-                counter: 4,
                 baseCurrencyFee: ethers.parseEther('1'),
               }
             },
@@ -339,17 +337,15 @@ describe("RuneBridge", function () {
               transferAmount: 120,
               args: {
                 ...defaultExpectedParams.args,
-                counter: 5,
                 transferredTokenAmount: 120,
                 netRuneAmount: 101,
                 tokenFee: 19,
               }
             }
           },
-          // transfer a really small amount so that rounding for dynamic fees is required
+          // transfer a tiny amount so that rounding for dynamic fees is required
           // f.ex. transfer 10 (not parseEther('10')!), dynamic fee = 1%
-          // (in this case it should round up, fee should be 1 token base unit)
-          // It's didn't rounding up the fee as expected because of the contract. It's not a bug.
+          // Current implementation is to round down the fee.
           {
             policy: {...defaultPolicy, dynamicFeeTokens: 100},
             expectedParams: {
@@ -357,7 +353,6 @@ describe("RuneBridge", function () {
               transferAmount: 10,
               args: {
                 ...defaultExpectedParams.args,
-                counter: 6,
                 transferredTokenAmount: 10,
                 netRuneAmount: 10,
                 tokenFee: 0,
@@ -408,7 +403,7 @@ describe("RuneBridge", function () {
           const expectedRunBridgeBaseCurrencyBalance = runeBridgeBaseCurrencyBalanceBefore + BigInt(expectedParams.args.baseCurrencyFee);
           expect(expectedRunBridgeBaseCurrencyBalance).to.equal(runeBridgeBaseCurrencyBalanceAfter);
 
-          // TODO: OPTIONAL: test user balance change for base currency (should decrease by flatFeeBaseCurrency + tx cost, tricky to test, don't spend too much on it :P)
+          // TODO: OPTIONAL: test user balance change for base currency (should decrease by flatFeeBaseCurrency + tx cost, tricky to test
         });
       });
     });
