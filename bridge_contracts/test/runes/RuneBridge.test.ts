@@ -219,6 +219,20 @@ describe("RuneBridge", function () {
       )).to.be.revertedWith("Pausable: paused");
     });
 
+    it('transferToBtc reverts when a single rune is paused', async () => {
+      const {runeBridge, runeToken, rune} = await loadFixture(runeBridgeFixture);
+      await runeBridge.setRunePaused(rune, true);
+
+      await setRuneTokenBalance(runeToken, owner, 100);
+      await runeToken.approve(await runeBridge.getAddress(), 100);
+
+      await expect(runeBridge.transferToBtc(
+          await runeToken.getAddress(),
+          100,
+          "bc1qar0srrr7xfkvy5l643lydnw9re59gtzzwf5mdq"
+      )).to.be.revertedWith("rune paused");
+    });
+
     it('is callable by a normal user', async () => {
       const {runeBridge, userRuneToken, userRuneBridge} = await loadFixture(runeBridgeFixture);
 
@@ -748,6 +762,14 @@ describe("RuneBridge", function () {
         ]
       )).to.be.revertedWith(reasonNotFederator(await owner.getAddress()))
     });
+
+    it('reverts when the rune is paused', async () => {
+      await runeBridge.setRunePaused(rune, true);
+      await expect(federatorRuneBridge.acceptTransferFromBtc(
+          ...data,
+          federatorSignatures
+      )).to.be.revertedWith("rune paused");
+    });
   });
 
   describe("acceptRuneRegistrationRequest", () => {
@@ -1246,6 +1268,34 @@ describe("RuneBridge", function () {
     });
   });
 
+  describe("setRunePaused", () => {
+    it('changes the return value of isRunePaused', async () => {
+      const {runeBridge, rune} = await loadFixture(runeBridgeFixture);
+
+      expect(await runeBridge.isRunePaused(rune)).to.equal(false);
+
+      await expect(runeBridge.setRunePaused(rune, true)).to.emit(runeBridge, "RunePausedChanged").withArgs(
+          rune,
+          true,
+      );
+
+      expect(await runeBridge.isRunePaused(rune)).to.equal(true);
+
+      await expect(runeBridge.setRunePaused(rune, false)).to.emit(runeBridge, "RunePausedChanged").withArgs(
+          rune,
+          false,
+      );
+
+      expect(await runeBridge.isRunePaused(rune)).to.equal(false);
+    });
+
+    it('is only callable by an admin', async () => {
+        const {userRuneBridge, rune} = await loadFixture(runeBridgeFixture);
+
+        await expect(userRuneBridge.setRunePaused(rune, true)).to.be.revertedWith(reasonNotAdmin(await user.getAddress()));
+    });
+  });
+
   //     function getAcceptRuneRegistrationRequestMessageHash(
   //     function getAcceptTransferFromBtcMessageHash(
 
@@ -1253,4 +1303,32 @@ describe("RuneBridge", function () {
   //     function isValidBtcAddress(string calldata btcAddress) public view returns (bool) {
   //     function numRequiredFederators() public view returns (uint256) {
   //     function isFederator(address addressToCheck) external view returns (bool) {
+
+  describe('updates correctly', () => {
+    let runeBridgeV0: Contract;
+
+    beforeEach(async () => {
+      const RuneBridge_v00 = await ethers.getContractFactory("RuneBridge_v00");
+      runeBridgeV0 = await upgrades.deployProxy(
+          RuneBridge_v00,
+          [
+            "0x0000000000000000000000000000000000000000",
+            "0x0000000000000000000000000000000000000000",
+          ],
+      );
+    })
+
+    async function upgradeTo(contractName: string) {
+      const UpgradedRuneBridge = await ethers.getContractFactory(contractName);
+      return await upgrades.upgradeProxy(
+          await runeBridgeV0.getAddress(),
+          UpgradedRuneBridge,
+      );
+    }
+
+    it("upgrades to v1", async () => {
+      const runeBridgeV1 = await upgradeTo("RuneBridge");
+      expect(await runeBridgeV0.getAddress()).to.equal(await runeBridgeV1.getAddress());  // dummy check
+    });
+  });
 });
