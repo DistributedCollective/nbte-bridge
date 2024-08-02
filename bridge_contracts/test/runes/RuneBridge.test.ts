@@ -42,7 +42,7 @@ describe("RuneBridge", function () {
   let user: Signer;
   let federators: Signer[];
 
-  beforeEach(async function () {
+  before(async function () {
     [owner, federator1, federator2, federator3, user] = await ethers.getSigners();
     federators = [federator1, federator2, federator3];
   });
