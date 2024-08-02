@@ -239,15 +239,84 @@ describe("RuneBridge", function () {
       let rune: number;
       let defaultPolicy: EvmToBtcTransferPolicy;
       let defaultExpectedParams: TransferToBtcAndExpectEventProps;
-      let testData: { policy: EvmToBtcTransferPolicy, expectedParams: TransferToBtcAndExpectEventProps }[];
-      const testCases = [
-        'test flat token fee 1',
-        'test flat token fee 2',
-        'test dynamic token fee',
-        'test flatFeeBaseCurrency',
-        'test flat fee + dynamic fee (tokens)',
-        'test transfer a really small amount',
-      ];
+      const testData: {
+        name: string;
+        // the partials will be merged with defaults set in beforeEach
+        policy: Partial<EvmToBtcTransferPolicy>,
+        expectedParams: Partial<Omit<TransferToBtcAndExpectEventProps, 'args'>> & {args: Partial<TransferToBtcAndExpectEventProps["args"]>},
+      }[] = [
+        {
+          name: 'test flat token fee 1',
+          policy: {flatFeeTokens: 20},
+          expectedParams: {
+            args: {
+              netRuneAmount: 80,
+              tokenFee: 20
+            }
+          }
+        },
+        {
+          name: 'test flat token fee 2',
+          policy: {flatFeeTokens: 30},
+          expectedParams: {
+            transferAmount: 120,
+            args: {
+              transferredTokenAmount: 120,
+              netRuneAmount: 90,
+              tokenFee: 30,
+            }
+          },
+        },
+        {
+          name: 'test dynamic token fee',
+          policy: {dynamicFeeTokens: 300},
+          /// 300 / 10_000
+          expectedParams: {
+            args: {
+              transferredTokenAmount: 100,
+              netRuneAmount: 97,
+              tokenFee: 3,
+            }
+          },
+        },
+        {
+          name: 'test flatFeeBaseCurrency',
+          policy: {flatFeeBaseCurrency: ethers.parseEther('1')},
+          expectedParams: {
+            args: {
+              baseCurrencyFee: ethers.parseEther('1'),
+            }
+          },
+        },
+        // flat fee + dynamic fee (tokens)
+        {
+          name: 'test flat fee + dynamic fee (tokens)',
+          policy: {flatFeeTokens: 15, dynamicFeeTokens: 400},
+          expectedParams: {
+            transferAmount: 120,
+            args: {
+              transferredTokenAmount: 120,
+              netRuneAmount: 101,
+              tokenFee: 19,
+            }
+          }
+        },
+        // transfer a tiny amount so that rounding for dynamic fees is required
+        // f.ex. transfer 10 (not parseEther('10')!), dynamic fee = 1%
+        // Current implementation is to round down the fee.
+        {
+          name: 'test transfer a tiny amount',
+          policy: {dynamicFeeTokens: 100},
+          expectedParams: {
+            transferAmount: 10,
+            args: {
+              transferredTokenAmount: 10,
+              netRuneAmount: 10,
+              tokenFee: 0,
+            }
+          }
+        },
+      ]
 
       beforeEach(async () => {
         ({runeBridge, runeToken, rune} = await loadFixture(runeBridgeFixture));
@@ -281,85 +350,6 @@ describe("RuneBridge", function () {
             tokenFee: 0,
           }
         }
-        // TODO: it's a bit silly to create this test data every time in beforeEach
-        testData = [
-          {
-            // test flat token fee
-            policy: {...defaultPolicy, flatFeeTokens: 20},
-            expectedParams: {
-              ...defaultExpectedParams,
-              args: {...defaultExpectedParams.args, netRuneAmount: 80, tokenFee: 20}
-            }
-          },
-          {
-            // test flat token fee
-            policy: {...defaultPolicy, flatFeeTokens: 30},
-            expectedParams: {
-              ...defaultExpectedParams,
-              transferAmount: 120,
-              args: {
-                ...defaultExpectedParams.args,
-                transferredTokenAmount: 120,
-                netRuneAmount: 90,
-                tokenFee: 30,
-              }
-            },
-          },
-          {
-            // test dynamic fee
-            policy: {...defaultPolicy, dynamicFeeTokens: 300},
-            /// 300 / 10_000
-            expectedParams: {
-              ...defaultExpectedParams,
-              args: {
-                ...defaultExpectedParams.args,
-                netRuneAmount: 97,
-                tokenFee: 3,
-              }
-            },
-          },
-          {
-            // 'test flatFeeBaseCurrency'
-            policy: {...defaultPolicy, flatFeeBaseCurrency: ethers.parseEther('1')},
-            expectedParams: {
-              ...defaultExpectedParams,
-              args: {
-                ...defaultExpectedParams.args,
-                baseCurrencyFee: ethers.parseEther('1'),
-              }
-            },
-          },
-          // flat fee + dynamic fee (tokens)
-          {
-            policy: {...defaultPolicy, flatFeeTokens: 15, dynamicFeeTokens: 400},
-            expectedParams: {
-              ...defaultExpectedParams,
-              transferAmount: 120,
-              args: {
-                ...defaultExpectedParams.args,
-                transferredTokenAmount: 120,
-                netRuneAmount: 101,
-                tokenFee: 19,
-              }
-            }
-          },
-          // transfer a tiny amount so that rounding for dynamic fees is required
-          // f.ex. transfer 10 (not parseEther('10')!), dynamic fee = 1%
-          // Current implementation is to round down the fee.
-          {
-            policy: {...defaultPolicy, dynamicFeeTokens: 100},
-            expectedParams: {
-              ...defaultExpectedParams,
-              transferAmount: 10,
-              args: {
-                ...defaultExpectedParams.args,
-                transferredTokenAmount: 10,
-                netRuneAmount: 10,
-                tokenFee: 0,
-              }
-            }
-          },
-        ]
       });
 
       it('trying to transfer less than fees', async () => {
@@ -378,9 +368,20 @@ describe("RuneBridge", function () {
         )).to.be.revertedWith(reasonIncorrectBaseCurrencyFee);
       });
 
-      testCases.forEach((testCase, index) => {
-        it(testCase, async () => {
-          const {policy, expectedParams} = testData[index];
+      for (const testCase of testData) {
+        it(testCase.name, async () => {
+          const policy: EvmToBtcTransferPolicy = {
+            ...defaultPolicy,
+            ...testCase.policy,
+          }
+          const expectedParams: TransferToBtcAndExpectEventProps = {
+            ...defaultExpectedParams,
+            ...testCase.expectedParams,
+            args: {
+                ...defaultExpectedParams.args,
+                ...testCase.expectedParams.args,
+            }
+          }
           const ownerRuneTokenBalanceBefore = await runeToken.balanceOf(await owner.getAddress());
           const runeBridgeRuneTokenBalanceBefore = await runeToken.balanceOf(await runeBridge.getAddress());
           const runeBridgeBaseCurrencyBalanceBefore = await ethers.provider.getBalance(await runeBridge.getAddress());
@@ -405,7 +406,7 @@ describe("RuneBridge", function () {
 
           // TODO: OPTIONAL: test user balance change for base currency (should decrease by flatFeeBaseCurrency + tx cost, tricky to test
         });
-      });
+      }
     });
 
     /*
