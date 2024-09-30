@@ -163,10 +163,20 @@ class IntegrationTestHarness:
             logger.info("Mined.")
 
         logger.info("Checking macaroon availability (start of tapd)")
-        for federator_id in self.FEDERATORS:
-            tap_container = f"{federator_id}-tap"
-            macaroon_path = self.VOLUMES_PATH / "tapd" / tap_container / "data" / "regtest" / "admin.macaroon"
-            assert macaroon_path.exists()
+        for _ in range(10):
+            macaroons_ok = True
+            for federator_id in self.FEDERATORS:
+                tap_container = f"{federator_id}-tap"
+                macaroon_path = self.VOLUMES_PATH / "tapd" / tap_container / "data" / "regtest" / "admin.macaroon"
+                if not macaroon_path.exists():
+                    logger.info("Macaroon file %s not found, retrying", macaroon_path)
+                    macaroons_ok = False
+                    break
+            if macaroons_ok:
+                break
+            time.sleep(2)
+        else:
+            raise RuntimeError("Macaroons not found after 20 seconds")
 
     def _init_rune_bridge(self):
         # Rune bridge wallets
