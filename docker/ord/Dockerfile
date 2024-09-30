@@ -1,5 +1,5 @@
 # Forked from https://github.com/ordinals/ord/blob/master/Dockerfile
-FROM rust:1.76.0-bookworm as builder
+FROM rust:1.76.0-bookworm AS builder
 
 ARG ORD_GIT_CHECKOUT="0.18.2"
 ARG ORD_GIT_URL="https://github.com/ordinals/ord"

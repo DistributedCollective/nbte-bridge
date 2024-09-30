@@ -1872,6 +1872,7 @@ files = [
     {file = "pyord-0.3.0-cp38-abi3-macosx_10_12_x86_64.whl", hash = "sha256:fe51dda4f8ab588140ba3c740e03596ea6cb4d9cfafba5535b28e7ba620856eb"},
     {file = "pyord-0.3.0-cp38-abi3-macosx_11_0_arm64.whl", hash = "sha256:d7589c0b4ec738f408b2f47f369c0a91fde957d3732e6b726ca886b11a3f0c4b"},
     {file = "pyord-0.3.0-cp38-abi3-manylinux_2_17_x86_64.manylinux2014_x86_64.whl", hash = "sha256:fae813445e21adfaa881fc7d7331f94de1369f4f9a18048a39ca37c8c2e0deb3"},
+    {file = "pyord-0.3.0-cp38-abi3-manylinux_2_17_aarch64.manylinux2014_aarch64.whl", hash = "sha256:a760d2bb4c16f5cac04187202006aa95a3165467a6dc057e6a21317b781f1520"},
     {file = "pyord-0.3.0.tar.gz", hash = "sha256:19ba93510109a760599acdc8c237e3cef4ebaf7753bf12e87c7b85635155003f"},
 ]
 

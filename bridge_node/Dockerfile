@@ -1,4 +1,4 @@
-FROM python:3.11-slim-bookworm as base
+FROM python:3.11-slim-bookworm AS base
 
 WORKDIR /srv/bridge_backend
 
@@ -14,7 +14,7 @@ RUN apt-get update -y && apt-get --no-install-recommends -y install \
     libsecp256k1-dev \
     && rm -rf /var/lib/apt/lists/*
 
-FROM base as builder
+FROM base AS builder
 
 RUN apt-get update -y && apt-get --no-install-recommends -y install \
     libpq-dev \
@@ -36,7 +36,7 @@ COPY . .
 RUN poetry build && ./.venv/bin/pip install dist/*.whl
 
 # Discard build stage and only copy the packages to the final image
-FROM base as final
+FROM base AS final
 
 COPY --from=builder /srv/bridge_backend/.venv ./.venv
 COPY --from=builder /srv/bridge_backend/dist .
