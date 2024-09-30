@@ -477,23 +477,23 @@ services:
       - '8292:8089'
       - '12032:10029'
 
-  web:
-    image: bridge_frontend:latest
-    build:
-      context: bridge_frontend
-    restart: always
-    ports:
-      - 127.0.0.1:3003:3000
-    healthcheck:
-      test: curl -f http://localhost:3000 || exit 1
-      interval: 10s
-      timeout: 10s
-      retries: 5
-      start_period: 5s
-    labels:
-      - "traefik.http.routers.web.rule=PathPrefix(`/`)"
-      - "traefik.http.services.web.loadbalancer.server.port=3000"
-      - "traefik.enable=true"
+#  web:
+#    image: bridge_frontend:latest
+#    build:
+#      context: bridge_frontend
+#    restart: always
+#    ports:
+#      - 127.0.0.1:3003:3000
+#    healthcheck:
+#      test: curl -f http://localhost:3000 || exit 1
+#      interval: 10s
+#      timeout: 10s
+#      retries: 5
+#      start_period: 5s
+#    labels:
+#      - "traefik.http.routers.web.rule=PathPrefix(`/`)"
+#      - "traefik.http.services.web.loadbalancer.server.port=3000"
+#      - "traefik.enable=true"
 
   reverse-proxy:
     image: traefik:v2.11
