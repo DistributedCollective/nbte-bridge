@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: MIT
+// SPDX-License-Identifier: GPL-3.0-or-later
 // Forked from (and customized):
 // OpenZeppelin Contracts v4.3.2 (security/Pausable.sol)
 
