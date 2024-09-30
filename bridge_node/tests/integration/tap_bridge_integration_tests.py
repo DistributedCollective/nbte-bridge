@@ -93,6 +93,8 @@ def bridgeable_asset(
     return bridgeable_asset
 
 
+# TODO: don't skip if the TAP bridge is eventually implemented
+@pytest.mark.skip
 def test_integration_tap_to_rsk(
     tap_asset,
     alice_tap,
@@ -159,6 +161,8 @@ def test_integration_tap_to_rsk(
     assert transfers[0]["id"] == 1
 
 
+# TODO: don't skip if the TAP bridge is eventually implemented
+@pytest.mark.skip
 def test_integration_rsk_to_tap(
     tap_asset,
     alice_tap,
