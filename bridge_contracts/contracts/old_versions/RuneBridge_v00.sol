@@ -1,4 +1,8 @@
-// SPDX-License-Identifier: GPL-3.0-or-later
+// SPDX-License-Identifier: MIT
+// !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+// NOTE: This is an older version of the contract and it's only used to
+// test upgradeability.
+// !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 pragma solidity 0.8.19;
 
 import {NBTEBridgeAccessControllable} from "../shared/NBTEBridgeAccessControllable.sol";
@@ -10,13 +14,13 @@ import {Initializable} from "@openzeppelin/contracts-upgradeable/proxy/utils/Ini
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import {Address} from "@openzeppelin/contracts/utils/Address.sol";
-import {RuneToken} from "./RuneToken.sol";
+import {RuneToken} from "../runes/RuneToken.sol";
 
 
 /// @title The main Rune Bridge contract
 /// @notice Allows the federator network to mint new Rune Tokens based on rune deposits, and accepts the Rune Tokens
 //          back, which will burn them and instruct the federator network to release Runes.
-contract RuneBridge is Initializable, NBTEBridgeAccessControllable, Freezable, PausableUpgradeable {
+contract RuneBridge_v00 is Initializable, NBTEBridgeAccessControllable, Freezable, PausableUpgradeable {
     using SafeERC20 for IERC20;
     using SafeERC20 for RuneToken;
     using Address for address payable;
@@ -105,13 +109,6 @@ contract RuneBridge is Initializable, NBTEBridgeAccessControllable, Freezable, P
         uint256 flatFeeBaseCurrency,
         uint256 flatFeeTokens,
         uint256 dynamicFeeTokens
-
-    );
-
-    /// @dev emitted when a single Rune is paused or unpaused
-    event RunePausedChanged (
-        uint256 rune,
-        bool paused
     );
 
     /// @dev Denominator for the dynamic fee. uint16; 0.01 % granularity
@@ -147,11 +144,8 @@ contract RuneBridge is Initializable, NBTEBridgeAccessControllable, Freezable, P
     /// @dev EVM to BTC transfer policies by token. Index 0x0 is the default policy
     mapping(address => EvmToBtcTransferPolicy) public evmToBtcTransferPoliciesByToken;
 
-    /// @dev (Rune => boolean), settings this for a Rune number disables transfers in both directions.
-    mapping(uint256 => bool) public isRunePaused;
-
     // @dev storage gap for upgradeability
-    uint256[49] private __gap;
+    uint256[50] private __gap;
 
     /// @dev Checks that the Rune registration requests are enabled
     modifier whenRuneRegistrationRequestsEnabled() {
@@ -206,8 +200,6 @@ contract RuneBridge is Initializable, NBTEBridgeAccessControllable, Freezable, P
 
         uint256 rune = getRuneByToken(address(token)); // this validates that it has been registered
         require(rune == token.rune(), "rune mismatch"); // double validation for the paranoid
-
-        require(!isRunePaused[rune], "rune paused");
 
         require(btcAddressValidator.isValidBtcAddress(receiverBtcAddress), "invalid BTC address");
 
@@ -369,8 +361,6 @@ contract RuneBridge is Initializable, NBTEBridgeAccessControllable, Freezable, P
     onlyFederator
     whenNotFrozen
     {
-        require(!isRunePaused[rune], "rune paused");
-
         // validate signatures
         bytes32 messageHash = getAcceptTransferFromBtcMessageHash(
             to,
@@ -722,22 +712,6 @@ contract RuneBridge is Initializable, NBTEBridgeAccessControllable, Freezable, P
         require(address(newAccessControl) != address(0), "Cannot set to zero address");
         emit AccessControlChanged(address(accessControl), address(newAccessControl));
         _setAccessControl(address(newAccessControl));
-    }
-
-    /// @dev Updates the paused status for a single rune.
-    ///      This intentionally doesn't check that the rune is registered, so that we can start a rune in paused mode.
-    /// @param paused   New status for pausing
-    function setRunePaused(
-        uint256 rune,
-        bool paused
-    )
-    external
-    onlyAdmin
-    {
-        if (paused != isRunePaused[rune]) {
-            isRunePaused[rune] = paused;
-            emit RunePausedChanged(rune, paused);
-        }
     }
 
     // FREEZE / PAUSE API
