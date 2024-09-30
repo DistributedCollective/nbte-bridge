@@ -235,6 +235,7 @@ task(`${PREFIX}set-evm-to-btc-transfer-policy`)
         const oldPolicy = await bridge.getEvmToBtcTransferPolicy(token);
         console.log('Old policy:', oldPolicy);
 
+        let anyChanged = false;
         let newPolicy = {
             maxTokenAmount: oldPolicy.maxTokenAmount,
             minTokenAmount: oldPolicy.minTokenAmount,
@@ -244,18 +245,30 @@ task(`${PREFIX}set-evm-to-btc-transfer-policy`)
         };
         if (maxTokenAmount) {
             newPolicy.maxTokenAmount = BigInt(maxTokenAmount);
+            anyChanged = true;
         }
         if (minTokenAmount) {
             newPolicy.minTokenAmount = BigInt(minTokenAmount);
+            anyChanged = true;
         }
         if (flatFeeBaseCurrency) {
             newPolicy.flatFeeBaseCurrency = BigInt(flatFeeBaseCurrency);
+            anyChanged = true;
         }
         if (flatFeeTokens) {
             newPolicy.flatFeeTokens = BigInt(flatFeeTokens);
+            anyChanged = true;
         }
         if (dynamicFeeTokens) {
             newPolicy.dynamicFeeTokens = BigInt(dynamicFeeTokens);
+            anyChanged = true;
+        }
+
+        if (!anyChanged) {
+            console.log("No changes detected, skipping");
+            return {
+                success: true,
+            }
         }
 
         console.log(`Setting EVM to BTC transfer policy for token ${token}`);
