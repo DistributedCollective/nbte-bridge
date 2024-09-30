@@ -10,6 +10,6 @@ make init
 
 Run integration tests (requires docker and docker compose)
 ```
-cat POSTGRES_PASSWORD=myrandompassword > .env
+echo POSTGRES_PASSWORD=myrandompassword > .env
 make integration-test
 ```
