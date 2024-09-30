@@ -663,7 +663,7 @@ class RuneBridgeService:
         if not self.rune_bridge_contract.functions.isRuneRegistered(rune_number).call():
             self.logger.warning("Rune %s for deposit %s is not registered", rune_name, deposit_repr)
             return False
-        if not self.rune_bridge_contract.functions.isRunePaused(rune_number).call():
+        if self.rune_bridge_contract.functions.isRunePaused(rune_number).call():
             self.logger.warning("Rune %s for deposit %s is paused", rune_name, deposit_repr)
             return False
         if postage < self.config.btc_min_postage_sat:
