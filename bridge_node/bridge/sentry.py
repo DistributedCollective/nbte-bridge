@@ -22,6 +22,9 @@ def init_sentry(dsn):
                 if "does not match any of the allowed addresses" in str(exc_value):
                     logger.info("Ignoring Pyro5 error: %s", exc_value)
                     return None
+                if "cannot connect to" in str(exc_value):
+                    logger.info("Ignoring Pyro5 connection error: %s", exc_value)
+                    return None
 
         return event
 
